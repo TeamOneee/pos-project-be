@@ -66,19 +66,19 @@ Setiap module berisi `controller → service → repository` dan menyediakan pub
 
 ## 📚 Dokumentasi
 
-Seluruh dokumentasi project berada di folder **[`docs/`](../../docs/)** (root repository, relatif dari `apps/backend`). **Baca sebelum mulai implementasi.**
+Seluruh dokumentasi project berada di folder **[`docs/`](docs/)** (root repository, relatif dari `apps/backend`). **Baca sebelum mulai implementasi.**
 
 | Dokumen | Isi | Kapan Dibaca |
 |---|---|---|
-| [ProductOverview.md](../../docs/ProductOverview.md) | Gambaran produk: struktur bisnis (merchant/outlet/kasir), role & scope, batasan sistem, konsep AI | Wajib pertama kali — memahami *apa yang dibangun* |
-| [ERD.md](../../docs/ERD.md) | Entity Relationship Diagram: entitas, atribut, dan relasi antar tabel | Sebelum membuat/mengubah model Prisma |
-| [APICONTRACT.md](../../docs/APICONTRACT.md) | Kontrak API lengkap: semua endpoint, request/response, RBAC per role | Sebelum menulis controller/endpoint |
-| [openapi.json](../../openapi.json) | Versi machine-readable dari API contract (OpenAPI 3.0) | Untuk generate client / dokumentasi otomatis |
-| [Modular Architecture Guideline.md](../../docs/Modular%20Architecture%20Guideline.md) | **Aturan inti boundary**: ownership data, larangan akses repo module lain, cara komunikasi antar-module lewat port, dependency matrix | Wajib sebelum menulis kode lintas-module |
-| [MODULE_IMPLEMENTATION_GUIDE.md](../../docs/MODULE_IMPLEMENTATION_GUIDE.md) | Blueprint implementasi per module: file, endpoint, dan **logika yang harus dijalankan** tiap endpoint | Panduan harian saat mengimplementasikan module |
-| [COMMON.md](../../docs/COMMON.md) | Cara pakai semua utilitas di `src/common/` (guard, decorator, filter, BaseRepository, UnitOfWork, hashing) | Saat butuh guard/decorator/transaction |
-| [LLA.md](../../docs/LLA.md) | Low-Level Architecture: komponen (NestJS, PostgreSQL, rate limiting + AI worker, Docker) & strategi scalability | Memahami arsitektur sistem secara keseluruhan |
-| [ARCHITECTURE_DECISION_GUIDE.md](../../docs/ARCHITECTURE_DECISION_GUIDE.md) | Panduan kapan menaikkan level arsitektur (scale when needed: optimasi → horizontal scaling → microservice) | Saat mempertimbangkan scaling |
+| [ProductOverview.md](docs/ProductOverview.md) | Gambaran produk: struktur bisnis (merchant/outlet/kasir), role & scope, batasan sistem, konsep AI | Wajib pertama kali — memahami *apa yang dibangun* |
+| [ERD.md](docs/ERD.md) | Entity Relationship Diagram: entitas, atribut, dan relasi antar tabel | Sebelum membuat/mengubah model Prisma |
+| [APICONTRACT.md](docs/APICONTRACT.md) | Kontrak API lengkap: semua endpoint, request/response, RBAC per role | Sebelum menulis controller/endpoint |
+| [openapi.json](openapi.json) | Versi machine-readable dari API contract (OpenAPI 3.0) | Untuk generate client / dokumentasi otomatis |
+| [Modular Architecture Guideline.md](docs/Modular%20Architecture%20Guideline.md) | **Aturan inti boundary**: ownership data, larangan akses repo module lain, cara komunikasi antar-module lewat port, dependency matrix | Wajib sebelum menulis kode lintas-module |
+| [MODULE_IMPLEMENTATION_GUIDE.md](docs/MODULE_IMPLEMENTATION_GUIDE.md) | Blueprint implementasi per module: file, endpoint, dan **logika yang harus dijalankan** tiap endpoint | Panduan harian saat mengimplementasikan module |
+| [COMMON.md](docs/COMMON.md) | Cara pakai semua utilitas di `src/common/` (guard, decorator, filter, BaseRepository, UnitOfWork, hashing) | Saat butuh guard/decorator/transaction |
+| [LLA.md](docs/LLA.md) | Low-Level Architecture: komponen (NestJS, PostgreSQL, rate limiting + AI worker, Docker) & strategi scalability | Memahami arsitektur sistem secara keseluruhan |
+| [ARCHITECTURE_DECISION_GUIDE.md](docs/ARCHITECTURE_DECISION_GUIDE.md) | Panduan kapan menaikkan level arsitektur (scale when needed: optimasi → horizontal scaling → microservice) | Saat mempertimbangkan scaling |
 
 ### Alur baca yang disarankan
 
