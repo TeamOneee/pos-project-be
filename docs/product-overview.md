@@ -1,26 +1,26 @@
-\#\# 1\. Overview
+## 1. Overview
 
-Project ini merupakan sistem \*\*Point of Sale (POS)\*\* untuk bisnis yang memiliki satu merchant dengan beberapa outlet.
+Project ini merupakan sistem **Point of Sale (POS)** untuk bisnis yang memiliki satu merchant dengan beberapa outlet.
 
 Sistem digunakan untuk membantu proses operasional penjualan, pengelolaan produk dan stok, pengelolaan karyawan, pengelolaan outlet, pencatatan transaksi, serta penyediaan insight bisnis menggunakan AI.
 
 Arsitektur bisnis utama yang digunakan adalah:
 
-\- Single Merchant  
-\- Multi Outlet  
-\- Multi Kasir  
-\- Stock Management  
-\- Owner dan Admin berada pada scope Merchant  
-\- Kasir berada pada scope Outlet  
-\- AI Insight dapat dijalankan secara manual oleh Owner dengan batasan penggunaan
+- Multi-Tenant SaaS (banyak Merchant; satu Owner = satu Merchant)  
+- Multi Outlet  
+- Multi Kasir  
+- Stock Management  
+- Owner dan Admin berada pada scope Merchant  
+- Kasir berada pada scope Outlet  
+- AI Insight dapat dijalankan secara manual oleh Owner dengan batasan penggunaan
 
-\---
+---
 
-\#\# 2\. Struktur Bisnis
+## 2. Struktur Bisnis
 
 Struktur bisnis dalam sistem adalah:
 
-\`\`\`text  
+```text  
 Merchant  
 │  
 ├── Owner  
@@ -43,9 +43,9 @@ Merchant
 
 ### **2.1 Merchant**
 
-Sistem menggunakan konsep **single merchant**.
+Sistem merupakan **multi-tenant SaaS**: platform dapat melayani banyak Merchant, namun setiap Owner memiliki tepat satu Merchant (FR-TEN-002).
 
-Artinya, satu sistem yang dibangun digunakan untuk satu merchant yang memiliki beberapa outlet.
+Artinya, satu Merchant memiliki beberapa Outlet, dan seluruh data (katalog, inventory, transaksi) di-scope per Merchant.
 
 Merchant menjadi entitas utama yang menaungi:
 
@@ -58,7 +58,7 @@ Merchant menjadi entitas utama yang menaungi:
 
 ---
 
-## **3\. Role dan Scope Pengguna**
+## **3. Role dan Scope Pengguna**
 
 Sistem memiliki tiga role utama:
 
@@ -154,7 +154,7 @@ Fungsi utama Cashier:
 
 ---
 
-# **4\. Product dan Category**
+# **4. Product dan Category**
 
 Product berada pada **scope Merchant**.
 
@@ -172,7 +172,7 @@ Category dibuat sebagai entitas terpisah agar satu category dapat digunakan oleh
 
 ---
 
-# **5\. Stock Management**
+# **5. Stock Management**
 
 Sistem **menggunakan stock management**.
 
@@ -188,7 +188,7 @@ Outlet C → 5
 
 Karena itu, stock dikelola berdasarkan kombinasi:
 
-Outlet \+ Product
+Outlet + Product
 
 Secara konsep:
 
@@ -202,7 +202,7 @@ Stock akan berkaitan dengan proses transaksi dan checkout.
 
 ---
 
-# **6\. Transaction**
+# **6. Transaction**
 
 Setiap proses checkout oleh Cashier akan menghasilkan Transaction.
 
@@ -243,7 +243,7 @@ Harga pada saat transaksi perlu disimpan agar histori transaksi tetap valid apab
 
 ---
 
-# **7\. AI Insight**
+# **7. AI Insight**
 
 Sistem menyediakan fitur **AI Insight** untuk membantu Owner memahami kondisi bisnis.
 
@@ -265,13 +265,13 @@ AI Insight berada pada **scope Merchant**, karena analisis dapat menggunakan dat
 
 Hubungan antara Merchant dan AI Insight bersifat **1:1**.
 
-Sistem **tidak menyimpan histori analisis**. AI murni digunakan untuk memberikan **penjelasan / reasoning bisnis pada hari tersebut**. Setiap analisis baru (maksimal 1x/hari) akan **meng-update insight yang sama** pada merchant.
+Sistem **tidak menyimpan histori analisis**. AI murni digunakan untuk memberikan **penjelasan / reasoning bisnis pada hari tersebut**. Setiap analisis baru akan **meng-update insight yang sama** pada merchant.
 
 Karena tidak ada histori, fitur seperti daftar insight lama atau dismiss tidak diperlukan.
 
 ---
 
-# **8\. AI Trigger dan Usage Limitation**
+# **8. AI Trigger dan Usage Limitation**
 
 Analisis AI **tidak dijalankan secara otomatis menggunakan cron job**.
 
@@ -285,7 +285,7 @@ Owner
   ↓  
 System  
   │  
-  │ Check daily limit  
+  │ Check if analysis already running  
   ↓  
 AI Analysis  
   │  
@@ -296,9 +296,7 @@ Hasil analisis akan **meng-update insight merchant** (bukan membuat data baru). 
 
 ### **Batasan AI**
 
-Owner hanya dapat menjalankan analisis AI:
-
-> **Maksimal satu kali dalam satu hari.**
+Tidak ada **limit harian** — Owner dapat memicu analisis kapan saja (FR-AI-012, ASM-010, UR-AI-010). Mencegah request berulang dilakukan lewat **idempotency**: jika job analisis masih berjalan untuk merchant, request baru ditolak/409 hingga selesai.
 
 Tujuan dari pembatasan ini:
 
@@ -313,26 +311,22 @@ Contoh:
 10 August  
 Owner → Analyze AI ✅
 
-10 August  
-Owner → Analyze AI ❌  
-Reason: Daily limit reached
-
 11 August  
-Owner → Analyze AI ✅
+Owner → Analyze AI ✅ (tanpa batas harian)
 
 ---
 
-# **9\. Batasan Sistem**
+# **9. Batasan Sistem**
 
 Batasan berikut menjadi scope yang disepakati untuk project.
 
 ### **Business Structure**
 
-* Sistem menggunakan **single merchant**.  
+* Sistem merupakan **multi-tenant SaaS** — dapat melayani banyak merchant; setiap Owner memiliki tepat satu merchant pada MVP (FR-TEN-002).  
 * Satu merchant dapat memiliki banyak outlet.  
 * Satu outlet dapat memiliki banyak cashier.  
 * Satu cashier hanya terhubung dengan satu outlet.  
-* Owner berada pada scope merchant.  
+* Owner berada pada scope merchant dan mengelola Merchant/Outlet/staf.  
 * Admin berada pada scope merchant dan dapat mengelola beberapa outlet.  
 * Cashier berada pada scope outlet.
 
@@ -367,7 +361,7 @@ Batasan berikut menjadi scope yang disepakati untuk project.
 
 ---
 
-# **10\. Scope yang Tidak Ditangani**
+# **10. Scope yang Tidak Ditangani**
 
 Project ini tidak berfokus pada:
 
@@ -381,7 +375,7 @@ Project ini tidak berfokus pada:
 
 ---
 
-# **11\. Prinsip Arsitektur**
+# **11. Prinsip Arsitektur**
 
 Arsitektur sistem akan dikembangkan dengan mempertimbangkan:
 
@@ -420,7 +414,7 @@ tetap diprioritaskan agar responsif dan konsisten.
 
 ---
 
-# **12\. Prinsip Pengembangan**
+# **12. Prinsip Pengembangan**
 
 Dokumen ini digunakan sebagai **single source of truth** untuk memahami konteks dan batasan project.
 
@@ -430,11 +424,11 @@ Jika terdapat perubahan requirement, dokumen ini perlu diperbarui agar seluruh a
 
 ---
 
-# **13\. Ringkasan Keputusan**
+# **13. Ringkasan Keputusan**
 
 | Aspek | Keputusan |
 | ----- | ----- |
-| Merchant | Single Merchant |
+| Merchant | Multi-Tenant (satu Owner = satu Merchant) |
 | Outlet | Multi Outlet |
 | Cashier | Multi Cashier |
 | Cashier Scope | 1 Cashier → 1 Outlet |
@@ -444,7 +438,7 @@ Jika terdapat perubahan requirement, dokumen ini perlu diperbarui agar seluruh a
 | Category | Entitas terpisah |
 | Payment Gateway | Tidak ditangani |
 | AI Trigger | Manual oleh Owner |
-| AI Limit | 1x per hari per Merchant |
+| AI Limit | Tidak ada limit harian (FR-AI-012, ASM-010) |
 | AI Cron Job | Tidak digunakan sebagai trigger utama |
 | AI Scope | Merchant |
 | Transaction | Terhubung dengan Outlet & Cashier |

@@ -1,6 +1,6 @@
 # **Modular Architecture Guideline**
 
-## **1\. Tujuan**
+## **1. Tujuan**
 
 Sistem dibangun menggunakan pendekatan **modular monolith** dengan tujuan:
 
@@ -21,7 +21,7 @@ Pendekatan ini sejalan dengan prinsip **scale when needed**, di mana multiple in
 
 ---
 
-# **2\. Arsitektur Dasar**
+# **2. Arsitektur Dasar**
 
 Struktur dasar setiap module tetap menggunakan pola yang familiar:
 
@@ -49,7 +49,7 @@ Yang berubah adalah **batas antar-module**.
 
 ---
 
-# **3\. Apa yang Dimaksud Module?**
+# **3. Apa yang Dimaksud Module?**
 
 Module adalah kumpulan code yang memiliki **satu tanggung jawab/domain bisnis tertentu**.
 
@@ -82,7 +82,7 @@ Sebuah module harus memiliki:
 
 ---
 
-# **4\. Aturan Utama Module**
+# **4. Aturan Utama Module**
 
 ## **Rule 1 — Setiap module harus memiliki ownership yang jelas**
 
@@ -106,7 +106,7 @@ Module lain **tidak boleh mengambil alih business logic atau repository dari mod
 
 ---
 
-# **5\. Rule 2 — Repository bersifat internal terhadap module**
+# **5. Rule 2 — Repository bersifat internal terhadap module**
 
 Ini salah satu aturan PALING PENTING.
 
@@ -147,7 +147,7 @@ Dengan kata lain:
 
 ---
 
-# **6\. Rule 3 — Module berkomunikasi melalui public contract**
+# **6. Rule 3 — Module berkomunikasi melalui public contract**
 
 Module harus menyediakan operasi yang memang dibutuhkan module lain.
 
@@ -171,7 +171,7 @@ Checkout cukup mengetahui:
 
 ---
 
-# **7\. Rule 4 — Service tetap menjadi pusat business logic**
+# **7. Rule 4 — Service tetap menjadi pusat business logic**
 
 Jangan memindahkan business logic ke Controller.
 
@@ -202,7 +202,7 @@ Controller hanya bertugas:
 
 ---
 
-# **8\. Rule 5 — Jangan mengakses database module lain secara langsung**
+# **8. Rule 5 — Jangan mengakses database module lain secara langsung**
 
 Misalnya Checkout membutuhkan data Inventory.
 
@@ -224,7 +224,7 @@ Dengan begitu ownership tetap berada di Inventory.
 
 ---
 
-# **9\. Rule 6 — Hindari circular dependency**
+# **9. Rule 6 — Hindari circular dependency**
 
 Dependency sebaiknya memiliki arah yang jelas.
 
@@ -249,7 +249,7 @@ terjadi terlalu sering, kemungkinan boundary module belum tepat.
 
 ---
 
-# **10\. Rule 7 — Jangan membuat module terlalu bergantung pada module lain**
+# **10. Rule 7 — Jangan membuat module terlalu bergantung pada module lain**
 
 Misalnya Checkout membutuhkan:
 
@@ -274,7 +274,7 @@ Jika bukan, gunakan public contract module yang bersangkutan.
 
 ---
 
-# **11\. Boundary Setiap Module**
+# **11. Boundary Setiap Module**
 
 Berikut boundary yang digunakan dalam sistem POS.
 
@@ -420,13 +420,13 @@ AI Insight berada pada **scope Merchant**.
 
 ### **1:1 dan Tanpa Histori**
 
-Satu merchant hanya memiliki **satu insight** (1:1). Analisis AI berjalan maksimal **1x/hari** (manual oleh Owner) dan **tidak menyimpan histori** — hasil analisis terbaru meng-update insight yang sama.
+Satu merchant hanya memiliki **satu insight** (1:1). Analisis AI dijalankan manual oleh **Owner tanpa batas harian** (FR-AI-012, ASM-010) dan **tidak menyimpan histori** — hasil analisis terbaru meng-update insight yang sama. Antrian job (BullMQ) memastikan tidak ada analisis ganda yang berjalan bersamaan.
 
 Karena tidak ada histori, tidak ada endpoint list/dismiss. Owner hanya membaca hasil analisis hari itu.
 
 ### **Owns**
 
-ai\_insights
+ai_insights
 
 ### **Dependency**
 
@@ -440,7 +440,7 @@ AnalyticsService
 
 ---
 
-# **12\. Product Module**
+# **12. Product Module**
 
 ### **Responsibility**
 
@@ -494,7 +494,7 @@ Maka quantity lebih tepat menjadi bagian dari **Inventory**, bukan Product.
 
 ---
 
-# **13\. Inventory Module**
+# **13. Inventory Module**
 
 ### **Responsibility**
 
@@ -514,7 +514,7 @@ stock movement
 
 Jika nantinya membutuhkan audit:
 
-stock\_movements
+stock_movements
 
 juga menjadi bagian Inventory.
 
@@ -527,18 +527,18 @@ interface InventoryPort {
         outletId: string,  
         productId: string,  
         quantity: number  
-    ): Promise\<boolean\>;
+    ): Promise\<boolean>;
 
     decreaseStock(  
         outletId: string,  
         productId: string,  
         quantity: number  
-    ): Promise\<void\>;  
+    ): Promise\<void>;  
 }
 
 ---
 
-# **14\. Transaction / Checkout Module**
+# **14. Transaction / Checkout Module**
 
 Untuk sistem POS, Checkout merupakan salah satu kandidat module yang berpotensi memiliki workload tinggi.
 
@@ -569,7 +569,7 @@ inventory.decreaseStock(...)
 
 ---
 
-# **15\. Contoh Hubungan Checkout dan Inventory**
+# **15. Contoh Hubungan Checkout dan Inventory**
 
 ### **Struktur:**
 
@@ -609,7 +609,7 @@ PostgreSQL
 
 ---
 
-# **16\. Apa Itu Interface / Port?**
+# **16. Apa Itu Interface / Port?**
 
 Interface adalah **kontrak kemampuan yang diberikan atau dibutuhkan sebuah module**.
 
@@ -621,13 +621,13 @@ export interface InventoryPort {
         outletId: string,  
         productId: string,  
         quantity: number  
-    ): Promise\<boolean\>;
+    ): Promise\<boolean>;
 
     decreaseStock(  
         outletId: string,  
         productId: string,  
         quantity: number  
-    ): Promise\<void\>;  
+    ): Promise\<void>;  
 }
 
 Checkout tidak peduli bagaimana Inventory mengimplementasikan fungsi tersebut.
@@ -639,7 +639,7 @@ decreaseStock()
 
 ---
 
-# **17\. Kenapa Interface Berguna untuk Microservice?**
+# **17. Kenapa Interface Berguna untuk Microservice?**
 
 Sekarang:
 
@@ -681,7 +681,7 @@ di server lain
 
 ---
 
-# **18\. Jangan Semua Hal Dibuat Interface**
+# **18. Jangan Semua Hal Dibuat Interface**
 
 Interface **tidak perlu dibuat untuk setiap class**.
 
@@ -708,7 +708,7 @@ AI → AI Provider
 
 ---
 
-# **19\. Struktur Folder yang Disarankan**
+# **19. Struktur Folder yang Disarankan**
 
 Untuk tahap awal, gunakan struktur yang masih familiar.
 
@@ -785,7 +785,7 @@ src/
 
 ---
 
-# **20\. Apa yang Boleh Ada di `shared`?**
+# **20. Apa yang Boleh Ada di `shared`?**
 
 `shared` hanya untuk sesuatu yang benar-benar **generic**.
 
@@ -815,7 +815,7 @@ Karena akhirnya `shared` berubah menjadi:
 
 ---
 
-# **21\. Database Boundary**
+# **21. Database Boundary**
 
 Walaupun sekarang kita menggunakan **satu PostgreSQL**, secara logical ownership harus tetap jelas.
 
@@ -839,7 +839,7 @@ PostgreSQL
 ├── transactions  
 │       → Transaction Module  
 │  
-└── ai\_insights  
+└── ai_insights  
         → AI Insight Module
 
 Satu database **tidak berarti semua module bebas mengakses semua tabel**.
@@ -850,12 +850,12 @@ Rule:
 
 ---
 
-# **22\. Foreign Key Tidak Berarti Module Boleh Mengakses Repository**
+# **22. Foreign Key Tidak Berarti Module Boleh Mengakses Repository**
 
 Misalnya:
 
 inventory  
-product\_id → products.id
+product_id → products.id
 
 Boleh saja database memiliki foreign key.
 
@@ -877,7 +877,7 @@ atau desain ulang supaya Inventory tidak perlu mengetahui detail Product.
 
 ---
 
-# **23\. API Contract Berbeda dengan Internal Module Contract**
+# **23. API Contract Berbeda dengan Internal Module Contract**
 
 Ada dua jenis contract.
 
@@ -917,7 +917,7 @@ Checkout Microservice
 
 ---
 
-# **24\. Synchronous Communication**
+# **24. Synchronous Communication**
 
 Untuk operasi yang harus selesai sebelum request dilanjutkan, gunakan komunikasi synchronous.
 
@@ -941,7 +941,7 @@ Karena customer harus tahu:
 
 ---
 
-# **25\. Asynchronous Communication**
+# **25. Asynchronous Communication**
 
 Untuk proses yang tidak harus selesai dalam request utama, gunakan asynchronous processing.
 
@@ -967,7 +967,7 @@ Dengan begitu proses AI tidak menghambat operasi transactional seperti kasir. Ra
 
 ---
 
-# **26\. Jangan Memaksakan Async ke Semua Module**
+# **26. Jangan Memaksakan Async ke Semua Module**
 
 Tidak semua proses harus asynchronous.
 
@@ -990,7 +990,7 @@ Gunakan asynchronous ketika prosesnya memang tidak perlu selesai dalam HTTP requ
 
 ---
 
-# **27\. Read dan Write Workload**
+# **27. Read dan Write Workload**
 
 Module juga perlu dibedakan berdasarkan karakter workload.
 
@@ -1030,7 +1030,7 @@ Read replica cocok untuk dashboard, analytics, historical analysis, dan preproce
 
 ---
 
-# **28\. Dependency Matrix**
+# **28. Dependency Matrix**
 
 Supaya gampang menentukan hubungan antar-module, gunakan tabel seperti ini:
 
@@ -1067,7 +1067,7 @@ InventoryService
 
 ---
 
-# **29\. Contoh Dependency Checkout**
+# **29. Contoh Dependency Checkout**
 
                         CHECKOUT  
                             │  
@@ -1092,7 +1092,7 @@ untuk data yang memang menjadi ownership Checkout.
 
 ---
 
-# **30\. Rule untuk Setiap Pull Request**
+# **30. Rule untuk Setiap Pull Request**
 
 Sebelum merge code, cek:
 
@@ -1121,7 +1121,7 @@ Sebelum merge code, cek:
 
 ---
 
-# **31\. Prinsip Migrasi ke Microservice**
+# **31. Prinsip Migrasi ke Microservice**
 
 **Jangan membuat microservice sekarang hanya untuk "persiapan".**
 
@@ -1142,9 +1142,9 @@ Contoh sekarang:
 
 Setelah testing:
 
-Checkout CPU \= tinggi  
-Inventory CPU \= rendah  
-Product CPU \= rendah
+Checkout CPU = tinggi  
+Inventory CPU = rendah  
+Product CPU = rendah
 
 maka Checkout dapat menjadi kandidat scaling.
 
@@ -1156,7 +1156,7 @@ Kemudian:
                    │  
           ┌────────┴────────┐  
           ↓                 ↓  
-    Checkout \#1       Checkout \#2  
+    Checkout #1       Checkout #2  
           │                 │  
           └────────┬────────┘  
                    ↓  
@@ -1170,7 +1170,7 @@ karena boundary sudah disiapkan dari awal.
 
 ---
 
-# **32\. Prinsip Scaling**
+# **32. Prinsip Scaling**
 
 Scaling dilakukan berdasarkan evidence.
 
@@ -1195,13 +1195,13 @@ Masih bottleneck?
 Jangan langsung:
 
 Microservice  
-\+  
++  
 Load Balancer  
-\+  
++  
 Kubernetes  
-\+  
++  
 Autoscaling  
-\+  
++  
 Multiple Instance
 
 hanya karena semuanya tersedia.
@@ -1210,7 +1210,7 @@ Dokumen arsitektur kita juga menempatkan multiple instance, load balancer, read 
 
 ---
 
-# **33\. Future Scaling Architecture**
+# **33. Future Scaling Architecture**
 
 Ketika kebutuhan memang terbukti:
 
@@ -1218,7 +1218,7 @@ Ketika kebutuhan memang terbukti:
                               │  
                     ┌─────────┴─────────┐  
                     ↓                   ↓  
-                Backend \#1          Backend \#2  
+                Backend #1          Backend #2  
                     │                   │  
         ┌───────────┴───────────────────┐  
         │                               │  
@@ -1237,7 +1237,7 @@ Jika jumlah service/container sudah semakin kompleks, barulah orchestration sepe
 
 ---
 
-# **34\. Prinsip Utama yang Harus Disepakati Tim**
+# **34. Prinsip Utama yang Harus Disepakati Tim**
 
 Ini bagian yang menurut gue **wajib kalian sepakati sebelum coding**.
 
@@ -1283,7 +1283,7 @@ Ini bagian yang menurut gue **wajib kalian sepakati sebelum coding**.
 
 ---
 
-# **35\. Simplified Mental Model**
+# **35. Simplified Mental Model**
 
 Kalau semua pembahasan di atas terlalu banyak, **cukup ingat gambar ini**:
 
@@ -1343,15 +1343,15 @@ Service B
 
 ---
 
-# **36\. Rule of Thumb untuk Tim**
+# **36. Rule of Thumb untuk Tim**
 
 Sebelum menulis code antar-module, tanyakan 5 hal:
 
-1\. Siapa owner data ini?  
-2\. Siapa owner business logic ini?  
-3\. Module mana yang membutuhkan data/logic tersebut?  
-4\. Apakah dependency ini bisa lewat public contract?  
-5\. Kalau module ini besok dipisah menjadi service sendiri,  
+1. Siapa owner data ini?  
+2. Siapa owner business logic ini?  
+3. Module mana yang membutuhkan data/logic tersebut?  
+4. Apakah dependency ini bisa lewat public contract?  
+5. Kalau module ini besok dipisah menjadi service sendiri,  
    apakah module lain harus ikut berubah?
 
 Kalau jawabannya:

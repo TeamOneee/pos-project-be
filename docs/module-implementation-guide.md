@@ -3,10 +3,10 @@
 Dokumen ini menjadi **blueprint untuk tim implementasi**: untuk setiap module, dijelaskan file apa saja yang ada di dalamnya, endpoint apa saja yang harus disediakan, dan **logika yang harus dijalankan** di tiap endpoint.
 
 Gunakan bersama:
-- `docs/Modular Architecture Guideline.md` — aturan boundary (siapa owner data, komunikasi via port).
-- `docs/COMMON.md` — cara pakai utilitas `src/common/`.
-- `docs/APICONTRACT.md` & `openapi.json` — detail request/response persis.
-- `docs/ERD.md` — model data.
+- `docs/modular-architecture.md` — aturan boundary (siapa owner data, komunikasi via port).
+- `docs/common-utilities.md` — cara pakai utilitas `src/common/`.
+- `docs/api-contract.md` & `openapi.json` — detail request/response persis.
+- `docs/data-model.md` — model data.
 
 ---
 
@@ -29,6 +29,8 @@ Gunakan bersama:
 ---
 
 ## 1. Cara Membaca Dokumen Ini
+
+> Panduan alur sistem **secara keseluruhan** (gambar besar, end-to-end, dan alur per-module dalam diagram): lihat [`system-flow.md`](./system-flow.md).
 
 Setiap bagian module berisi:
 
@@ -128,23 +130,23 @@ src/merchants/
 Tidak ada dependency antar-module (mandiri).
 
 ### Port — `MerchantPort`
-`createMerchant(name, tx?)`, `findById(merchantId, tx?)`, `updateName(merchantId, name, tx?)`
+`createMerchant(name, tx?)`, `findById(merchantId, tx?)`, `update(merchantId, { name?, lowStockThreshold? }, tx?)`
 
 ### Endpoints
 
-#### GET /merchants — OWNER, ADMIN
+#### GET /merchants — OWNER
 Logic:
 - `merchantId` diambil dari `@GetUser('merchantId')`.
 - `merchantsService.findById(merchantId)` → jika null `NotFoundException`.
 - Return merchant.
 
-#### PUT /merchants — OWNER, ADMIN
+#### PUT /merchants — OWNER
 Logic:
-1. Body `{ name }` (validate).
-2. `merchantsService.updateName(merchantId, name)`.
+1. Body `{ name, low_stock_threshold? }` (validate; `low_stock_threshold` ≥ 0).
+2. `merchantsService.update(merchantId, { name?, lowStockThreshold? })`.
 3. Return merchant terbaru.
 
-> Catatan: `createMerchant` TIDAK punya endpoint sendiri — hanya dipanggil internal oleh `AuthService.register` (lewat `MerchantPort`).
+> Sesuai URS §8 permission matrix: hanya **OWNER** yang mengelola profil merchant (Admin tidak). `createMerchant` TIDAK punya endpoint sendiri — hanya dipanggil internal oleh `AuthService.register` (lewat `MerchantPort`).
 
 ---
 
@@ -171,30 +173,32 @@ Merchant (hanya untuk memastikan outlet milik merchant yang sedang login — via
 
 ### Endpoints
 
-#### GET /outlets — OWNER, ADMIN
+#### GET /outlets — OWNER
 Logic:
 - Filter opsional `?status=ACTIVE|INACTIVE`.
 - `outletsService.listByMerchant(merchantId, status)` — scope merchant dari JWT.
 - Return array outlet.
 
-#### POST /outlets — OWNER, ADMIN
+#### POST /outlets — OWNER
 Logic:
 1. Body `{ name, address, status? }` (default ACTIVE).
 2. `createOutlet(merchantId, { name, address, status })`.
 3. Return outlet baru (201).
 
-#### GET /outlets/{outletId} — OWNER, ADMIN
+#### GET /outlets/{outletId} — OWNER
 Logic:
 - `findById(outletId)` → pastikan `merchantId` sama dengan user → jika tidak / tidak ada, `NotFoundException`.
 
-#### PUT /outlets/{outletId} — OWNER, ADMIN
+#### PUT /outlets/{outletId} — OWNER
 Logic:
 - Validasi kepemilikan merchant, lalu `updateOutlet(outletId, { name?, address?, status? })`.
 
-#### DELETE /outlets/{outletId} — OWNER, ADMIN
+#### DELETE /outlets/{outletId} — OWNER
 Logic:
 - **Soft delete**: `deactivate(outletId)` → set `status = INACTIVE` (bukan hapus baris).
 - Return `{ message, data: null }`.
+
+> Sesuai URS §8: CRUD outlet hanya untuk **OWNER** (Admin tidak). Outlet nonaktif read-only untuk operasi bisnis (tidak dapat checkout / stock adjustment baru), tetapi histori tetap dapat dibaca (FR-TEN-004).
 
 ---
 
@@ -222,36 +226,39 @@ Merchant (via `merchantId` dari JWT), Outlet (hanya validasi `outlet_id` saat bu
 
 ### Endpoints
 
-#### GET /users — OWNER, ADMIN
+#### GET /users — OWNER
 Logic:
 - Filter opsional: `?role=`, `?outlet_id=`, `?status=`.
 - Selalu scope ke `merchantId` dari JWT.
 - **Jangan pernah return `password`.**
 
-#### POST /users — OWNER, ADMIN
+#### POST /users — OWNER
 Logic:
 1. Body `{ name, email, password, role, outlet_id?, status? }`.
 2. `ensureEmailAvailable(email)` → 409 jika dipakai.
-3. Validasi aturan role:
-   - `CASHIER` → `outlet_id` **wajib** (jika tidak → 400 "outlet_id is required for CASHIER role").
+3. Validasi aturan role (FR-AUTH-011, FR-TEN-005):
+   - `CASHIER` → `outlet_id` **wajib** menunjuk Outlet aktif di merchant yang sama (jika tidak → 400 "outlet_id is required for CASHIER role").
+   - `ADMIN` → `outlet_id` **harus null** (Admin scope Merchant, FR-TEN-006).
    - `OWNER` → tidak boleh dibuat lewat endpoint ini (owner hanya lewat register).
+   - Email staf divalidasi case-insensitive (FR-AUTH-012).
 4. `createUser({ ..., password: await hashing.hash(password), merchantId, role, outletId, status: ACTIVE })`.
 5. Return user (sanitasi, tanpa password).
 
-#### GET /users/{userId} — OWNER, ADMIN
+#### GET /users/{userId} — OWNER
 Logic:
 - `findById(userId)` + pastikan dalam merchant yang sama → return user tanpa password.
 
-#### PUT /users/{userId} — OWNER, ADMIN
+#### PUT /users/{userId} — OWNER
 Logic:
-- Update `{ name?, email?, role?, outlet_id?, status? }`.
-- Jika role diubah ke CASHIER → `outlet_id` wajib.
+- Update `{ name?, email?, role?, outlet_id?, status? }` (FR-AUTH-014: hanya OWNER yang boleh mengubah role/outlet/status/reset password staf).
+- Jika role diubah ke CASHIER → `outlet_id` wajib menunjuk Outlet aktif; jika ke ADMIN → `outlet_id` harus null.
 - Jika email diubah → cek `ensureEmailAvailable` (kecuali milik user itu sendiri).
+- Reset password → `hashing.hash` password baru.
 - Return user (tanpa password).
 
-#### DELETE /users/{userId} — OWNER, ADMIN
+#### DELETE /users/{userId} — OWNER
 Logic:
-- **Soft delete**: set `status = INACTIVE` (bukan hapus baris).
+- **Soft delete**: set `status = INACTIVE` (bukan hapus baris). Riwayat transaksi & audit staf tetap utuh (FR-TEN-007).
 - Prevent: jangan sampai owner terakhir dinonaktifkan (opsional, rule bisnis).
 
 ---
@@ -285,16 +292,16 @@ Logic:
 
 #### POST /categories — OWNER, ADMIN
 Logic:
-- Body `{ name }` → `createCategory(merchantId, name)` → 201.
+- Body `{ name }` → cek unik dalam merchant (FR-CAT-010) → `createCategory(merchantId, name)` → 201.
 
 #### PUT /categories/{categoryId} — OWNER, ADMIN
 Logic:
-- `ensureMerchantOwnership(categoryId, merchantId)` → pastikan milik merchant → update nama.
+- `ensureMerchantOwnership(categoryId, merchantId)` → pastikan milik merchant → update nama (cek unik).
 
 #### DELETE /categories/{categoryId} — OWNER, ADMIN
 Logic:
-- `ensureMerchantOwnership(...)` lalu hapus.
-- **Perhatikan FK ke product**: putuskan kebijakan (blokir bila masih ada product, atau set null/reassign).
+- **Soft delete**: `ensureMerchantOwnership(...)` lalu set `status = INACTIVE` — **bukan hapus fisik** (FR-CAT-010).
+- Category nonaktif tidak boleh dipilih untuk Product baru/perubahan, tetapi relasi Product & riwayat yang sudah ada tetap utuh (URB-016 / BR-019).
 
 ---
 
@@ -333,8 +340,9 @@ Logic:
 #### POST /products — OWNER, ADMIN
 Logic:
 1. Body `{ name, sku, price, category_id, status? }`.
-2. Validasi `category_id` milik merchant (via Category/Product internal).
+2. Validasi `category_id` milik merchant **dan aktif** (FR-CAT-003: tolak Category kosong/nonaktif/asing).
 3. `createProduct({ ..., merchantId })` → 201.
+4. Catat audit harga/status (nilai sebelum = null) — FR-CAT-008.
 
 #### GET /products/{productId} — semua role
 Logic:
@@ -343,11 +351,13 @@ Logic:
 #### PUT /products/{productId} — OWNER, ADMIN
 Logic:
 - Update `{ name?, sku?, price?, category_id?, status? }`.
-- Validasi category tetap milik merchant.
+- Validasi category tetap milik merchant & aktif.
+- Catat audit: actor, waktu, nilai harga/status sebelum & sesudah (FR-CAT-008).
+- Perubahan harga hanya berlaku untuk checkout yang belum selesai, tidak mengubah transaksi historis (UR-ADM-005).
 
 #### DELETE /products/{productId} — OWNER, ADMIN
 Logic:
-- **Soft delete**: set `status = INACTIVE`.
+- **Soft delete**: set `status = INACTIVE` — tidak menghapus riwayat transaksi (FR-CAT-007).
 
 ---
 
@@ -370,7 +380,7 @@ src/inventory/
 Product (info nama/SKU untuk tampilan), Outlet (scope).
 
 ### Port — `InventoryPort`
-`getStock`, `checkStock`, `decreaseStock`, `increaseStock`, `transferStock`
+`getStock`, `checkStock`, `decreaseStock`, `increaseStock`, `transferStock`, `adjustStock`
 
 ### Endpoints
 
@@ -385,27 +395,34 @@ Logic:
 
 #### PUT /inventory/{inventoryId} — OWNER, ADMIN
 Logic:
-- Body `{ quantity }` → **set langsung** jumlah stock (misal hasil stok opname).
-- Gunakan `updateQuantity` (bukan increment/decrement).
+1. Body **`{ quantity, reason }`** — `reason` **wajib** untuk setiap adjustment manual (FR-INV-003).
+2. Baca `before` = quantity saat ini; hitung `delta = target - before`.
+3. Validasi hasil akhir ≥ 0 (FR-INV-002 / BR-011A: stok tidak boleh negatif).
+4. Dalam **satu transaction** (UnitOfWork):
+   - `updateQuantity(inventoryId, target)`;
+   - buat **`StockMovement`** tipe `ADJUSTMENT` dengan `before`, `after`, `delta`, `reason`, `actor`, `timestamp` (FR-INV-003, BR-019).
+5. Return `{ inventory_id, before, after, delta, reason }`.
 
 #### POST /inventory/bulk — OWNER, ADMIN
 Logic:
-- Body: array `{ product_id, quantity }` untuk satu `outlet_id`.
-- Semua operasi dalam **satu transaction** (UnitOfWork) agar konsisten.
+- Body: `{ outlet_id, items: [{ product_id, quantity, reason }] }` untuk satu `outlet_id`.
+- `reason` wajib di tiap item.
+- Semua operasi (update + StockMovement per item) dalam **satu transaction** (UnitOfWork) agar konsisten.
 
 #### POST /inventory/transfer — OWNER, ADMIN
 Logic:
-1. Body `{ product_id, from_outlet_id, to_outlet_id, quantity }`.
+1. Body `{ product_id, from_outlet_id, to_outlet_id, quantity, reason? }`.
 2. Cek stock cukup di `from_outlet_id` → jika tidak `BadRequestException`.
-3. **Dalam satu transaction**: `decreaseStock(from, ...)` + `increaseStock(to, ...)` (pakai `transferStock` port).
+3. **Dalam satu transaction**: `decreaseStock(from, ...)` + `increaseStock(to, ...)` (pakai `transferStock` port) + catat StockMovement di kedua sisi (actor & timestamp).
 4. Pastikan `from !== to`.
 
 #### GET /inventory/low-stock — OWNER, ADMIN
 Logic:
-- Ambil inventory dengan stock di bawah ambang (mis. `< 10` atau `0`).
-- Return daftar `{ product, outlet, quantity }` untuk disorot di dashboard.
+- Ambil inventory dengan stock `<=` **`Merchant.low_stock_threshold`** (satu threshold global nonnegatif per Merchant, berlaku untuk semua Outlet — FR-INV-008 / DR-011A).
+- Return daftar `{ product, outlet, quantity, threshold }` untuk disorot di dashboard.
 
 > **Siapa yang boleh decrement saat transaksi?** Hanya Transaction/Checkout lewat `InventoryPort.decreaseStock`. Inventory sendiri tidak menghitung harga.
+> **Audit**: setiap perubahan stok (adjustment manual, sale, transfer) harus tercatat di `StockMovement` (tipe `ADJUSTMENT`/`SALE`/`TRANSFER_IN`/`TRANSFER_OUT`) dengan before/after/delta/reason/actor/timestamp (FR-INV-003, BR-019).
 
 ---
 
@@ -500,31 +517,34 @@ Logic:
 - Response pagination + relasi `outlet` & `cashier`.
 
 #### POST /transactions (CHECKOUT) — semua role (CASHIER outlet sendiri)
-Body: `{ cart_id? }` **atau** `{ items: [{ product_id, quantity }] }`.
+Body: `{ idempotency_key, payment_method, cart_id? }` **atau** `{ idempotency_key, payment_method, items: [{ product_id, quantity }] }`.
+
+> `idempotency_key` **wajib** — client menghasilkan satu key unik per checkout attempt (FR-CHK-001, FR-CHK-002). `payment_method` wajib: `CASH` atau `CASHLESS_MANUAL` (FR-PAY-001; MVP hanya mencatat, tidak memindahkan dana / tidak ada payment gateway — ASM-008).
 
 Logic (wajib **satu transaction** — `UnitOfWork`):
-1. Tentukan item:
+1. **Idempotency check**: cari `Payment` dengan `idempotency_key` yang sama pada merchant (FR-CHK-001) → jika sudah ada dengan payload sama → **return transaksi yang sama** (200, bukan error) tanpa proses ulang (FR-CHK-002, FR-CHK-003); jika payload **berbeda** → tolak sebagai **conflict** (FR-CHK-004). Hindari double-charge.
+2. Tentukan item:
    - Jika `cart_id` → `cartPort.getCartForCheckout(userId, outletId)` → ambil items.
    - Jika `items` → pakai langsung.
-2. Untuk tiap item: `productPort.findById` → dapatkan `price` & `name`; `inventoryPort.checkStock(outletId, productId, qty)` → jika tidak cukup → `BadRequestException` + info `{ product_id, product_name, requested, available }`.
-3. Hitung `subtotal` per item & total.
-4. Generate `transaction_number` unik (misal `TRX-YYYYMMDD-NNN`).
-5. `createTransaction` + `transaction_items` (simpan `unit_price` snapshot & `subtotal`).
-6. `inventoryPort.decreaseStock(outletId, productId, qty, tx)` untuk tiap item.
-7. Jika dari cart → `cartPort.clearAfterCheckout(userId, outletId)`.
-8. Commit → return transaction + items.
+3. Validasi ulang saat checkout (FR-CHK-005 / UC-05): untuk tiap item — product aktif, stock cukup di outlet, harga & inventory konsisten dengan cart. Jika tidak → `BadRequestException` + info `{ product_id, product_name, requested, available }` (kode error seperti `PRICE_CHANGED`, `PRODUCT_INACTIVE`, `INSUFFICIENT_STOCK`).
+4. Hitung `subtotal` per item & total.
+5. Generate `transaction_number` unik (misal `TRX-YYYYMMDD-NNN`).
+6. `createTransaction` + `transaction_items` (simpan `unit_price` snapshot & `subtotal`) + **`Payment` record** (FR-PAY-002): `{ payment_method, amount = total, status: CONFIRMED, idempotency_key, paid_at }`.
+7. `inventoryPort.decreaseStock(outletId, productId, qty, tx)` untuk tiap item.
+8. Jika dari cart → `cartPort.clearAfterCheckout(userId, outletId)`.
+9. Commit → return transaction + items + payment + **receipt** (FR-PAY-006).
 
 > Jika salah satu gagal (stock habis dll) → **rollback semua**, tidak ada transaksi parsial.
+> Karena idempotency_key + pembayaran + transaksi dikomit atomik dalam satu UnitOfWork, satu checkout attempt menghasilkan paling banyak satu transaksi final (FR-CHK-003, ASM-003).
 
 #### GET /transactions/{transactionId} — semua role (CASHIER hanya milik outlet-nya)
 Logic:
 - `getById` → return transaction + items (+ relasi product).
 
-#### POST /transactions/{transactionId}/cancel — semua role (CASHIER hanya transaksi miliknya)
-Logic:
-1. Validasi transaksi ada, `status = COMPLETED`, dan milik outlet/cashier yang sesuai.
-2. **Dalam satu transaction**: set `status = CANCELLED` + `inventoryPort.increaseStock(...)` untuk tiap item (restore stock).
-3. Return `{ transaction_id, status: "CANCELLED", restored_stock: true }`.
+#### POST /transactions/{transactionId}/cancel — **FUTURE / OUT OF SCOPE (MVP)**
+Logic (tidak diimplementasikan di Iterasi 1):
+- Refund/void transaksi final **di luar Must** (ASM-007, OD-005). Jika kelak ditambahkan, sistem harus membuat reversal/audit record, bukan mengubah transaksi final (FR-TRX-008).
+- `cancel` pada `TransactionPort` dapat dipertahankan sebagai stub internal untuk masa depan, tetapi **tidak ada endpoint publik di MVP**.
 
 ---
 
@@ -627,21 +647,18 @@ src/ai-insights/
 Analytics (data agregasi via `AnalyticsPort`), BullMQ/Redis (async), AI provider.
 
 ### Port — `AiInsightPort`
-`checkLimit`, `enqueueAnalysis`, `getCurrent`
+`enqueueAnalysis`, `getCurrent`
 
 ### Endpoints
 
-#### GET /ai-insights/check-limit — OWNER
-Logic:
-- Cari insight milik merchant → `lastAnalyzedAt = updatedAt` (atau `null` jika belum pernah).
-- `canAnalyze = lastAnalyzedAt` bukan hari ini.
-- Return `{ merchant_id, last_analyzed_at, can_analyze, message }`.
-
 #### POST /ai-insights/analyze — OWNER
 Logic:
-1. `checkLimit` → jika sudah hari ini → 400 "Daily AI analysis limit reached".
-2. **Upsert** status limit (tandai hari ini sudah dipakai) agar race condition dicegah.
-3. **Enqueue job ke BullMQ** (async) — jangan menahan request.
+1. **Tidak ada limit harian** — Owner bebas memicu analisis kapan pun (FR-AI-012, ASM-010, UR-AI-010).
+2. Jika job analisis masih berjalan untuk merchant → return 409/202 dengan status `PROCESSING` (idempotent, jangan tumpuk job).
+3. **Enqueue job (async)** — jangan menahan request. Pemrosesan menggunakan **sistem berjenjang**:
+   - **L1 (baseline):** job disimpan di DB (`AiJobRecord`) → rate limiting → worker polling.
+   - **L2 (scale-up):** naik ke BullMQ + Redis bila L1 kurang (concurrency/retry terjadwal).
+   - Detail alur lengkap: lihat [`ai-analyze-flow.md`](./ai-analyze-flow.md).
 4. Return 202 `{ job_id, status: "PROCESSING", message }`.
 
 Worker (async) melakukan:
@@ -650,11 +667,13 @@ Worker (async) melakukan:
 - **Upsert** `AiInsight` untuk merchant tsb (1:1 — update baris yang sama).
 - Tandai job completed/failed.
 
-#### GET /ai-insights — OWNER, ADMIN
+#### GET /ai-insights — OWNER
 Logic:
-- `getCurrent(merchantId)` → return insight terakhir (atau 404 jika belum pernah).
+- `getCurrent(merchantId)` → return insight terakhir + `status` (`READY` | `PROCESSING` | `STALE` | `FAILED`; FR-AI-008) atau 404 jika belum pernah.
+- **Hanya OWNER** yang boleh melihat/mengelola insight (FR-AI-012, URS §8). Admin tidak.
 
 > **Tidak ada** list, detail by id, maupun dismiss — karena 1:1 tanpa histori (sudah disepakati).
+> Insight yang dihasilkan hanya **saran** — tidak dapat mengubah data atau menjalankan operasi (prinsip "advise, do not command" — `deliverables/01-iterasi-1-business-flow.md` §11 Lapisan 4).
 
 ---
 
@@ -666,11 +685,11 @@ Logic:
 | Auth | POST /auth/login | public |
 | Auth | POST /auth/logout | auth |
 | Auth | GET /auth/me | auth |
-| Merchant | GET,PUT /merchants | OWNER, ADMIN |
-| Outlet | GET,POST /outlets | OWNER, ADMIN |
-| Outlet | GET,PUT,DELETE /outlets/{id} | OWNER, ADMIN |
-| User | GET,POST /users | OWNER, ADMIN |
-| User | GET,PUT,DELETE /users/{id} | OWNER, ADMIN |
+| Merchant | GET,PUT /merchants | OWNER |
+| Outlet | GET,POST /outlets | OWNER |
+| Outlet | GET,PUT,DELETE /outlets/{id} | OWNER |
+| User | GET,POST /users | OWNER |
+| User | GET,PUT,DELETE /users/{id} | OWNER |
 | Category | GET,POST /categories | OWNER, ADMIN |
 | Category | PUT,DELETE /categories/{id} | OWNER, ADMIN |
 | Product | GET /products | semua |
@@ -688,10 +707,9 @@ Logic:
 | Cart | DELETE /cart/clear | CASHIER |
 | Transaction | GET,POST /transactions | semua (CASHIER: outlet sendiri) |
 | Transaction | GET /transactions/{id} | semua |
-| Transaction | POST /transactions/{id}/cancel | semua (CASHIER: punya sendiri) |
+| Transaction | POST /transactions/{id}/cancel | FUTURE / di luar scope MVP |
 | Dashboard | GET /dashboard/owner | OWNER |
 | Dashboard | GET /dashboard/admin | ADMIN |
 | Analytics | GET /analytics/* | OWNER, ADMIN |
-| AI Insight | GET /ai-insights/check-limit | OWNER |
 | AI Insight | POST /ai-insights/analyze | OWNER |
-| AI Insight | GET /ai-insights | OWNER, ADMIN |
+| AI Insight | GET /ai-insights | OWNER |
