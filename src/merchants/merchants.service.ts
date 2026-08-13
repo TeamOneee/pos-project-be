@@ -15,11 +15,11 @@ export class MerchantsService implements MerchantPort {
     return this.repo.findMerchantById(merchantId, tx);
   }
 
-  async updateName(
+  async update(
     merchantId: string,
-    name: string,
+    data: { name?: string; lowStockThreshold?: number },
     tx?: Prisma.TransactionClient,
   ) {
-    return this.repo.updateMerchantName(merchantId, name, tx);
+    return this.repo.updateMerchant(merchantId, data, tx);
   }
 }

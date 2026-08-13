@@ -1,4 +1,10 @@
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsEmail,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { UserRole, UserStatus } from 'src/common/types/role';
 
 export class CreateUserDto {
@@ -19,7 +25,9 @@ export class CreateUserDto {
   merchantId: string;
 
   @IsNotEmpty()
-  @IsString()
+  @IsIn([UserRole.ADMIN, UserRole.CASHIER], {
+    message: 'role harus ADMIN atau CASHIER (OWNER hanya lewat register)',
+  })
   role: UserRole;
 
   @IsOptional()
