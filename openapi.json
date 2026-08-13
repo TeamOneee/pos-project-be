@@ -3,7 +3,7 @@
   "info": {
     "title": "POS System API",
     "version": "1.0.0",
-    "description": "Point of Sale System for Single Merchant - Multi Outlet with Cart Management",
+    "description": "Point of Sale System (Multi-Tenant SaaS). Setiap Merchant memiliki beberapa Outlet; OWNER mengelola Merchant/Outlet/staf, ADMIN mengelola katalog & inventory, CASHIER menjalankan penjualan di Outlet tugasnya.",
     "contact": {
       "name": "Support Team",
       "email": "support@pos-system.com"
@@ -266,6 +266,12 @@
           "name": {
             "type": "string"
           },
+          "low_stock_threshold": {
+            "type": "integer",
+            "minimum": 0,
+            "default": 10,
+            "description": "Threshold global stok rendah (FR-INV-008, DR-011A)"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -282,6 +288,11 @@
         "properties": {
           "name": {
             "type": "string"
+          },
+          "low_stock_threshold": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Optional: threshold global stok rendah"
           }
         }
       },
@@ -392,6 +403,7 @@
       "CreateUserRequest": {
         "type": "object",
         "required": ["name", "email", "password", "role"],
+        "description": "Membuat staf (hanya OWNER yang dapat memanggil — URS §8).",
         "properties": {
           "name": {
             "type": "string"
@@ -406,12 +418,13 @@
           },
           "role": {
             "type": "string",
-            "enum": ["OWNER", "ADMIN", "CASHIER"]
+            "enum": ["ADMIN", "CASHIER"],
+            "description": "Hanya ADMIN atau CASHIER yang dapat dibuat lewat endpoint ini; OWNER hanya lewat register (FR-AUTH-011)."
           },
           "outlet_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Required for CASHIER role, nullable for OWNER/ADMIN"
+            "description": "Wajib untuk CASHIER (Outlet aktif); harus null untuk ADMIN (FR-TEN-006)."
           },
           "status": {
             "type": "string",
@@ -432,11 +445,13 @@
           },
           "role": {
             "type": "string",
-            "enum": ["OWNER", "ADMIN", "CASHIER"]
+            "enum": ["ADMIN", "CASHIER"],
+            "description": "Hanya ADMIN atau CASHIER; OWNER tidak dapat diubah lewat endpoint ini (FR-AUTH-014)."
           },
           "outlet_id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Wajib untuk CASHIER (Outlet aktif); harus null untuk ADMIN."
           },
           "status": {
             "type": "string",
@@ -610,17 +625,21 @@
       },
       "UpdateInventoryRequest": {
         "type": "object",
-        "required": ["quantity"],
+        "required": ["quantity", "reason"],
         "properties": {
           "quantity": {
             "type": "integer",
             "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "description": "Alasan adjustment (wajib, FR-INV-003)"
           }
         }
       },
       "BulkUpdateInventoryItem": {
         "type": "object",
-        "required": ["inventory_id", "quantity"],
+        "required": ["inventory_id", "quantity", "reason"],
         "properties": {
           "inventory_id": {
             "type": "string",
@@ -629,6 +648,10 @@
           "quantity": {
             "type": "integer",
             "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "description": "Alasan adjustment (wajib, FR-INV-003)"
           }
         }
       },
@@ -789,7 +812,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["COMPLETED", "CANCELLED"]
+            "enum": ["COMPLETED"],
+            "description": "Transaksi final; refund/void di luar scope MVP (ASM-007)"
           },
           "created_at": {
             "type": "string",
@@ -806,6 +830,69 @@
             "items": {
               "$ref": "#/components/schemas/TransactionItem"
             }
+          },
+          "payment": {
+            "$ref": "#/components/schemas/Payment"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/Receipt"
+          }
+        }
+      },
+      "Payment": {
+        "type": "object",
+        "properties": {
+          "payment_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "transaction_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "merchant_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "payment_method": {
+            "type": "string",
+            "enum": ["CASH", "CASHLESS_MANUAL"]
+          },
+          "amount": {
+            "type": "number",
+            "format": "float"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["CONFIRMED"],
+            "description": "FR-PAY-002"
+          },
+          "idempotency_key": {
+            "type": "string"
+          },
+          "paid_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Receipt": {
+        "type": "object",
+        "properties": {
+          "receipt_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "receipt_number": {
+            "type": "string"
+          },
+          "transaction_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -843,7 +930,17 @@
       },
       "CreateTransactionRequest": {
         "type": "object",
+        "required": ["idempotency_key", "payment_method"],
         "properties": {
+          "idempotency_key": {
+            "type": "string",
+            "description": "Kunci idempotency unik per checkout attempt untuk mencegah double-charge (FR-CHK-001, FR-CHK-002)"
+          },
+          "payment_method": {
+            "type": "string",
+            "enum": ["CASH", "CASHLESS_MANUAL"],
+            "description": "Metode pembayaran. MVP hanya mencatat, tidak memindahkan dana / tidak ada payment gateway (FR-PAY-001, ASM-008)."
+          },
           "cart_id": {
             "type": "string",
             "format": "uuid",
@@ -1249,6 +1346,11 @@
               "AOV_TREND"
             ]
           },
+          "status": {
+            "type": "string",
+            "enum": ["READY", "PROCESSING", "STALE", "FAILED"],
+            "description": "Status analisis (FR-AI-008)"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time"
@@ -1256,7 +1358,7 @@
           "updated_at": {
             "type": "string",
             "format": "date-time",
-            "description": "Waktu analisis terakhir (dipakai untuk cek daily limit)"
+            "description": "Waktu analisis terakhir"
           }
         },
         "description": "Hasil analisis AI saat ini (1:1 dengan merchant, tanpa histori)"
@@ -1270,26 +1372,6 @@
           "status": {
             "type": "string",
             "enum": ["PROCESSING", "COMPLETED", "FAILED"]
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-      "AIInsightLimit": {
-        "type": "object",
-        "properties": {
-          "merchant_id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "last_analyzed_at": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "can_analyze": {
-            "type": "boolean"
           },
           "message": {
             "type": "string"
@@ -1602,6 +1684,7 @@
       "get": {
         "tags": ["Merchant"],
         "summary": "Get merchant details",
+        "description": "Hanya OWNER yang mengelola profil merchant (URS §8).",
         "operationId": "getMerchant",
         "security": [{ "bearerAuth": [] }],
         "responses": {
@@ -1630,6 +1713,7 @@
       "put": {
         "tags": ["Merchant"],
         "summary": "Update merchant details",
+        "description": "Hanya OWNER yang mengelola profil merchant (URS §8).",
         "operationId": "updateMerchant",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -1670,6 +1754,7 @@
       "get": {
         "tags": ["Outlet"],
         "summary": "Get all outlets",
+        "description": "CRUD Outlet hanya untuk OWNER (URS §8).",
         "operationId": "getOutlets",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -1711,6 +1796,7 @@
       "post": {
         "tags": ["Outlet"],
         "summary": "Create new outlet",
+        "description": "CRUD Outlet hanya untuk OWNER (URS §8).",
         "operationId": "createOutlet",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -1751,6 +1837,7 @@
       "get": {
         "tags": ["Outlet"],
         "summary": "Get outlet by ID",
+        "description": "CRUD Outlet hanya untuk OWNER (URS §8).",
         "operationId": "getOutlet",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -1800,6 +1887,7 @@
       "put": {
         "tags": ["Outlet"],
         "summary": "Update outlet",
+        "description": "CRUD Outlet hanya untuk OWNER (URS §8).",
         "operationId": "updateOutlet",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -1849,6 +1937,7 @@
       "delete": {
         "tags": ["Outlet"],
         "summary": "Deactivate outlet",
+        "description": "CRUD Outlet hanya untuk OWNER (URS §8).",
         "operationId": "deleteOutlet",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -1890,6 +1979,7 @@
       "get": {
         "tags": ["User"],
         "summary": "Get all users",
+        "description": "Manajemen User/staf hanya untuk OWNER (URS §8).",
         "operationId": "getUsers",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -1947,6 +2037,7 @@
       "post": {
         "tags": ["User"],
         "summary": "Create new user",
+        "description": "Manajemen User/staf hanya untuk OWNER (URS §8, FR-AUTH-011, FR-TEN-005).",
         "operationId": "createUser",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -1997,6 +2088,7 @@
       "get": {
         "tags": ["User"],
         "summary": "Get user by ID",
+        "description": "Manajemen User/staf hanya untuk OWNER (URS §8, FR-AUTH-014).",
         "operationId": "getUser",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -2046,6 +2138,7 @@
       "put": {
         "tags": ["User"],
         "summary": "Update user",
+        "description": "Manajemen User/staf hanya untuk OWNER (URS §8, FR-AUTH-014).",
         "operationId": "updateUser",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -2095,6 +2188,7 @@
       "delete": {
         "tags": ["User"],
         "summary": "Deactivate user",
+        "description": "Manajemen User/staf hanya untuk OWNER (URS §8, FR-AUTH-014).",
         "operationId": "deleteUser",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -2304,7 +2398,8 @@
       },
       "delete": {
         "tags": ["Category"],
-        "summary": "Delete category",
+        "summary": "Deactivate category",
+        "description": "Soft delete: set status = INACTIVE (tidak pernah hapus fisik, FR-CAT-010). Category nonaktif tidak bisa dipilih untuk Product baru, namun relasi Product & riwayat yang ada tetap utuh.",
         "operationId": "deleteCategory",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -2320,7 +2415,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Category deleted",
+            "description": "Category deactivated",
             "content": {
               "application/json": {
                 "schema": {
@@ -2867,7 +2962,7 @@
       "get": {
         "tags": ["Inventory"],
         "summary": "Get low stock alerts across all outlets",
-        "description": "List products with stock below minimum threshold (Admin only)",
+        "description": "List produk dengan stock <= Merchant.low_stock_threshold (satu threshold global nonnegatif per Merchant, berlaku semua Outlet — FR-INV-008 / DR-011A). OWNER/ADMIN only.",
         "operationId": "getLowStockAlerts",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -2882,7 +2977,7 @@
           {
             "name": "threshold",
             "in": "query",
-            "description": "Custom threshold (default: 10)",
+            "description": "Custom threshold (default: Merchant.low_stock_threshold)",
             "schema": {
               "type": "integer",
               "default": 10
@@ -3210,7 +3305,7 @@
       "post": {
         "tags": ["Transaction"],
         "summary": "Create new transaction (checkout)",
-        "description": "Creates a transaction from cart or direct items",
+        "description": "Checkout. Wajib idempotency_key (FR-CHK-001) dan payment_method CASH/CASHLESS_MANUAL (FR-PAY-001). Semua operasi (transaction + payment + stock + receipt) dalam satu UnitOfWork. Refund/void di luar scope MVP.",
         "operationId": "createTransaction",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -3224,6 +3319,26 @@
           }
         },
         "responses": {
+          "200": {
+            "description": "Idempotent replay: transaksi yang sama untuk idempotency_key yang sama dikembalikan tanpa diproses ulang (FR-CHK-002)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/SuccessResponse" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/Transaction"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "201": {
             "description": "Transaction created successfully",
             "content": {
@@ -3246,6 +3361,16 @@
           },
           "400": {
             "description": "Insufficient stock or validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Cart validation failed (product tidak aktif / harga berubah / stock berubah) — FR-CHK-005",
             "content": {
               "application/json": {
                 "schema": {
@@ -3311,7 +3436,8 @@
     "/transactions/{transactionId}/cancel": {
       "post": {
         "tags": ["Transaction"],
-        "summary": "Cancel transaction and restore stock",
+        "summary": "Cancel transaction (FUTURE / OUT OF SCOPE)",
+        "description": "Refund/void transaksi final di luar scope MVP (ASM-007, OD-005). Endpoint tidak tersedia di Iterasi 1 — return 501 Not Implemented. Jika kelak ditambahkan harus membuat reversal/audit record tanpa mengubah transaksi final (FR-TRX-008).",
         "operationId": "cancelTransaction",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -3326,33 +3452,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Transaction cancelled",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    { "$ref": "#/components/schemas/SuccessResponse" },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "type": "object",
-                          "properties": {
-                            "transaction_id": { "type": "string", "format": "uuid" },
-                            "status": { "type": "string", "enum": ["CANCELLED"] },
-                            "restored_stock": { "type": "boolean" }
-                          }
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Transaction cannot be cancelled",
+          "501": {
+            "description": "Not implemented in MVP",
             "content": {
               "application/json": {
                 "schema": {
@@ -3717,41 +3818,11 @@
         }
       }
     },
-    "/ai-insights/check-limit": {
-      "get": {
-        "tags": ["AI Insight"],
-        "summary": "Check if AI analysis is available today",
-        "operationId": "checkAIAvailability",
-        "security": [{ "bearerAuth": [] }],
-        "responses": {
-          "200": {
-            "description": "AI availability status",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "allOf": [
-                    { "$ref": "#/components/schemas/SuccessResponse" },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "data": {
-                          "$ref": "#/components/schemas/AIInsightLimit"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/ai-insights/analyze": {
       "post": {
         "tags": ["AI Insight"],
         "summary": "Trigger AI analysis",
-        "description": "Manual AI analysis trigger by Owner only. Limited to 1x per day.",
+        "description": "Manual AI analysis trigger by Owner only. Tidak ada batas harian (FR-AI-012, ASM-010). Idempotent: jika job masih berjalan, return 409.",
         "operationId": "triggerAIAnalysis",
         "security": [{ "bearerAuth": [] }],
         "responses": {
@@ -3775,8 +3846,8 @@
               }
             }
           },
-          "400": {
-            "description": "Daily limit reached",
+          "409": {
+            "description": "AI analysis already in progress (idempotent)",
             "content": {
               "application/json": {
                 "schema": {
@@ -3802,7 +3873,7 @@
       "get": {
         "tags": ["AI Insight"],
         "summary": "Get current AI insight for merchant",
-        "description": "Mengembalikan hasil analisis AI terakhir. Hubungan merchant - AI insight bersifat 1:1 dan tidak menyimpan histori, sehingga endpoint ini mengembalikan satu insight, bukan daftar.",
+        "description": "Mengembalikan hasil analisis AI terakhir + status (READY/PROCESSING/STALE/FAILED). Hanya OWNER (FR-AI-012, URS §8). Hubungan merchant - AI insight bersifat 1:1 tanpa histori, sehingga endpoint ini mengembalikan satu insight, bukan daftar.",
         "operationId": "getCurrentAIInsight",
         "security": [{ "bearerAuth": [] }],
         "responses": {
