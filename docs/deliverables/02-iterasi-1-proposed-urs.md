@@ -200,7 +200,7 @@ Setiap kebutuhan memiliki ID tetap:
 - `UR-ADM` — kebutuhan Admin;
 - `UR-CAS` — kebutuhan Kasir;
 - `UR-REP` — kebutuhan reporting/dashboard;
-- `UR-AI` — kebutuhan insight AI;
+- `UR-AI` — kebutuhan BI/insight (AI Insight yang diwujudkan sebagai Business Intelligence);
 - `UR-SEC` — keamanan dan isolasi;
 - `UR-OPS` — operasi, keandalan, dan pertumbuhan.
 
@@ -309,9 +309,11 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | UR-REP-007 | Owner harus dapat membedakan penjualan, pembatalan, dan koreksi bila fitur tersebut kelak ditambahkan. | Should | Proposed |
 | UR-REP-008 | Definisi setiap angka utama harus terdokumentasi agar Owner dan tim tidak menafsirkannya berbeda. | Must | Proposed |
 
-### 7.6 Kebutuhan AI/insight
+### 7.6 Kebutuhan BI/insight
 
-| ID | Kebutuhan AI | Prioritas | Status |
+> **Notifikasi:** Fitur "AI Insight" pada produk ini **digunakan sebagai Business Intelligence (BI)**. Artinya AI bukan satu fitur insight tunggal, melainkan mesin yang menghasilkan kumpulan insight analitik (beberapa tipe) berbasis data merchant untuk mendukung keputusan Owner.
+
+| ID | Kebutuhan BI/AI | Prioritas | Status |
 |---|---|---|---|
 | UR-AI-001 | Insight harus dihasilkan dari data merchant yang bersangkutan saja. | Must | Proposed |
 | UR-AI-002 | Pembuatan insight harus berjalan di luar jalur checkout. | Must | Confirmed |
@@ -320,9 +322,9 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | UR-AI-005 | Kegagalan AI harus menghasilkan status tertunda/gagal yang dapat dipahami dan dapat diproses ulang. | Must | Proposed |
 | UR-AI-006 | Pemrosesan ulang tidak boleh menghasilkan insight duplikat untuk merchant dan periode yang sama tanpa versi yang jelas. | Must | Proposed |
 | UR-AI-007 | AI tidak boleh memblokir, membatalkan, atau mengubah hasil checkout. | Must | Confirmed |
-| UR-AI-008 | MVP minimal memberikan satu jenis insight yang dapat dibuktikan dari data demo. | Must | Proposed |
+| UR-AI-008 | MVP menyediakan **beberapa tipe insight BI** yang dapat dibuktikan dari data demo: tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu penjualan, dan tren AOV. | Must | Proposed |
 | UR-AI-009 | Insight tidak boleh menjadi perintah otomatis untuk mengubah harga, status produk, atau akun. | Must | Proposed |
-| UR-AI-010 | Hanya Owner yang boleh memicu secara manual, melihat, atau mengelola insight AI Merchant; Admin dan Kasir tidak boleh mengaksesnya. Tidak ada batas maksimum penggunaan AI oleh Owner. | Must | Locked |
+| UR-AI-010 | Hanya Owner yang boleh memicu secara manual, melihat, atau mengelola insight BI Merchant; Admin dan Kasir tidak boleh mengaksesnya. Analisis dibatasi maksimal satu kali per hari per merchant. | Must | Locked |
 
 ### 7.7 Kebutuhan keamanan dan kepercayaan
 
@@ -369,17 +371,17 @@ Legenda: `✓` diizinkan, `—` tidak diizinkan, `P` adalah kemungkinan permissi
 | Membuat/mengubah/menonaktifkan Category serta mengelola produk dan harga | ✓ | ✓ | — |
 | Melihat/mengubah stok per Outlet | ✓ | ✓, harus memilih Outlet | — |
 | Melihat jejak perubahan katalog/inventory | Semua Outlet | Semua Outlet | — |
-| Membuat checkout | P | P | Outlet tugasnya |
+| Membuat checkout | — | — | Outlet tugasnya |
 | Melihat transaksi sendiri | ✓ | ✓ | ✓ |
 | Melihat seluruh transaksi | Semua outlet | Semua Outlet | — |
 | Melihat dashboard | Semua outlet | Dashboard operasional Merchant | — |
-| Melihat insight AI | Semua outlet | — | — |
+| Melihat insight BI | Semua outlet | — | — |
 | Melihat audit log keamanan | ✓ | — | — |
 
 Catatan:
 
 - Owner secara bisnis memiliki akses tertinggi, tetapi UI tidak harus menampilkan semua fungsi kasir jika tidak diperlukan.
-- `P` mempertahankan kemungkinan Owner/Admin checkout melalui permission tambahan, tetapi model permission dan pemilihan konteks Outlet belum dikunci. Sampai keputusan tersebut dibuat, requirement Must hanya mewajibkan Kasir melakukan checkout pada Outlet tugasnya.
+- Checkout **hanya** dapat dilakukan oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak memiliki permission checkout. Keputusan ini mengunci `OD-010`.
 - Otorisasi harus diberlakukan oleh sistem di belakang UI. Menyembunyikan tombol saja tidak cukup.
 
 ---
@@ -508,7 +510,7 @@ Catatan:
 | UBR-014 | Owner membuat dan mengelola langsung akun staf menggunakan email, password awal, role, status, dan Outlet bila role-nya Kasir. Sistem hanya menyimpan password hash dan tidak dapat menampilkan kembali password yang tersimpan. |
 | UBR-015 | Menonaktifkan akun mencabut kemampuan melakukan aksi baru tanpa menghapus riwayat aksinya. |
 | UBR-016 | Setiap Product wajib memiliki satu Category. Category harus aktif ketika dipilih untuk Product baru/perubahan dan dinonaktifkan, bukan dihapus fisik, agar relasi produk serta riwayat yang sudah ada tetap utuh. |
-| UBR-017 | Fitur AI hanya dapat dipicu secara manual dan diakses oleh Owner, tanpa batas maksimum penggunaan. |
+| UBR-017 | Fitur AI hanya dapat dipicu secara manual dan diakses oleh Owner, maksimal satu kali per hari per merchant. |
 
 ---
 
@@ -565,7 +567,7 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 6. Pembayaran MVP dicatat sebagai tunai atau cashless manual; sistem tidak memindahkan dana.
 7. Pembayaran dianggap dikonfirmasi ketika Kasir menyatakan dana telah diterima.
 8. Dashboard menerima keterlambatan hingga beberapa menit.
-9. Insight hanya dipicu manual oleh Owner tanpa batas maksimum penggunaan dan diproses asynchronous; analitik deterministik dapat digunakan sebelum integrasi model eksternal.
+9. Insight hanya dipicu manual oleh Owner maksimal satu kali per hari per merchant dan diproses asynchronous; analitik deterministik dapat digunakan sebelum integrasi model eksternal.
 10. Refund/void/koreksi transaksi final belum masuk flow Must.
 11. Waktu aplikasi ditampilkan dalam zona merchant; penyimpanan waktu internal dapat distandardisasi.
 
@@ -583,7 +585,7 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 
 | Risiko | Dampak | Mitigasi requirement |
 |---|---|---|
-| Scope AI terlalu besar | Checkout dan fitur inti tidak selesai | AI dibatasi sebagai insight terpisah, satu jenis insight minimum |
+| Scope BI terlalu besar | Checkout dan fitur inti tidak selesai | BI dibatasi sebagai insight terpisah di luar jalur checkout, dengan beberapa tipe insight minimum yang deterministik |
 | “Pembayaran” ditafsirkan sebagai payment gateway | Scope, security, dan failure mode berubah besar | Keputusan payment boundary harus disetujui sebelum implementasi |
 | Role tanpa tenant isolation | Kebocoran data lintas merchant | Semua akses diperiksa dengan role + merchant |
 | Dashboard membaca transaksi operasional secara berat | Checkout melambat | Reporting menggunakan jalur/proses terpisah dan diuji bersamaan |
@@ -606,10 +608,10 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 | OD-004 | Apakah diskon, pajak, dan service charge wajib? | Tidak pada Must MVP | Mengubah perhitungan, laporan, dan test matrix |
 | OD-005 | Apakah refund/void masuk MVP? | Di luar scope Must | Mengubah state machine, audit, dan net sales |
 | OD-006 | Seberapa baru dashboard harus diperbarui? | Maksimal 5 menit untuk 95% pembaruan | Mengubah mekanisme reporting dan biaya |
-| OD-007 | Apa insight minimum untuk demo? | Tren penjualan atau perbandingan outlet | Mengubah kebutuhan data dan AI |
+| OD-007 | Insight BI minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV | Mengubah kebutuhan data dan BI |
 | OD-008 | Apakah penggunaan model AI eksternal wajib? | Tidak; nilai insight + asynchronous flow yang utama | Mengubah biaya, privasi, reliability, dan demo dependency |
 | OD-009 | Berapa target concurrency resmi? | Baseline usulan pada SRS | Mengubah NFR, load test, dan kapasitas deployment |
-| OD-010 | Apakah Owner/Admin dapat checkout melalui permission tambahan dan bagaimana memilih konteks Outlet? | Belum menjadi Must; flow wajib hanya Kasir pada Outlet tugasnya | Mengubah permission model, UI pemilihan Outlet, audit, dan validasi checkout |
+| OD-010 | Apakah Owner/Admin dapat checkout? | **Locked**: hanya Kasir pada Outlet tugasnya; Owner dan Admin tidak melakukan checkout | Mengubah permission model, audit, dan validasi checkout |
 
 ---
 
@@ -621,7 +623,7 @@ URS Iterasi 1 dapat dinaikkan menjadi baseline apabila:
 - role serta permission minimum disepakati;
 - batas pembayaran diputuskan;
 - aturan harga, stok per Outlet, pengisian `User.outlet_id`, dan finalisasi transaksi disepakati;
-- definisi metrik dashboard yang sudah dikunci diterima dan insight minimum dipilih;
+- definisi metrik dashboard yang sudah dikunci diterima dan tipe insight BI MVP disepakati;
 - keterlambatan data yang dapat diterima disepakati;
 - seluruh pertanyaan `OD` yang mengubah model data atau checkout telah diputuskan;
 - setiap requirement Must memiliki pasangan requirement sistem dan metode verifikasi di SRS.

@@ -72,7 +72,7 @@ Ini tidak berarti laporan dan AI tidak penting. Artinya, waktu keberhasilannya b
 
 - checkout harus benar dan responsif **sekarang**;
 - dashboard harus cukup baru untuk mengambil keputusan, misalnya tertinggal beberapa menit;
-- insight AI dipicu secara manual oleh Owner dan diproses **belakangan** di luar jalur checkout.
+- insight BI (AI Insight yang diwujudkan sebagai Business Intelligence) dipicu secara manual oleh Owner dan diproses **belakangan** di luar jalur checkout.
 
 ---
 
@@ -242,7 +242,7 @@ Owner tidak membutuhkan sebanyak mungkin grafik. Owner membutuhkan jawaban yang 
 - melihat pola waktu penjualan untuk mengetahui jam ramai dan jam sepi;
 - menelusuri angka ringkasan ke data yang lebih detail bila ada kejanggalan;
 - mengetahui kapan dashboard terakhir diperbarui;
-- menerima insight AI yang menjelaskan dasar rekomendasinya;
+- menerima insight BI yang menjelaskan dasar rekomendasinya;
 - mengelola tim dan batas akses mereka;
 - yakin bahwa data Merchant A tidak bercampur dengan Merchant B.
 
@@ -257,7 +257,7 @@ Owner tidak membutuhkan sebanyak mungkin grafik. Owner membutuhkan jawaban yang 
 7. Kapan jam ramai dan jam sepi penjualan?
 8. Apakah kinerja membaik atau menurun dibanding periode sebelumnya?
 
-#### Bentuk insight AI yang masuk akal secara abstrak
+#### Bentuk insight BI yang masuk akal secara abstrak
 
 - “Penjualan produk A meningkat dibanding periode sebelumnya.”
 - “Penjualan produk B turun dibanding periode sebelumnya; periksa harga, ketersediaan, atau promosi.”
@@ -266,7 +266,9 @@ Owner tidak membutuhkan sebanyak mungkin grafik. Owner membutuhkan jawaban yang 
 
 Insight harus menyertakan periode data dan alasan singkat. AI adalah **pemberi saran**, bukan pihak yang otomatis mengubah harga, status produk, atau akses staf.
 
-Fitur AI hanya dapat dipicu secara manual, dilihat, dan dikelola oleh Owner. Admin dan Kasir tidak memiliki akses ke insight AI. Tidak ada batas maksimum berapa kali Owner dapat memicu analisis.
+> **Notifikasi:** Fitur "AI Insight" pada produk ini **digunakan sebagai Business Intelligence (BI)**. AI bukan satu fitur insight tunggal, melainkan mesin yang menghasilkan kumpulan insight analitik (beberapa tipe) berbasis data merchant untuk mendukung keputusan Owner.
+
+Fitur BI (Business Intelligence) hanya dapat dipicu secara manual, dilihat, dan dikelola oleh Owner. Admin dan Kasir tidak memiliki akses ke insight BI. BI menghasilkan **beberapa tipe insight** (tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV). Analisis dibatasi maksimal satu kali per hari per merchant.
 
 #### Ukuran sukses owner
 
@@ -276,7 +278,7 @@ Fitur AI hanya dapat dipicu secara manual, dilihat, dan dikelola oleh Owner. Adm
 - insight mengarah pada tindakan, bukan sekadar kalimat menarik;
 - dashboard tetap dapat digunakan meskipun AI belum selesai.
 
-### 5.4 Layanan analitik AI: fungsi sistem, bukan pengguna manusia
+### 5.4 Layanan analitik BI (Business Intelligence): fungsi sistem, bukan pengguna manusia
 
 AI disebut sebagai aktor dalam studi kasus karena memiliki pola penggunaan sistem sendiri. Namun dari sudut pandang bisnis, AI adalah fungsi pendukung bagi owner.
 
@@ -348,7 +350,7 @@ flowchart LR
 
     F -. "setelah transaksi aman" .-> H["Perbarui ringkasan laporan"]
     H --> J["Owner melihat dashboard"]
-    J -. "Owner memicu manual" .-> I["Buat insight AI"]
+    J -. "Owner memicu manual" .-> I["Buat insight BI"]
     I --> J
 
     I -. "jika gagal" .-> K["Catat kegagalan dan coba lagi"]
@@ -472,7 +474,7 @@ Pendekatan yang disarankan adalah **satu produk yang terasa utuh bagi pengguna, 
 ### Lapisan 4 — Advise, do not command: AI memberi saran
 
 - Proses secara asynchronous, artinya tidak harus selesai pada saat transaksi terjadi.
-- Mulai analisis hanya setelah Owner memicunya secara manual, tanpa batas maksimum penggunaan.
+- Mulai analisis hanya setelah Owner memicunya secara manual, maksimal satu kali per hari per merchant.
 - Gunakan data per merchant dan periode yang jelas.
 - Berikan alasan singkat di balik insight.
 - Jangan otomatis mengubah harga, status produk, atau akses staf pada MVP.
@@ -559,7 +561,7 @@ Ini belum FRD final. Tujuannya memberi batas agar pandangan bisnis tidak melebar
 - cegah transaksi duplikat;
 - riwayat dan detail transaksi;
 - dashboard dengan omzet, jumlah transaksi, AOV, tren penjualan dan AOV, pola waktu, produk terlaris/tidak laku, perbandingan outlet, serta waktu pembaruan data;
-- minimal satu atau beberapa insight sederhana yang diproses di luar jalur checkout;
+- beberapa tipe insight BI (tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu, tren AOV) yang diproses di luar jalur checkout;
 - audit minimum untuk perubahan penting;
 - bukti bahwa reporting/AI tidak membuat checkout menunggu.
 
@@ -569,7 +571,7 @@ Ini belum FRD final. Tujuannya memberi batas agar pandangan bisnis tidak melebar
 - perbandingan periode dan filter dashboard yang lebih fleksibel;
 - ekspor laporan;
 - koreksi/pembatalan transaksi dengan approval;
-- beberapa jenis insight tambahan;
+- tipe insight lanjutan (mis. prediksi stok habis, rekomendasi restock, rekomendasi pemindahan stok antar outlet);
 - konfigurasi metode pembayaran atau receipt.
 
 ### Di luar scope awal
@@ -615,16 +617,16 @@ Memisahkan ketiganya mencegah tim menganggap tebakan sebagai requirement.
 - Setiap Product wajib memiliki satu Category aktif saat dipilih; Category dinonaktifkan, bukan dihapus fisik, tanpa memutus relasi Product dan riwayat yang sudah ada.
 - Adjustment manual untuk penambahan atau pengurangan stok wajib memiliki alasan yang dapat ditelusuri.
 - Riwayat transaksi tersedia sesuai batas akses setiap role.
-- Fitur AI hanya tersedia dan dipicu secara manual oleh Owner tanpa batas maksimum penggunaan.
+- Fitur BI hanya tersedia dan dipicu secara manual oleh Owner, maksimal satu kali per hari per merchant, dengan beberapa tipe insight.
 - Harga historis disimpan pada transaksi.
 - Setiap data dibatasi oleh merchant.
-- Insight AI tidak melakukan tindakan otomatis pada MVP.
+- Insight BI tidak melakukan tindakan otomatis pada MVP.
 
 ### Asumsi dan proposal yang masih perlu divalidasi
 
 - **Proposed:** MVP menggunakan pencatatan pembayaran, bukan integrasi langsung ke payment gateway.
 - **Locked:** Category dan Product master dikelola pada Merchant; setiap Product wajib memiliki Category dan stok dikelola per kombinasi Product + Outlet.
-- **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet; Owner dan Admin dapat melihat lintas Outlet sesuai role. Kemungkinan checkout oleh Owner/Admin melalui permission tambahan masih `Open`.
+- **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet; hanya Kasir yang dapat melakukan checkout pada Outlet tugasnya, sedangkan Owner dan Admin melihat lintas Outlet sesuai role. Keputusan ini menutup `OD-010`.
 - **Locked:** Owner membuat dan mengelola langsung akun Admin/Kasir; registrasi publik hanya untuk Owner dan semua akun login menggunakan email.
 - **Proposed:** Dashboard dapat menerima keterlambatan data 1–5 menit.
 - **Proposed:** Koreksi/refund bukan bagian flow inti MVP.
@@ -647,7 +649,7 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 ### Struktur merchant dan pengguna
 
 5. **Future —** Apakah satu Owner dapat memiliki lebih dari satu Merchant pada fase setelah MVP? Iterasi 1 mengunci tepat satu Merchant.
-6. **Resolved —** Admin melihat dashboard operasional seluruh Merchant, terutama stok rendah berdasarkan threshold global Merchant. Admin tidak melihat insight AI serta tidak mengelola Outlet atau staf.
+6. **Resolved —** Admin melihat dashboard operasional seluruh Merchant, terutama stok rendah berdasarkan threshold global Merchant. Admin tidak melihat insight BI serta tidak mengelola Outlet atau staf.
 7. **Open —** Apakah Kasir boleh melihat riwayat semua kasir di outletnya atau hanya transaksi sendiri?
 
 ### Produk dan inventory

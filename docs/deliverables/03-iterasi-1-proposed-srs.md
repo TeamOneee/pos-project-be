@@ -172,7 +172,7 @@ Diagram ini menunjukkan batas tanggung jawab, bukan keputusan bahwa setiap kotak
 | ASM-007 | Proposed | Refund/void transaksi final di luar Must. | Perlu state reversal, permission, audit, dan net sales. |
 | ASM-008 | Proposed | Payment dicatat manual. | Gateway membutuhkan payment state machine terpisah. |
 | ASM-009 | Proposed | Dashboard boleh tertinggal maksimal lima menit untuk target normal. | Perlu strategi update lebih agresif atau real-time. |
-| ASM-010 | Locked | Insight hanya dimulai melalui trigger manual Owner tanpa batas maksimum penggunaan dan diproses asynchronous. | Trigger otomatis atau kuota penggunaan memerlukan perubahan flow dan kebijakan produk. |
+| ASM-010 | Locked | Insight hanya dimulai melalui trigger manual Owner, maksimal satu kali per hari per merchant, dan diproses asynchronous. | Trigger otomatis memerlukan perubahan flow dan kebijakan produk. |
 | ASM-011 | Proposed | Aplikasi web modern dengan koneksi online. | Offline-first membutuhkan desain sinkronisasi yang berbeda dan berada di luar kasus terpilih. |
 
 ---
@@ -187,7 +187,7 @@ Diagram ini menunjukkan batas tanggung jawab, bukan keputusan bahwa setiap kotak
 | ADMIN | Menjaga Category, Product master, dan inventory seluruh Outlet pada Merchant | Tidak dapat mengubah Owner, Outlet, atau field role/outlet User lain |
 | CASHIER | Menjalankan penjualan pada outlet tugasnya | Tidak dapat mengubah katalog, akun, atau insight |
 
-Flow Must Iterasi 1 hanya mewajibkan `CASHIER` melakukan checkout pada `User.outlet_id` tugasnya. Kemungkinan Owner/Admin melakukan checkout melalui permission tambahan tetap dicatat sebagai `OD-010` dan tidak boleh diimplementasikan sebagai asumsi implisit sebelum model permission serta pemilihan Outlet diputuskan.
+Flow Must Iterasi 1 mengunci: hanya `CASHIER` yang dapat melakukan checkout, pada `User.outlet_id` tugasnya. Owner dan Admin tidak memiliki permission checkout (keputusan ini menutup `OD-010`).
 
 ### 7.2 Prinsip otorisasi
 
@@ -365,7 +365,9 @@ Karena refund di luar scope, metrik awal dihitung dari transaksi `COMPLETED`:
 | FR-REP-009 | Seluruh query/report harus dibatasi oleh merchant, periode, dan scope outlet sesuai role. | Must | Security test |
 | FR-REP-010 | Owner sebaiknya dapat drill-down dari metrik ke daftar transaksi relevan. | Should | Acceptance test |
 
-### 8.10 Insight generation
+### 8.10 BI insight generation
+
+> **Notifikasi:** Fitur "AI Insight" diimplementasikan sebagai **Business Intelligence (BI)** — beberapa tipe insight analitik berbasis metrik yang dapat diverifikasi, dengan AI sebagai mesin pengerja/penjelas (opsional memakai provider eksternal). Bukan satu tipe insight tunggal.
 
 | ID | Requirement | Prioritas | Verifikasi |
 |---|---|---|---|
@@ -378,9 +380,9 @@ Karena refund di luar scope, metrik awal dihitung dari transaksi `COMPLETED`:
 | FR-AI-007 | Job untuk merchant, tipe insight, dan periode/versi data yang sama harus idempotent. | Must | Integration test |
 | FR-AI-008 | Owner harus dapat melihat `READY`, `PROCESSING`, `STALE`, atau `FAILED` tanpa memengaruhi dashboard dasar. | Must | UI test |
 | FR-AI-009 | Sistem tidak boleh memberikan kemampuan pada insight untuk langsung memanggil perubahan harga, stok, role, outlet, atau checkout. | Must | Security/design inspection |
-| FR-AI-010 | MVP harus mendukung minimal satu insight yang deterministik dan dapat diverifikasi, misalnya tren penjualan atau perbandingan outlet. | Must | Acceptance test |
+| FR-AI-010 | MVP harus mendukung **beberapa tipe insight BI** yang deterministik dan dapat diverifikasi dari data demo: tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu penjualan, dan tren AOV. | Must | Acceptance test |
 | FR-AI-011 | Bila provider/model eksternal digunakan, kegagalannya harus dibatasi timeout dan tidak menyebabkan retry tanpa batas. | Must | Failure test |
-| FR-AI-012 | Hanya Owner yang boleh memicu analisis secara manual, melihat, atau mengelola insight AI dalam Merchant-nya; Admin dan Kasir harus ditolak oleh API. Sistem tidak boleh menerapkan batas maksimum penggunaan AI oleh Owner. | Must | Security + acceptance test |
+| FR-AI-012 | Hanya Owner yang boleh memicu analisis secara manual, melihat, atau mengelola insight BI dalam Merchant-nya; Admin dan Kasir harus ditolak oleh API. Analisis dibatasi maksimal satu kali per hari per merchant. | Must | Security + acceptance test |
 
 ### 8.11 Audit trail
 
@@ -522,7 +524,7 @@ stateDiagram-v2
     FAILED --> PENDING: Owner memicu analisis ulang
 ```
 
-`RETRY_SCHEDULED` adalah retry teknis dari job yang sama, bukan trigger analisis baru. Analisis baru hanya dimulai oleh Owner dan tidak memiliki batas maksimum penggunaan.
+`RETRY_SCHEDULED` adalah retry teknis dari job yang sama, bukan trigger analisis baru. Analisis baru hanya dimulai oleh Owner dan dibatasi maksimal satu kali per hari per merchant.
 
 ### 10.3 Staff account state
 
@@ -562,7 +564,7 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir juga harus memil
 | BR-017 | Reporting/insight retry harus idempotent. |
 | BR-018 | Tanggal laporan menggunakan zona waktu merchant untuk batas hari; timestamp sumber disimpan secara konsisten. |
 | BR-019 | Setiap Product wajib terkait dengan satu Category. Category harus aktif saat dipilih untuk Product baru/perubahan; Category dinonaktifkan dan tidak dihapus fisik sehingga relasi yang sudah ada tetap dipertahankan. |
-| BR-020 | Hanya Owner yang dapat memicu AI secara manual dan mengakses hasilnya; tidak ada batas maksimum penggunaan AI oleh Owner. |
+| BR-020 | Hanya Owner yang dapat memicu AI secara manual dan mengakses hasilnya; analisis dibatasi maksimal satu kali per hari per merchant. |
 
 ---
 
@@ -614,7 +616,7 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir juga harus memil
 | Application log | 30 hari | Tidak menyimpan password/payment credential |
 | Idempotency record | Minimal 24 jam | Transaction reference tetap historis |
 | Job error detail | 30 hari atau hingga selesai direkonsiliasi | Redact data sensitif |
-| Insight | 90 hari atau versi terbaru + histori terbatas | Proposed, perlu validasi biaya |
+| Insight | Per tipe insight: 1 hasil terbaru per merchant, di-update setiap analisis (maks. 1x/hari), tanpa histori per tipe | Locked |
 
 ---
 
@@ -941,7 +943,7 @@ Matriks ringkas ini menghubungkan kebutuhan pengguna dengan kelompok requirement
 | Stok per Outlet dan konkurensi (`UR-ADM-003,008`, `UR-CAS-003,010`) | `FR-INV-001–009`, `BR-011A,014`, Inventory + StockMovement | `AT-003–004,008–009` |
 | Riwayat transaksi wajib (`UR-CAS-014`) | `FR-TRX-001–007`, `DR-003–008` | Transaction-history acceptance/security test; batas Kasir mengikuti `OD-003` |
 | Dashboard lengkap (`UR-OWN-004–006`, `UR-OWN-005A`, `UR-REP-001–008`, `UR-REP-003A`) | `FR-REP-001–010`, definisi metrik, `ReportingProjection` | `AT-011,017` + calculation test |
-| AI manual Owner-only tanpa maksimum (`UR-AI-001–010`) | `FR-AI-001–012`, `BR-016–017,020`, Insight + JobRecord | `AT-012` + authorization/idempotency test |
+| AI manual Owner-only maks. 1x/hari (`UR-AI-001–010`) | `FR-AI-001–012`, `BR-016–017,020`, Insight + JobRecord | `AT-012` + authorization/idempotency/limit test |
 | Isolasi 500+ Merchant (`UR-BIZ-003–006`, `UR-OPS-004–006`) | `FR-TEN-009–010`, `NFR-SEC-004–005`, `NFR-SCALE-001–005` | `AT-002,015` |
 
 ---
@@ -976,10 +978,10 @@ Out-of-scope tidak boleh “diam-diam” diimplementasikan dengan mengorbankan r
 | DG-003 | Locked | Seluruh akun login dengan email; role enum dan Outlet disimpan langsung pada User; lifecycle staf dikelola langsung dan hanya oleh Owner | Product + Security | Authorization matrix/test mengikuti keputusan ini |
 | DG-004 | Open; default di luar Must | Discount/tax/refund scope | Product | Mengunci pricing, state, report formula |
 | DG-005 | Partial: metrik Locked, freshness Open | Dashboard metrics/freshness | Product/Owner persona | Mengunci projection dan NFR-REL-005 |
-| DG-006 | Partial: akses/trigger Locked, bentuk insight/provider Open | Insight minimum dan penggunaan provider | Product + Engineering | Mengunci data, cost, privacy, failure mode |
+| DG-006 | Partial: akses/trigger Locked, tipe insight Locked (multi-tipe BI), provider Open | Tipe BI MVP dan penggunaan provider | Product + Engineering | Mengunci data, cost, privacy, failure mode |
 | DG-007 | Open; proposed baseline tersedia | Capacity/load target | Engineering + Business | Mengunci NFR-SCALE dan deployment test |
 | DG-008 | Open; target dipisahkan | Availability/RPO/RTO untuk prototype vs target production | Engineering + Business | Mengunci biaya dan operational plan |
-| DG-009 | Open; bukan Must | Permission checkout Owner/Admin dan pemilihan konteks Outlet | Product + Security | Mengubah permission, UI, audit, dan validasi checkout |
+| DG-009 | Locked | Checkout hanya oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak melakukan checkout (menutup `OD-010`) | Product + Security | Permission, UI, audit, dan validasi checkout mengikuti keputusan ini |
 
 ---
 

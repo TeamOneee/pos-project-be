@@ -36,7 +36,7 @@ Jika terdapat perbedaan, gunakan urutan berikut:
 2. [URS Iterasi 1](./02-iterasi-1-proposed-urs.md) terbaru untuk kebutuhan pengguna dan scope bisnis;
 3. [SRS Iterasi 1](./03-iterasi-1-proposed-srs.md) terbaru untuk perilaku sistem dan verifikasi;
 4. [FRD Iterasi 1](./04-iterasi-1-proposed-frd.md) sebagai view fitur turunan dari URS/SRS;
-5. [Study Case Indonesia](./StudyCase-Ind.md) dan [Final Project](./FinalProject.md) sebagai sumber kasus;
+5. [Study Case Indonesia](./StudyCase-Ind.md), [Final Project](./FinalProject.md), dan [How Understand](./HowUnderstand.md) sebagai **pedoman/problem set** yang wajib dipatuhi oleh seluruh dokumen di atas;
 6. [Business Flow Iterasi 1](./01-iterasi-1-business-flow.md) sebagai konteks dan rationale;
 7. implementasi saat ini.
 
@@ -51,12 +51,13 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | Role | Satu User memiliki tepat satu role enum: `OWNER`, `ADMIN`, atau `CASHIER`. |
 | Scope staf | Admin berada pada Merchant dengan `User.outlet_id = null`; Kasir berada pada tepat satu Outlet aktif. |
 | Tanggung jawab | Owner mengelola Merchant, Outlet, dan lifecycle staf. Admin mengelola Category, Product master, harga, dan inventory seluruh Outlet. Kasir menjalankan penjualan pada Outlet tugasnya. |
+| Checkout | Hanya Kasir yang dapat melakukan checkout, pada Outlet tugasnya. Owner dan Admin tidak memiliki permission checkout. |
 | Category | Setiap Product wajib memiliki satu Category aktif saat dipilih. Category dinonaktifkan, bukan dihapus fisik. |
 | Inventory | Stok numerik disimpan per kombinasi Product + Outlet dan tidak boleh negatif. Adjustment manual untuk menambah atau mengurangi stok wajib memiliki alasan dan audit. |
 | Transaksi | Riwayat transaksi wajib dipertahankan. Harga dan nama item saat penjualan disimpan sebagai snapshot. |
 | Uang | Nilai uang menggunakan exact `DECIMAL/NUMERIC`; kontrak API mengirim nilai uang sebagai decimal string. |
 | Dashboard Owner | Must mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, perbandingan Outlet, periode, dan waktu pembaruan. |
-| AI | Hanya Owner yang dapat memicu dan melihat AI. Trigger manual tanpa batas maksimum penggunaan; pemrosesan tetap asynchronous dan terlindung dari checkout. |
+| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan AI sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Trigger manual maksimal satu kali per hari per merchant; pemrosesan tetap asynchronous dan terlindung dari checkout. MVP menyediakan **beberapa tipe insight BI** (tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), bukan hanya satu tipe. |
 | Payment gateway | Tidak menjadi bagian MVP. Sistem mencatat pembayaran manual; keputusan detail payment record masih menjadi gate sebelum baseline. |
 
 ## 5. Keputusan yang masih terbuka
@@ -69,10 +70,9 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | OD-004 | Diskon, pajak, dan service charge | Di luar Must MVP |
 | OD-005 | Refund/void transaksi final | Di luar Must MVP |
 | OD-006 | Freshness dashboard | Maksimal lima menit untuk 95% pembaruan |
-| OD-007 | Insight minimum untuk demo | Tren penjualan atau perbandingan Outlet |
+| OD-007 | BI insight minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV |
 | OD-008 | Kewajiban memakai provider/model AI eksternal | Tidak wajib |
 | OD-009 | Target concurrency resmi | Menggunakan proposed baseline SRS sampai divalidasi |
-| OD-010 | Apakah Owner/Admin dapat checkout melalui permission tambahan | Belum menjadi Must; flow wajib saat ini adalah Kasir checkout pada Outlet tugasnya |
 
 Keputusan terbuka tidak boleh diasumsikan sebagai keputusan final dalam implementasi atau proposal. Gunakan default hanya untuk melanjutkan analisis dan tandai dampaknya.
 
@@ -89,7 +89,7 @@ Keputusan terbuka tidak boleh diasumsikan sebagai keputusan final dalam implemen
 | Inventory | Saldo stok satu Product pada satu Outlet |
 | Transaction | Catatan penjualan yang memiliki state terdefinisi |
 | Reporting projection | Data turunan untuk dashboard; bukan sumber kebenaran checkout |
-| Insight AI | Saran turunan untuk Owner; tidak boleh mengubah data bisnis secara otomatis |
+| Insight BI | **AI Insight yang diwujudkan sebagai Business Intelligence**: beberapa tipe insight analitik turunan untuk Owner, berbasis metrik/evidence; tidak boleh mengubah data bisnis secara otomatis |
 
 Nama entitas konseptual ditulis dengan kapital awal (`Merchant`, `Outlet`, `Category`, `Product`, `User`, `Transaction`). Nama field dan nilai enum ditulis sebagai kode, misalnya `User.outlet_id` dan `CASHIER`.
 

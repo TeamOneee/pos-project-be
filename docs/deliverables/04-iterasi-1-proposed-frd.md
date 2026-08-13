@@ -78,11 +78,11 @@ Prinsip prioritas:
 
 | Aktor/fungsi | Scope | Tanggung jawab utama |
 |---|---|---|
-| Owner | Tepat satu Merchant, lintas seluruh Outlet | Mengelola profil Merchant, Outlet, lifecycle staf, dashboard bisnis, audit yang diizinkan, dan AI insight |
+| Owner | Tepat satu Merchant, lintas seluruh Outlet | Mengelola profil Merchant, Outlet, lifecycle staf, dashboard bisnis, audit yang diizinkan, dan BI insight |
 | Admin | Satu Merchant, lintas seluruh Outlet | Mengelola Category, Product master, harga, inventory per Outlet, dan dashboard operasional |
 | Kasir | Tepat satu Outlet aktif | Menemukan Product, menyusun Cart, checkout, melihat receipt, dan melihat transaction history sesuai batas akses |
 | Reporting | Satu Merchant dan Outlet bila relevan | Mengubah Transaction final menjadi projection dashboard |
-| AI insight | Satu Merchant | Menghasilkan saran untuk Owner setelah dipicu manual |
+| BI insight | Satu Merchant | Menghasilkan beberapa tipe insight analitik (bukan satu tipe) untuk Owner setelah dipicu manual |
 | Operator sistem | Platform | Memantau kesehatan aplikasi, database, worker, checkout, dan backlog tanpa memperoleh akses bisnis berlebihan |
 
 Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum dimodelkan sebagai entitas pada Iterasi 1.
@@ -104,8 +104,10 @@ Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum di
 | `FEAT-TRX` | Transaction history dan detail | Kasir, Admin, Owner | Must | `UC-FRD-12` |
 | `FEAT-DASH-OWN` | Dashboard bisnis Owner | Owner | Must | `UC-FRD-13` |
 | `FEAT-DASH-ADM` | Dashboard operasional Admin | Admin | Must | `UC-FRD-14` |
-| `FEAT-AI` | Trigger, status, hasil, dan histori AI insight | Owner | Must | `UC-FRD-15` |
+| `FEAT-AI` | Trigger, status, hasil, dan pembaruan insight BI (beberapa tipe: tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV; hasil terbaru per tipe, tanpa histori) | Owner | Must | `UC-FRD-15` |
 | `FEAT-AUD-OPS` | Audit trail dan penelusuran operasional | Owner, Admin terbatas, Operator | Must/Should sesuai aksi | `UC-FRD-16` |
+
+> **Notifikasi:** Fitur "AI Insight" (`FEAT-AI`) diimplementasikan sebagai **Business Intelligence (BI)** — kumpulan insight analitik beberapa tipe (tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), bukan satu tipe insight tunggal. AI berperan sebagai mesin pengerja/penjelas.
 
 ## 5. Role-based access definitions
 
@@ -122,13 +124,13 @@ Legenda: `✓` diizinkan, `—` tidak diizinkan, `Open` belum menjadi requiremen
 | Membuat/mengubah/menonaktifkan Product dan harga | ✓ | ✓ | — |
 | Melihat stok seluruh Outlet | ✓ | ✓ | Hanya ketersediaan untuk berjualan |
 | Penambahan atau pengurangan stok | ✓ | ✓ | — |
-| Membuat dan mengubah Cart | Open | Open | ✓ |
-| Checkout | Open | Open | ✓ pada Outlet tugasnya |
+| Membuat dan mengubah Cart | — | — | ✓ |
+| Checkout | — | — | ✓ pada Outlet tugasnya |
 | Melihat seluruh transaksi Merchant | ✓ | ✓ | — |
 | Melihat transaction history Kasir | ✓ | ✓ | Sesuai `OD-003`: transaksi sendiri atau seluruh Outlet |
 | Melihat dashboard bisnis Owner | ✓ | — | — |
 | Melihat dashboard operasional Merchant | ✓ | ✓ | — |
-| Memicu dan melihat AI insight | ✓ | — | — |
+| Memicu dan melihat BI insight | ✓ | — | — |
 | Melihat audit keamanan | ✓ sesuai kebijakan | — | — |
 | Melihat jejak perubahan katalog/inventory | ✓ | ✓ | — |
 
@@ -140,7 +142,7 @@ Aturan akses wajib:
 4. Admin memiliki `User.outlet_id = null` dan bekerja lintas Outlet dalam Merchant;
 5. Kasir memiliki tepat satu `User.outlet_id` aktif;
 6. data Merchant lain tidak boleh dikembalikan walaupun ID-nya diketahui;
-7. checkout Owner/Admin tetap `Open` sampai permission dan pemilihan konteks Outlet diputuskan.
+7. checkout hanya dapat dilakukan oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak memiliki permission checkout.
 
 ## 6. User stories dan acceptance summary
 
@@ -194,8 +196,8 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | `US-DASH-001` | Sebagai Owner, saya ingin memilih periode dan melihat omzet, jumlah transaksi, serta AOV agar memahami kondisi bisnis. | Must | Hanya Transaction `COMPLETED`; definisi metrik konsisten; scope Merchant/Outlet benar. | `UR-OWN-004`, `UR-REP-001–003`, `FR-REP-001–003` |
 | `US-DASH-002` | Sebagai Owner, saya ingin melihat tren penjualan/AOV, pola waktu, Product terlaris/tidak laku, dan perbandingan Outlet agar mengetahui perubahan yang perlu ditindaklanjuti. | Must | Hasil sesuai periode, bucket waktu, timezone Merchant, dan transaksi sumber. | `UR-OWN-005–005A`, `UR-REP-003A`, `FR-REP-003A–003C` |
 | `US-DASH-003` | Sebagai Owner, saya ingin melihat waktu pembaruan dan status stale agar memahami seberapa baru data dashboard. | Must | `data_updated_at`, timezone, empty state, dan degraded state terlihat. | `UR-OWN-006,009`, `FR-REP-004–007` |
-| `US-DASH-004` | Sebagai Admin, saya ingin melihat dashboard operasional dan stok rendah seluruh Merchant agar dapat menjaga Outlet siap berjualan. | Must | Data dibatasi Merchant dan permission Admin; tidak menyediakan AI insight. | `UR-ADM-001,008`, `FR-REP-003,009` |
-| `US-AI-001` | Sebagai Owner, saya ingin memicu analisis AI secara manual agar memperoleh insight ketika dibutuhkan. | Must | Hanya Owner; tidak ada batas maksimum penggunaan; job diproses di luar checkout. | `UR-AI-002,010`, `FR-AI-001,012`, `BR-020` |
+| `US-DASH-004` | Sebagai Admin, saya ingin melihat dashboard operasional dan stok rendah seluruh Merchant agar dapat menjaga Outlet siap berjualan. | Must | Data dibatasi Merchant dan permission Admin; tidak menyediakan BI insight. | `UR-ADM-001,008`, `FR-REP-003,009` |
+| `US-AI-001` | Sebagai Owner, saya ingin memicu analisis BI/AI secara manual agar memperoleh insight ketika dibutuhkan. | Must | Hanya Owner; maksimal satu kali per hari per merchant; job diproses di luar checkout; mendukung beberapa tipe insight. | `UR-AI-002,010`, `FR-AI-001,012`, `BR-020` |
 | `US-AI-002` | Sebagai Owner, saya ingin melihat status, periode, evidence, dan hasil insight agar dapat menilai dasar rekomendasinya. | Must | Status terlihat; output menyimpan periode, evidence summary, tipe, versi data, dan waktu. | `UR-OWN-008–009`, `UR-AI-003–006`, `FR-AI-002–008` |
 | `US-AI-003` | Sebagai Owner, saya ingin dashboard tetap tersedia ketika AI gagal agar keputusan dasar tidak bergantung pada provider AI. | Must | AI timeout/retry terbatas; status `FAILED` dapat dipahami; checkout dan dashboard dasar tetap hidup. | `UR-AI-005,007`, `FR-AI-006,008,011` |
 
@@ -368,16 +370,16 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Hasil | Admin dapat mengambil tindakan katalog/inventory tanpa memperoleh akses AI atau manajemen staf |
 | Referensi | `US-DASH-004`, `FR-REP-003–009` |
 
-### UC-FRD-15 — Owner memicu dan melihat AI insight
+### UC-FRD-15 — Owner memicu dan melihat BI insight
 
 | Elemen | Detail |
 |---|---|
 | Aktor | Owner |
 | Prasyarat | Owner aktif pada Merchant; dashboard dasar tidak bergantung pada AI |
-| Pemicu | Owner menekan tombol analisis AI |
+| Pemicu | Owner menekan tombol analisis BI/AI |
 | Alur utama | Validasi Owner/Merchant → bentuk dedupe key dan input periode/versi data → antrekan background job → tampilkan `PENDING/PROCESSING` → worker menghasilkan evidence dan content → simpan `READY` → Owner melihat hasil |
 | Alternatif | Request duplikat memakai job yang sama; kegagalan sementara dijadwalkan retry terbatas; kegagalan akhir menjadi `FAILED`; data lama menjadi `STALE` |
-| Hasil | Insight tersimpan dengan periode, evidence, versi, status, dan waktu; tidak mengubah Product, stok, akses, atau Transaction |
+| Hasil | Insight per tipe (tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV) diperbarui dengan periode, evidence, versi, status, dan waktu (hasil terbaru per tipe, tanpa histori); tidak mengubah Product, stok, akses, atau Transaction |
 | Referensi | `US-AI-001–003`, `FR-AI-001–012`, `AT-012` |
 
 ### UC-FRD-16 — Audit dan penelusuran insiden
@@ -634,10 +636,10 @@ Out-of-Scope tidak boleh diimplementasikan diam-diam dengan mengorbankan require
 | `OD-004` | Diskon, pajak, dan service charge | Di luar Must | Pricing, snapshot, report |
 | `OD-005` | Refund/void | Di luar Must | Reversal, permission, audit, net sales |
 | `OD-006` | Freshness dashboard final | ≤5 menit untuk ≥95% update | Mekanisme reporting dan biaya |
-| `OD-007` | Insight minimum demo | Tren penjualan atau perbandingan Outlet | Dataset dan acceptance test AI |
+| `OD-007` | Insight minimum demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV | Dataset dan acceptance test BI |
 | `OD-008` | Provider/model AI eksternal wajib atau tidak | Tidak wajib | Biaya, privacy, reliability |
 | `OD-009` | Target concurrency resmi | Proposed Baseline bagian 9.4 | Load test dan kapasitas deployment |
-| `OD-010` | Checkout oleh Owner/Admin | Bukan Must; hanya Kasir | Permission model, pemilihan Outlet, audit |
+| `OD-010` | Checkout oleh Owner/Admin | **Locked**: hanya Kasir pada Outlet tugasnya | Permission model, audit, dan validasi checkout |
 
 Item `Open` tidak boleh dianggap final oleh engineer, QA, atau stakeholder. Default hanya digunakan agar proposal dapat dilanjutkan dan harus tetap mudah diubah.
 
@@ -657,7 +659,7 @@ Item `Open` tidak boleh dianggap final oleh engineer, QA, atau stakeholder. Defa
 | Transaction history | `US-TRX-001–002` | `UR-CAS-014`, `UR-OWN-007` | `FR-TRX-001–007` | History acceptance/security test |
 | Owner dashboard | `US-DASH-001–003` | `UR-OWN-004–006`, `UR-REP-001–008` | `FR-REP-001–010` | `AT-011,017` |
 | Admin dashboard | `US-DASH-004` | `UR-ADM-001,008` | `FR-REP-003,009` | Admin permission/dashboard test |
-| AI insight | `US-AI-001–003` | `UR-OWN-008–010`, `UR-AI-001–010` | `FR-AI-001–012` | `AT-012` + AI authorization/idempotency test |
+| BI insight | `US-AI-001–003` | `UR-OWN-008–010`, `UR-AI-001–010` | `FR-AI-001–012` | `AT-012` + AI authorization/idempotency test |
 | Audit/operations | `US-AUD-001`, `US-OPS-001–002` | `UR-SEC-007`, `UR-OPS-001–008` | `FR-AUD-001–006`, `FR-OPS-001–006` | Audit, fault, recovery, dan `AT-015` |
 
 ## 13. Deliverable coverage checklist
