@@ -58,18 +58,18 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | Uang | Nilai uang menggunakan exact `DECIMAL/NUMERIC`; kontrak API mengirim nilai uang sebagai decimal string. |
 | Dashboard Owner | Must mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, perbandingan Outlet, periode, dan waktu pembaruan. |
 | AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan AI sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Trigger manual maksimal satu kali per hari per merchant; pemrosesan tetap asynchronous dan terlindung dari checkout. MVP menyediakan **beberapa tipe insight BI** (tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), bukan hanya satu tipe. |
-| Payment gateway | Tidak menjadi bagian MVP. Sistem mencatat pembayaran manual; keputusan detail payment record masih menjadi gate sebelum baseline. |
+| Payment gateway | Tidak menjadi bagian MVP. Sistem mencatat pembayaran manual (`CASH`/`QRIS`/`TRANSFER`); keputusan detail payment record **Locked** (`OD-001`). |
 
 ## 5. Keputusan yang masih terbuka
 
 | ID | Keputusan yang dibutuhkan | Default usulan saat ini |
 |---|---|---|
-| OD-001 | Batas final payment record manual | `CASH` dan `CASHLESS_MANUAL`; tidak memindahkan dana |
-| OD-002 | Harga Product global atau dapat dioverride per Outlet | Harga global pada MVP |
-| OD-003 | Riwayat Kasir hanya transaksi sendiri atau seluruh Outlet | Belum diputuskan |
-| OD-004 | Diskon, pajak, dan service charge | Di luar Must MVP |
-| OD-005 | Refund/void transaksi final | Di luar Must MVP |
-| OD-006 | Freshness dashboard | Maksimal lima menit untuk 95% pembaruan |
+| OD-001 | Batas final payment record manual | **Locked**: `CASH`, `QRIS`, dan `TRANSFER`; tanpa payment gateway, hanya mencatat tipe pembayaran; tidak memindahkan dana |
+| OD-002 | Harga Product global atau dapat dioverride per Outlet | **Locked**: harga master global + boleh override per Outlet (`product_outlet_price`); tanpa override, harga master dipakai |
+| OD-003 | Riwayat Kasir hanya transaksi sendiri atau seluruh Outlet | **Locked**: Kasir hanya melihat transaksi yang dilakukan oleh dirinya sendiri |
+| OD-004 | Diskon, pajak, dan service charge | **Locked**: pajak fiks 11% (`tax = (subtotal - discount) x 11%`); diskon berupa persen yang diisi Kasir (tanpa voucher); service charge berupa persen yang ditetapkan Owner saat membentuk Merchant (5–15%); tanpa tip. `total = subtotal - discount + service_charge + tax` |
+| OD-005 | Refund/void transaksi final | **Locked**: tidak ada refund/void pada MVP |
+| OD-006 | Freshness dashboard | **Locked**: maksimal lima menit untuk ≥95% pembaruan |
 | OD-007 | BI insight minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV |
 | OD-008 | Kewajiban memakai provider/model AI eksternal | Tidak wajib |
 | OD-009 | Target concurrency resmi | Menggunakan proposed baseline SRS sampai divalidasi |

@@ -78,7 +78,7 @@ Prinsip prioritas:
 
 | Aktor/fungsi | Scope | Tanggung jawab utama |
 |---|---|---|
-| Owner | Tepat satu Merchant, lintas seluruh Outlet | Mengelola profil Merchant, Outlet, lifecycle staf, dashboard bisnis, audit yang diizinkan, dan BI insight |
+| Owner | Tepat satu Merchant, lintas seluruh Outlet | Mengelola profil Merchant, Outlet, lifecycle staf, melihat seluruh transaksi, dashboard bisnis, analytics, audit yang diizinkan, dan BI insight; katalog/stok hanya dibaca (read-only) |
 | Admin | Satu Merchant, lintas seluruh Outlet | Mengelola Category, Product master, harga, inventory per Outlet, dan dashboard operasional |
 | Kasir | Tepat satu Outlet aktif | Menemukan Product, menyusun Cart, checkout, melihat receipt, dan melihat transaction history sesuai batas akses |
 | Reporting | Satu Merchant dan Outlet bila relevan | Mengubah Transaction final menjadi projection dashboard |
@@ -95,17 +95,17 @@ Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum di
 | `FEAT-AUTH` | Login, logout, status akun, dan session | Semua pengguna | Must | `UC-FRD-02` |
 | `FEAT-OUT` | Pengelolaan Outlet | Owner | Must | `UC-FRD-03` |
 | `FEAT-STF` | Pengelolaan lifecycle staf | Owner | Must | `UC-FRD-04` |
-| `FEAT-CAT` | Pengelolaan Category | Owner, Admin | Must | `UC-FRD-05` |
-| `FEAT-PROD` | Product master, harga, status, dan pencarian | Owner, Admin, Kasir | Must | `UC-FRD-06`, `UC-FRD-09` |
-| `FEAT-INV-ADJ` | Melihat dan menyesuaikan stok per Outlet | Owner, Admin | Must | `UC-FRD-07` |
+| `FEAT-CAT` | Pengelolaan Category | Admin | Must | `UC-FRD-05` |
+| `FEAT-PROD` | Product master, harga, status, dan pencarian | Admin, Kasir | Must | `UC-FRD-06`, `UC-FRD-09` |
+| `FEAT-INV-ADJ` | Melihat dan menyesuaikan stok per Outlet | Admin | Must | `UC-FRD-07` |
 | `FEAT-CART` | Membuat dan mengubah Cart | Kasir | Must | `UC-FRD-09` |
 | `FEAT-CHK` | Checkout, payment record, dan perlindungan duplikasi | Kasir | Must | `UC-FRD-10`, `UC-FRD-11` |
-| `FEAT-REC` | Receipt dan pencarian status transaksi | Kasir, Admin, Owner | Must | `UC-FRD-10`, `UC-FRD-11` |
-| `FEAT-TRX` | Transaction history dan detail | Kasir, Admin, Owner | Must | `UC-FRD-12` |
+| `FEAT-REC` | Receipt dan pencarian status transaksi | Kasir, Owner | Must | `UC-FRD-10`, `UC-FRD-11` |
+| `FEAT-TRX` | Transaction history dan detail | Kasir, Owner | Must | `UC-FRD-12` |
 | `FEAT-DASH-OWN` | Dashboard bisnis Owner | Owner | Must | `UC-FRD-13` |
 | `FEAT-DASH-ADM` | Dashboard operasional Admin | Admin | Must | `UC-FRD-14` |
 | `FEAT-AI` | Trigger, status, hasil, dan pembaruan insight BI (beberapa tipe: tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV; hasil terbaru per tipe, tanpa histori) | Owner | Must | `UC-FRD-15` |
-| `FEAT-AUD-OPS` | Audit trail dan penelusuran operasional | Owner, Admin terbatas, Operator | Must/Should sesuai aksi | `UC-FRD-16` |
+| `FEAT-AUD-OPS` | Audit trail dan penelusuran operasional | Owner | Must/Should sesuai aksi | `UC-FRD-16` |
 
 > **Notifikasi:** Fitur "AI Insight" (`FEAT-AI`) diimplementasikan sebagai **Business Intelligence (BI)** — kumpulan insight analitik beberapa tipe (tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), bukan satu tipe insight tunggal. AI berperan sebagai mesin pengerja/penjelas.
 
@@ -113,26 +113,28 @@ Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum di
 
 Legenda: `✓` diizinkan, `—` tidak diizinkan, `Open` belum menjadi requirement Must dan tidak boleh diasumsikan sudah tersedia.
 
-| Kapabilitas | Owner | Admin | Kasir |
-|---|:---:|:---:|:---:|
-| Mengelola profil Merchant | ✓ | — | — |
-| Membuat/mengubah/menonaktifkan Outlet | ✓ | — | — |
-| Membuat dan mengelola akun Admin/Kasir | ✓ | — | — |
-| Menetapkan `User.role` dan `User.outlet_id` | ✓ | — | — |
-| Melihat Category dan Product master | ✓ | ✓ | Product aktif yang tersedia pada Outlet tugasnya |
-| Membuat/mengubah/menonaktifkan Category | ✓ | ✓ | — |
-| Membuat/mengubah/menonaktifkan Product dan harga | ✓ | ✓ | — |
-| Melihat stok seluruh Outlet | ✓ | ✓ | Hanya ketersediaan untuk berjualan |
-| Penambahan atau pengurangan stok | ✓ | ✓ | — |
-| Membuat dan mengubah Cart | — | — | ✓ |
-| Checkout | — | — | ✓ pada Outlet tugasnya |
-| Melihat seluruh transaksi Merchant | ✓ | ✓ | — |
-| Melihat transaction history Kasir | ✓ | ✓ | Sesuai `OD-003`: transaksi sendiri atau seluruh Outlet |
-| Melihat dashboard bisnis Owner | ✓ | — | — |
-| Melihat dashboard operasional Merchant | ✓ | ✓ | — |
-| Memicu dan melihat BI insight | ✓ | — | — |
-| Melihat audit keamanan | ✓ sesuai kebijakan | — | — |
-| Melihat jejak perubahan katalog/inventory | ✓ | ✓ | — |
+| Kapabilitas |       Owner        | Admin |                              Kasir                               |
+|---|:------------------:|:---:|:----------------------------------------------------------------:|
+| Mengelola profil Merchant |         ✓          | — |                                —                                 |
+| Membuat/mengubah/menonaktifkan Outlet |         ✓          | — |                                —                                 |
+| Membuat dan mengelola akun Admin/Kasir |         ✓          | — |                                —                                 |
+| Menetapkan `User.role` dan `User.outlet_id` |         ✓          | — |                                —                                 |
+| Melihat Category dan Product master |         ✓          | ✓ |         Product aktif yang tersedia pada Outlet tugasnya         |
+| Membuat/mengubah/menonaktifkan Category |         -          | ✓ |                                —                                 |
+| Membuat/mengubah/menonaktifkan Product dan harga |         -          | ✓ |                                -                                 |
+| Mengatur harga override per Outlet |         -          | ✓ |                                -                                 |
+| Melihat stok seluruh Outlet |         ✓          | ✓ |                                -                                 |
+| Penambahan atau pengurangan stok |         -          | ✓ |                                —                                 |
+| Membuat dan mengubah Cart |         —          | — |                                ✓                                 |
+| Checkout |         —          | — |                      ✓ pada Outlet tugasnya                      |
+| Melihat seluruh transaksi Merchant |         ✓          | — |                                —                                 |
+| Melihat transaction history Kasir |         ✓          | — | Hanya transaksi yang dilakukan dirinya sendiri (`OD-003` locked) |
+| Melihat dashboard bisnis Owner |         ✓          | — |                                —                                 |
+| Melihat analytics bisnis |         ✓          | — |                                —                                 |
+| Melihat dashboard operasional Merchant |         —          | ✓ |                                —                                 |
+| Memicu dan melihat BI insight |         ✓          | — |                                —                                 |
+| Melihat audit keamanan | ✓ sesuai kebijakan | — |                                —                                 |
+| Melihat jejak perubahan katalog/inventory |         ✓          | ✓ |                                —                                 |
 
 Aturan akses wajib:
 
@@ -142,7 +144,9 @@ Aturan akses wajib:
 4. Admin memiliki `User.outlet_id = null` dan bekerja lintas Outlet dalam Merchant;
 5. Kasir memiliki tepat satu `User.outlet_id` aktif;
 6. data Merchant lain tidak boleh dikembalikan walaupun ID-nya diketahui;
-7. checkout hanya dapat dilakukan oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak memiliki permission checkout.
+7. checkout hanya dapat dilakukan oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak memiliki permission checkout;
+8. Admin tidak memiliki akses melihat transaksi; lihat transaksi hanya untuk Owner (seluruh Merchant) dan Kasir (riwayat dirinya di Outlet tugasnya);
+9. Owner read-only terhadap Category/Product/Inventory; pengelolaan katalog dan stok hanya oleh Admin.
 
 ## 6. User stories dan acceptance summary
 
@@ -169,6 +173,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | `US-CAT-002` | Sebagai Admin, saya ingin menonaktifkan Category tanpa menghapusnya agar relasi Product dan histori tetap utuh. | Must | Category nonaktif tidak dapat dipilih untuk Product baru/perubahan; relasi lama tidak dihapus. | `UBR-016`, `FR-CAT-003,010`, `BR-019` |
 | `US-PROD-001` | Sebagai Admin, saya ingin membuat Product master dengan nama, harga, Category, dan status agar Product siap dikelola Merchant. | Must | Category wajib aktif dan milik Merchant; nama tidak kosong; harga tidak negatif. | `UR-ADM-001–002`, `FR-CAT-002–005` |
 | `US-PROD-002` | Sebagai Admin, saya ingin mengubah harga/status Product tanpa mengubah transaksi lama agar histori tetap benar. | Must | Perubahan berlaku untuk checkout berikutnya; snapshot transaksi lama tidak berubah. | `UR-ADM-005–006`, `FR-CAT-005,007–008` |
+| `US-PROD-005` | Sebagai Admin, saya ingin menetapkan harga yang berbeda per Outlet agar tiap cabang bisa menyesuaikan harga. | Must | Harga override per Outlet; tanpa override, fallback ke harga master. | `UR-ADM-005`, `FR-CAT-011–012` |
 | `US-PROD-003` | Sebagai Kasir, saya ingin mencari dan memilih Product aktif agar dapat melayani pelanggan dengan cepat. | Must | Hanya Product aktif yang mempunyai inventory pada Outlet tugasnya ditampilkan; pencarian memenuhi target performa. | `UR-CAS-002–003`, `FR-CAT-006`, `NFR-PERF-003` |
 | `US-PROD-004` | Sebagai Kasir, saya ingin memfilter Product berdasarkan Category agar daftar Product lebih mudah dipindai. | Could | Filter hanya memakai Category Merchant; keputusan detail UX mengikuti desain. | Scope “jika waktu cukup”; belum menjadi Must tersendiri |
 | `US-INV-001` | Sebagai Admin, saya ingin melihat stok satu Product pada setiap Outlet agar dapat mengetahui ketersediaannya. | Must | Saldo ditampilkan per kombinasi Product + Outlet dan tidak bercampur antar-Merchant. | `UR-ADM-001`, `FR-INV-001–002` |
@@ -183,16 +188,16 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | `US-CART-002` | Sebagai Kasir, saya ingin mengubah kuantitas, menghapus item, atau membatalkan Cart agar kesalahan dapat diperbaiki sebelum pembayaran. | Must | Tidak ada Transaction final ketika Cart diubah/dibatalkan. | `UR-CAS-004`, `FR-CART-003,010` |
 | `US-CART-003` | Sebagai Kasir, saya ingin melihat item, subtotal, dan total agar dapat mengonfirmasi jumlah pembayaran kepada pelanggan. | Must | UI menampilkan perhitungan; server tetap menghitung ulang total final. | `UR-CAS-005`, `FR-CART-004–006` |
 | `US-CHK-001` | Sebagai Kasir, saya ingin memilih metode pembayaran dan checkout agar penjualan tercatat tepat satu kali. | Must | Transaction, line snapshot, payment record, stock movement, dan pengurangan stok commit atomik. | `UR-CAS-006–008`, `FR-CHK-001–011`, `FR-PAY-001–005` |
+| `US-CHK-004` | Sebagai Kasir, saya ingin menerapkan diskon (persen, tanpa voucher) dan melihat service charge (persen dari Merchant) serta pajak per transaksi agar total tercatat akurat. | Must | `discount = subtotal x discount_pct/100`; `service_charge = subtotal x service_charge_pct/100` (5–15%); `tax = (subtotal - discount) x 11%`; `total = subtotal - discount + service_charge + tax`; tanpa tip. | `UR-CAS-008`, `FR-CHK-018` |
 | `US-CHK-002` | Sebagai Kasir, saya ingin menerima alasan yang jelas ketika harga, status Product, stok, atau akses berubah agar Cart dapat diperbaiki dengan aman. | Must | Checkout ditolak tanpa hasil parsial dan mengembalikan kode error yang dapat ditindaklanjuti. | `UR-CAS-010`, `FR-CART-007–010`, `FR-CHK-005–007` |
 | `US-CHK-003` | Sebagai Kasir, saya ingin memeriksa status checkout yang responsnya terputus agar tidak membuat transaksi ganda. | Must | Key dan payload sama mengembalikan transaksi yang sama; payload berbeda ditolak. | `UR-CAS-007–009`, `FR-CHK-001–004,012–016` |
 | `US-REC-001` | Sebagai Kasir, saya ingin menerima nomor dan receipt setelah checkout berhasil agar pelanggan memperoleh bukti transaksi. | Must | Receipt memakai snapshot dan dapat dilihat ulang tanpa membaca harga katalog terbaru. | `UR-CAS-011`, `FR-PAY-006–008` |
-
 ### 6.4 Transaction history, dashboard, reporting, dan AI
 
 | User Story ID | User story | Prioritas | Acceptance summary | Referensi |
 |---|---|---|---|---|
-| `US-TRX-001` | Sebagai pengguna berhak, saya ingin melihat daftar dan detail Transaction agar dapat menelusuri penjualan yang telah terjadi. | Must | Pagination; filter tanggal/status; pencarian receipt; scope Merchant/Outlet diterapkan. | `UR-CAS-014`, `UR-OWN-007`, `FR-TRX-001–007` |
-| `US-TRX-002` | Sebagai Kasir, saya ingin melihat riwayat yang diizinkan pada Outlet tugas saya agar dapat membantu pemeriksaan transaksi. | Must/Open scope | Fitur wajib tersedia; apakah hanya transaksi sendiri atau seluruh Outlet mengikuti `OD-003`. | `UR-CAS-014`, `FR-TRX-004,006` |
+| `US-TRX-001` | Sebagai Owner atau Kasir sesuai hak, saya ingin melihat daftar dan detail Transaction agar dapat menelusuri penjualan yang telah terjadi. | Must | Pagination; filter tanggal/status; pencarian receipt; scope Merchant (Owner) atau Outlet/riwayat (Kasir) diterapkan; Admin tidak dapat mengakses. | `UR-CAS-014`, `UR-OWN-007`, `FR-TRX-001–007` |
+| `US-TRX-002` | Sebagai Kasir, saya ingin melihat riwayat transaksi yang saya lakukan sendiri agar dapat membantu pemeriksaan. | Must | Hanya transaksi dengan `cashier_user_id = saya` (`OD-003` locked). | `UR-CAS-014`, `FR-TRX-004,006` |
 | `US-DASH-001` | Sebagai Owner, saya ingin memilih periode dan melihat omzet, jumlah transaksi, serta AOV agar memahami kondisi bisnis. | Must | Hanya Transaction `COMPLETED`; definisi metrik konsisten; scope Merchant/Outlet benar. | `UR-OWN-004`, `UR-REP-001–003`, `FR-REP-001–003` |
 | `US-DASH-002` | Sebagai Owner, saya ingin melihat tren penjualan/AOV, pola waktu, Product terlaris/tidak laku, dan perbandingan Outlet agar mengetahui perubahan yang perlu ditindaklanjuti. | Must | Hasil sesuai periode, bucket waktu, timezone Merchant, dan transaksi sumber. | `UR-OWN-005–005A`, `UR-REP-003A`, `FR-REP-003A–003C` |
 | `US-DASH-003` | Sebagai Owner, saya ingin melihat waktu pembaruan dan status stale agar memahami seberapa baru data dashboard. | Must | `data_updated_at`, timezone, empty state, dan degraded state terlihat. | `UR-OWN-006,009`, `FR-REP-004–007` |
@@ -262,11 +267,11 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Hasil | Admin aktif pada Merchant atau Kasir aktif pada tepat satu Outlet; histori User lama tidak dihapus |
 | Referensi | `US-STF-001–003`, `FR-AUTH-011–014`, `FR-TEN-005–008`, `AT-016` |
 
-### UC-FRD-05 — Owner/Admin mengelola Category
+### UC-FRD-05 — Admin mengelola Category (Owner read-only)
 
 | Elemen | Detail |
 |---|---|
-| Aktor | Owner, Admin |
+| Aktor | Admin (Owner read-only) |
 | Prasyarat | User aktif dengan akses katalog pada Merchant |
 | Pemicu | Membuat, mengubah, atau menonaktifkan Category |
 | Alur utama | Isi/pilih Category → validasi nama dan Merchant → simpan perubahan → audit dicatat → Category aktif dapat dipilih Product |
@@ -274,11 +279,11 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Hasil | Category tersimpan atau dinonaktifkan tanpa dihapus fisik; relasi dan histori tetap utuh |
 | Referensi | `US-CAT-001–002`, `FR-CAT-001,003,010`, `BR-019` |
 
-### UC-FRD-06 — Owner/Admin mengelola Product master
+### UC-FRD-06 — Admin mengelola Product master (Owner read-only)
 
 | Elemen | Detail |
 |---|---|
-| Aktor | Owner, Admin |
+| Aktor | Admin (Owner read-only) |
 | Prasyarat | Category aktif tersedia pada Merchant |
 | Pemicu | Membuat atau mengubah Product |
 | Alur utama | Isi nama, harga, satu Category wajib, dan status → validasi Merchant/Category/harga → simpan Product → audit harga/status dicatat → stok awal dikelola melalui adjustment terpisah |
@@ -290,7 +295,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 
 | Elemen | Detail |
 |---|---|
-| Aktor | Owner, Admin |
+| Aktor | Admin (Owner read-only) |
 | Prasyarat | Product dan Outlet aktif berada dalam Merchant aktif |
 | Pemicu | Pengguna memilih penambahan, pengurangan, atau koreksi stok |
 | Alur utama | Pilih Outlet dan Product → masukkan perubahan serta alasan → validasi scope dan saldo → commit saldo dan StockMovement → simpan before/after serta actor → tampilkan hasil |
@@ -320,7 +325,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Alur utama | Client mengirim idempotency key → server memvalidasi User/Merchant/Outlet/Product/harga/stok/payment → server menghitung total → Transaction, line snapshot, Payment, StockMovement, dan saldo stok commit atomik → event reporting dicatat → receipt dikembalikan |
 | Alternatif | Ditangani oleh `UC-FRD-11` |
 | Hasil | Tepat satu Transaction `COMPLETED`, satu Payment `CONFIRMED`, satu pengurangan stok, dan receipt yang konsisten |
-| Referensi | `US-CHK-001`, `US-REC-001`, `FR-CHK-001–017`, `FR-PAY-001–008`, `AT-003–006,009–010` |
+| Referensi | `US-CHK-001`, `US-REC-001`, `FR-CHK-001–018`, `FR-PAY-001–008`, `AT-003–006,009–010` |
 
 ### UC-FRD-11 — Checkout ditolak atau hasil belum diketahui
 
@@ -338,11 +343,11 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 
 | Elemen | Detail |
 |---|---|
-| Aktor | Owner, Admin, Kasir sesuai scope |
+| Aktor | Owner, Kasir sesuai scope (Admin tidak memiliki akses) |
 | Prasyarat | User login dan mempunyai hak terhadap Transaction yang diminta |
 | Pemicu | Pengguna membuka riwayat atau mencari receipt number |
 | Alur utama | Tentukan scope dari credential → terapkan filter tanggal/status/Outlet → kembalikan daftar berpaginasi → pengguna membuka detail/receipt snapshot |
-| Alternatif | Tidak ada hasil; Transaction beda Merchant/Outlet; receipt tidak ditemukan; scope Kasir mengikuti `OD-003` |
+| Alternatif | Tidak ada hasil; Transaction beda Merchant/Outlet; receipt tidak ditemukan; Kasir hanya dapat mengakses transaksi miliknya (`OD-003` locked) |
 | Hasil | Histori dapat dibaca tanpa mengubah Transaction dan tanpa membaca harga katalog terbaru |
 | Referensi | `US-TRX-001–002`, `FR-TRX-001–007` |
 
@@ -443,7 +448,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A["Owner atau Admin memilih penambahan atau pengurangan stok"] --> B["Pilih Product, Outlet, delta, dan alasan"]
+    A["Admin memilih penambahan atau pengurangan stok"] --> B["Pilih Product, Outlet, delta, dan alasan"]
     B --> C["Validasi Merchant, saldo, dan konkurensi"]
     C -->|Tidak valid| D["Tolak tanpa perubahan parsial"]
     C -->|Valid| E["Commit saldo dan StockMovement secara atomik"]
@@ -607,7 +612,7 @@ Sistem Iterasi 1 secara eksplisit tidak diwajibkan untuk membangun:
 3. split payment, cicilan, refund, partial refund, chargeback, atau reversal lengkap;
 4. akuntansi lengkap dan rekonsiliasi bank;
 5. customer profile, CRM, loyalty, gift card, atau promo kompleks;
-6. pajak, diskon, tip, dan service charge kompleks;
+6. tip, serta skema pajak/diskon/service charge yang kompleks (tarif progresif, pajak berjenjang, dsb. — diskon/pajak/SC sederhana per transaksi wajib, `OD-004`);
 7. supplier, procurement, purchase order, atau inventory gudang terpisah;
 8. tracking bahan baku atau recipe/BOM makanan;
 9. payroll dan shift management penuh;
@@ -630,12 +635,12 @@ Out-of-Scope tidak boleh diimplementasikan diam-diam dengan mengorbankan require
 
 | ID | Keputusan yang belum final | Default proposed | Dampak utama |
 |---|---|---|---|
-| `OD-001` | Batas payment record manual | `CASH` dan `CASHLESS_MANUAL`; tidak memindahkan dana | Checkout state, security, reconciliation |
-| `OD-002` | Harga Product global atau override per Outlet | Harga global | Data model dan Admin UX |
-| `OD-003` | Riwayat Kasir: transaksi sendiri atau seluruh Outlet | Belum diputuskan | Authorization dan UX history |
-| `OD-004` | Diskon, pajak, dan service charge | Di luar Must | Pricing, snapshot, report |
-| `OD-005` | Refund/void | Di luar Must | Reversal, permission, audit, net sales |
-| `OD-006` | Freshness dashboard final | ≤5 menit untuk ≥95% update | Mekanisme reporting dan biaya |
+| `OD-001` | Batas payment record manual | **Locked**: `CASH`, `QRIS`, dan `TRANSFER`; tanpa gateway, hanya tercatat tipenya | Checkout state, security, reconciliation |
+| `OD-002` | Harga Product global atau override per Outlet | **Locked**: harga master global + override per Outlet | Data model dan Admin UX |
+| `OD-003` | Riwayat Kasir: transaksi sendiri atau seluruh Outlet | **Locked**: hanya transaksi yang dilakukan dirinya sendiri | Authorization dan UX history |
+| `OD-004` | Diskon, pajak, dan service charge | **Locked**: diskon persen dari Kasir (tanpa voucher), service charge persen dari Merchant (5–15%), pajak fiks 11% (`tax = (subtotal - discount) x 11%`); tanpa tip. Total = `subtotal - discount + service_charge + tax` | Pricing, snapshot, report |
+| `OD-005` | Refund/void | **Locked**: tidak ada pada MVP | Reversal, permission, audit, net sales |
+| `OD-006` | Freshness dashboard final | **Locked**: ≤5 menit untuk ≥95% update | Mekanisme reporting dan biaya |
 | `OD-007` | Insight minimum demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV | Dataset dan acceptance test BI |
 | `OD-008` | Provider/model AI eksternal wajib atau tidak | Tidak wajib | Biaya, privacy, reliability |
 | `OD-009` | Target concurrency resmi | Proposed Baseline bagian 9.4 | Load test dan kapasitas deployment |
@@ -651,10 +656,10 @@ Item `Open` tidak boleh dianggap final oleh engineer, QA, atau stakeholder. Defa
 | Outlet | `US-OUT-001–002` | `UR-OWN-003A` | `FR-TEN-004,008–010` | Outlet acceptance + tenant test |
 | Staff lifecycle | `US-STF-001–003` | `UR-OWN-003–003B` | `FR-AUTH-011–014`, `FR-TEN-005–008` | `AT-016` + role/Outlet security test |
 | Category | `US-CAT-001–002` | `UR-ADM-001–002` | `FR-CAT-001,003,010`, `BR-019` | Category lifecycle integration test |
-| Product | `US-PROD-001–004` | `UR-ADM-001–006`, `UR-CAS-002–003` | `FR-CAT-002–009` | Product acceptance + `AT-013` |
+| Product | `US-PROD-001–005` | `UR-ADM-001–006`, `UR-CAS-002–003` | `FR-CAT-002–012` | Product acceptance + `AT-013` |
 | Inventory adjustment | `US-INV-001–002` | `UR-ADM-001,003,007–008` | `FR-INV-001–004,009` | Inventory integration/concurrency test |
 | Cart | `US-CART-001–003` | `UR-CAS-002–005` | `FR-CART-001–010` | Cart acceptance + price manipulation test |
-| Checkout/payment | `US-CHK-001–003` | `UR-CAS-006–010,012–013` | `FR-CHK-001–017`, `FR-PAY-001–005` | `AT-003–010` |
+| Checkout/payment | `US-CHK-001–004` | `UR-CAS-006–010,012–013` | `FR-CHK-001–018`, `FR-PAY-001–005` | `AT-003–010` |
 | Receipt | `US-REC-001` | `UR-CAS-011` | `FR-PAY-006–008` | `AT-010,013` |
 | Transaction history | `US-TRX-001–002` | `UR-CAS-014`, `UR-OWN-007` | `FR-TRX-001–007` | History acceptance/security test |
 | Owner dashboard | `US-DASH-001–003` | `UR-OWN-004–006`, `UR-REP-001–008` | `FR-REP-001–010` | `AT-011,017` |

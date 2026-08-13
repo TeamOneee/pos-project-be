@@ -86,11 +86,13 @@ Fungsi utama Owner:
 * Melihat tren penjualan  
 * Melihat pola waktu penjualan  
 * Melihat Average Order Value (AOV)  
+* Melihat seluruh transaksi merchant  
+* Melihat katalog dan stok (read-only)  
 * Mengelola karyawan  
 * Mengelola outlet  
 * Menjalankan analisis AI
 
-Owner berfokus pada **proses dan keputusan bisnis**, bukan aktivitas transaksi harian di outlet.
+Owner berfokus pada **proses dan keputusan bisnis**, bukan aktivitas transaksi harian di outlet. Owner tidak melakukan checkout dan tidak mengelola katalog/stok (read-only).
 
 ---
 
@@ -113,6 +115,8 @@ Merchant
 Admin dapat mengelola data yang dibutuhkan untuk operasional merchant dan dapat menangani beberapa outlet.
 
 Admin tidak ditempelkan secara khusus pada satu outlet.
+
+Admin **tidak memiliki akses** ke transaksi, analytics, dashboard Owner, maupun insight BI — murni operasional (katalog, harga, stok, dan dashboard operasional).
 
 ---
 
@@ -435,11 +439,19 @@ Jika terdapat perubahan requirement, dokumen ini perlu diperbarui agar seluruh a
 | Cashier | Multi Cashier |
 | Cashier Scope | 1 Cashier → 1 Outlet |
 | Checkout | Hanya oleh Kasir pada Outlet tugasnya |
-| Admin Scope | Merchant |
-| Owner Scope | Merchant |
+| Cashier History | Hanya transaksi yang dilakukan Kasir itu sendiri (`OD-003`) |
+| Harga | Harga master global + override per Outlet (`OD-002`) |
+| Diskon/Pajak/Service Charge | Diskon persen dari Kasir (tanpa voucher), service charge persen dari Merchant (5–15%), pajak fiks 11% (`tax = (subtotal - discount) x 11%`); tanpa tip. Total = `subtotal - discount + service_charge + tax` (`OD-004`) |
+| Refund | Tidak ada pada MVP (`OD-005`) |
+| Dashboard Freshness | ≤ 5 menit untuk ≥95% pembaruan (`OD-006`) |
+| Monitoring | Prometheus (scrape `/metrics`) + dashboard Grafana (wajib) |
+| Admin Scope | Merchant (katalog, harga, stok, dashboard operasional) |
+| Owner Scope | Merchant (bisnis, transaksi, dashboard, analytics, AI) |
+| Transaction Access | Owner: semua transaksi merchant; Cashier: transaksi dirinya sendiri; Admin: tidak ada |
+| Catalog/Stock Management | Hanya Admin; Owner read-only |
 | Stock | Ada |
 | Category | Entitas terpisah |
-| Payment Gateway | Tidak ditangani |
+| Payment Gateway | Tidak ditangani; payment dicatat manual (`OD-001`) |
 | AI Trigger | Manual oleh Owner |
 | AI Limit | 1x per hari per Merchant |
 | AI Cron Job | Tidak digunakan sebagai trigger utama |

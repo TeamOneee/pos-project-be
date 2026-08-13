@@ -64,8 +64,9 @@ Aplikasi K menyediakan:
 
 Pada baseline usulan, Aplikasi K **tidak memindahkan dana**. Sistem hanya mencatat bahwa Kasir telah menerima pembayaran dengan metode:
 
-- `CASH`; atau
-- `CASHLESS_MANUAL` seperti QRIS dari perangkat/aplikasi lain.
+- `CASH`;
+- `QRIS`; atau
+- `TRANSFER`.
 
 Konfirmasi Kasir merupakan bukti operasional untuk prototype, bukan settlement dari bank. Sistem tidak menyimpan nomor kartu, PIN, credential e-wallet, QR payload sensitif, atau data autentikasi pembayaran pelanggan.
 
@@ -161,19 +162,19 @@ Diagram ini menunjukkan batas tanggung jawab, bukan keputusan bahwa setiap kotak
 
 `Locked` berasal dari keputusan stakeholder Iterasi 1. `Proposed` adalah default kerja yang masih memerlukan validasi. Status gabungan berarti sebagian aturan sudah dikunci, sedangkan perluasannya masih berupa proposal.
 
-| ID | Status | Asumsi/constraint | Konsekuensi bila berubah |
-|---|---|---|---|
-| ASM-001 | Locked | Satu Owner memiliki tepat satu Merchant; satu Merchant dapat memiliki banyak Outlet. | Ownership/multi-merchant perlu model akses baru. |
-| ASM-002 | Locked | Setiap pengguna login dengan email; `role` dan `outlet_id` disimpan langsung pada User. Admin memiliki `outlet_id = null`, sedangkan Kasir memiliki tepat satu `outlet_id` pada MVP. | Multi-role/multi-outlet Kasir memerlukan tabel relasi dan UI pemilihan konteks yang lebih kompleks. |
-| ASM-003 | Locked/Proposed | Category dan Product master berada pada Merchant; setiap Product wajib memiliki satu Category. Produk tanpa variant adalah proposed baseline. | Perlu SKU/variant atau perubahan model katalog. |
-| ASM-004 | Locked | MVP menyimpan stok numerik pada kombinasi Product + Outlet; stok tidak boleh negatif. | Perlu modul inventory, movement, dan aturan konkurensi checkout. |
-| ASM-005 | Proposed | Mata uang tunggal IDR. | Perlu currency per merchant/transaksi dan aturan pembulatan. |
-| ASM-006 | Proposed | Pajak, diskon, tip, dan service charge di luar Must. | Perlu pricing engine serta perluasan snapshot dan report. |
-| ASM-007 | Proposed | Refund/void transaksi final di luar Must. | Perlu state reversal, permission, audit, dan net sales. |
-| ASM-008 | Proposed | Payment dicatat manual. | Gateway membutuhkan payment state machine terpisah. |
-| ASM-009 | Proposed | Dashboard boleh tertinggal maksimal lima menit untuk target normal. | Perlu strategi update lebih agresif atau real-time. |
-| ASM-010 | Locked | Insight hanya dimulai melalui trigger manual Owner, maksimal satu kali per hari per merchant, dan diproses asynchronous. | Trigger otomatis memerlukan perubahan flow dan kebijakan produk. |
-| ASM-011 | Proposed | Aplikasi web modern dengan koneksi online. | Offline-first membutuhkan desain sinkronisasi yang berbeda dan berada di luar kasus terpilih. |
+| ID | Status    | Asumsi/constraint                                                                                                                                                                    | Konsekuensi bila berubah |
+|---|-----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---|
+| ASM-001 | Locked    | Satu Owner memiliki tepat satu Merchant; satu Merchant dapat memiliki banyak Outlet.                                                                                                 | Ownership/multi-merchant perlu model akses baru. |
+| ASM-002 | Locked    | Setiap pengguna login dengan email; `role` dan `outlet_id` disimpan langsung pada User. Admin memiliki `outlet_id = null`, sedangkan Kasir memiliki tepat satu `outlet_id` pada MVP. | Multi-role/multi-outlet Kasir memerlukan tabel relasi dan UI pemilihan konteks yang lebih kompleks. |
+| ASM-003 | Locked    | Category dan Product master berada pada Merchant; setiap Product wajib memiliki satu Category. Produk tanpa variant tidak ada.                                                       | Perlu SKU/variant atau perubahan model katalog. |
+| ASM-004 | Locked    | MVP menyimpan stok numerik pada kombinasi Product + Outlet; stok tidak boleh negatif.                                                                                                | Perlu modul inventory, movement, dan aturan konkurensi checkout. |
+| ASM-005 | Confirmed | Mata uang tunggal IDR.                                                                                                                                                               | Perlu currency per merchant/transaksi dan aturan pembulatan. |
+| ASM-006 | Confirmed  | Pajak fiks 11% per transaksi; diskon berupa persen yang diisi Kasir (tanpa voucher); service charge berupa persen yang ditetapkan Owner saat membentuk Merchant (5–15%); tanpa tip.                                                                                                          | Perlu pricing engine serta perluasan snapshot dan report. |
+| ASM-007 | Confirmed  | Refund/void transaksi tidak diimlementasi.                                                                                                                                           | Perlu state reversal, permission, audit, dan net sales. |
+| ASM-008 | Confirmed  | Payment dicatat manual.                                                                                                                                                              | Gateway membutuhkan payment state machine terpisah. |
+| ASM-009 | Proposed  | Dashboard boleh tertinggal maksimal lima menit untuk target normal.                                                                                                                  | Perlu strategi update lebih agresif atau real-time. |
+| ASM-010 | Locked    | Insight hanya dimulai melalui trigger manual Owner, maksimal satu kali per hari per merchant, dan diproses asynchronous.                                                             | Trigger otomatis memerlukan perubahan flow dan kebijakan produk. |
+| ASM-011 | Confirmed    | Aplikasi web modern dengan koneksi online.                                                                                                                                           | Offline-first membutuhkan desain sinkronisasi yang berbeda dan berada di luar kasus terpilih. |
 
 ---
 
@@ -183,8 +184,8 @@ Diagram ini menunjukkan batas tanggung jawab, bukan keputusan bahwa setiap kotak
 
 | Role | Tujuan | Batas utama |
 |---|---|---|
-| OWNER | Mengendalikan merchant, outlet, tim, dan informasi bisnis | Tepat satu merchant miliknya |
-| ADMIN | Menjaga Category, Product master, dan inventory seluruh Outlet pada Merchant | Tidak dapat mengubah Owner, Outlet, atau field role/outlet User lain |
+| OWNER | Mengendalikan merchant, outlet, tim, dan informasi bisnis | Tepat satu merchant miliknya; hanya melihat (read-only) katalog dan stok, tidak mengelola Category/Product/Inventory; tidak memiliki dashboard operasional |
+| ADMIN | Menjaga Category, Product master, dan inventory seluruh Outlet pada Merchant | Tidak dapat mengubah Owner, Outlet, atau field role/outlet User lain; tidak melihat transaksi, analytics, atau insight BI |
 | CASHIER | Menjalankan penjualan pada outlet tugasnya | Tidak dapat mengubah katalog, akun, atau insight |
 
 Flow Must Iterasi 1 mengunci: hanya `CASHIER` yang dapat melakukan checkout, pada `User.outlet_id` tugasnya. Owner dan Admin tidak memiliki permission checkout (keputusan ini menutup `OD-010`).
@@ -237,30 +238,33 @@ Flow Must Iterasi 1 mengunci: hanya `CASHIER` yang dapat melakukan checkout, pad
 | FR-TEN-008 | Sistem harus menolak seluruh akses data ketika User, Merchant, atau Outlet yang dirujuk oleh User tidak aktif. | Must | Security test |
 | FR-TEN-009 | Semua entitas bisnis tenant harus dikaitkan dengan satu `merchant_id`; entitas operasional outlet harus juga dikaitkan dengan satu `outlet_id`. | Must | Schema inspection + test |
 | FR-TEN-010 | Sistem harus memastikan ID milik merchant/outlet lain menghasilkan `not found` atau `forbidden` yang aman, tanpa mengembalikan isi objek. | Must | Security test |
+| FR-TEN-011 | Owner harus dapat menetapkan persentase service charge (5–15%) saat membentuk Merchant; persentase tersebut diterapkan pada setiap transaksi di Merchant dan disimpan sebagai snapshot pada transaksi. | Must | Acceptance + integration test |
 
 ### 8.3 Product catalog
 
 | ID | Requirement | Prioritas | Verifikasi |
 |---|---|---|---|
-| FR-CAT-001 | Owner/Admin harus dapat membuat, melihat, mengubah, dan menonaktifkan Category pada Merchant. | Must | Acceptance test |
-| FR-CAT-002 | Owner/Admin harus dapat membuat Product master dengan nama, harga jual IDR, satu Category wajib, dan status aktif pada Merchant. | Must | Acceptance test |
+| FR-CAT-001 | Admin harus dapat membuat, mengubah, dan menonaktifkan Category pada Merchant; Owner hanya dapat melihat Category. | Must | Acceptance test |
+| FR-CAT-002 | Admin harus dapat membuat Product master dengan nama, harga jual IDR, satu Category wajib, dan status aktif pada Merchant. | Must | Acceptance test |
 | FR-CAT-003 | Sistem harus menolak nama kosong, harga negatif, Category kosong/nonaktif, atau Category yang tidak milik Merchant aktif. | Must | Unit + integration test |
 | FR-CAT-003A | Sistem harus membuat Category/Product ID unik dan mengaitkannya dengan Merchant aktif. | Must | Integration test |
-| FR-CAT-004 | Owner/Admin harus dapat melihat dan mencari Category/Product seluruh Merchant. | Must | Acceptance + performance test |
-| FR-CAT-005 | Owner/Admin harus dapat mengubah nama, Category, harga, dan status aktif Product pada Merchant. | Must | Acceptance test |
+| FR-CAT-004 | Owner dan Admin harus dapat melihat dan mencari Category/Product seluruh Merchant (Owner read-only). | Must | Acceptance + performance test |
+| FR-CAT-005 | Admin harus dapat mengubah nama, Category, harga, dan status aktif Product pada Merchant. | Must | Acceptance test |
 | FR-CAT-006 | Kasir hanya boleh melihat produk aktif yang memiliki inventory pada Outlet tugasnya pada flow penjualan. | Must | Security + acceptance test |
 | FR-CAT-007 | Menonaktifkan produk harus mencegah checkout baru atas produk tersebut tetapi tidak menghapus riwayat transaksi. | Must | Integration test |
 | FR-CAT-008 | Sistem harus merekam actor, waktu, nilai sebelum, dan nilai sesudah untuk perubahan harga/status. | Must | Integration test |
 | FR-CAT-009 | Sistem harus mencegah Kasir membuat atau mengubah produk melalui UI maupun API. | Must | Security test |
 | FR-CAT-010 | Nama Category harus unik pada Merchant; seluruh Category dinonaktifkan, bukan dihapus fisik, sehingga relasi Product dan riwayat tetap utuh. | Must | Integration test |
+| FR-CAT-011 | Admin harus dapat menetapkan harga override per Outlet (`product_outlet_price`). Tanpa override, harga efektif adalah harga master `Product.price`; dengan override, harga efektif Outlet tersebut adalah nilai override. | Must | Acceptance + integration test |
+| FR-CAT-012 | Harga efektif per Outlet harus dipakai dalam checkout dan katalog Kasir pada Outlet tersebut; perubahan harga efektif hanya berlaku untuk transaksi berikutnya dan tidak mengubah snapshot transaksi lama. | Must | Integration test |
 
 ### 8.4 Inventory per Outlet
 
 | ID | Requirement | Prioritas | Verifikasi |
 |---|---|---|---|
 | FR-INV-001 | Sistem harus menyimpan satu saldo stok nonnegatif untuk setiap kombinasi Product + Outlet. | Must | Schema + integration test |
-| FR-INV-002 | Owner/Admin harus dapat melihat stok seluruh Outlet dalam Merchant, tetapi setiap perubahan harus menyebut satu Outlet aktif secara eksplisit. Outlet nonaktif hanya dapat dibaca sebagai histori. | Must | Acceptance + security test |
-| FR-INV-003 | Owner/Admin harus dapat melakukan stock adjustment manual pada Outlet aktif dengan alasan; sistem harus mencatat nilai sebelum/sesudah, delta, Outlet, Product, actor, waktu, dan referensi bila ada. | Must | Integration test |
+| FR-INV-002 | Owner harus dapat melihat stok seluruh Outlet dalam Merchant (read-only); Admin harus dapat melihat dan mengubah stok pada satu Outlet aktif secara eksplisit. Outlet nonaktif hanya dapat dibaca sebagai histori. | Must | Acceptance + security test |
+| FR-INV-003 | Admin harus dapat melakukan stock adjustment manual pada Outlet aktif dengan alasan; sistem harus mencatat nilai sebelum/sesudah, delta, Outlet, Product, actor, waktu, dan referensi bila ada. | Must | Integration test |
 | FR-INV-004 | Sistem harus menolak stock adjustment manual yang menghasilkan saldo stok negatif. | Must | Unit + integration test |
 | FR-INV-006 | Checkout final harus memvalidasi serta mengurangi stok Product pada Outlet Kasir secara aman terhadap checkout bersamaan. | Must | Concurrency test |
 | FR-INV-007 | Jika satu item tidak memiliki stok cukup, seluruh checkout harus gagal tanpa mengurangi stok item lain. | Must | Integration test |
@@ -305,12 +309,13 @@ Keranjang dapat disimpan hanya di client untuk MVP, tetapi checkout server tetap
 | FR-CHK-015 | Kegagalan meneruskan pekerjaan reporting harus dapat dideteksi dan dipulihkan tanpa membatalkan transaksi final. | Must | Fault injection/recovery test |
 | FR-CHK-016 | Idempotency result harus dipertahankan minimal 24 jam pada MVP. | Must | Integration test |
 | FR-CHK-017 | Sistem harus menghasilkan correlation ID untuk setiap request checkout. | Must | Observability test |
+| FR-CHK-018 | Setiap checkout harus menerima diskon berupa persen yang diisi Kasir (`discount_pct`, 0–100, tanpa voucher) dan menghitung ulang di server: `discount = subtotal x discount_pct/100`; `service_charge = subtotal x service_charge_pct/100` (persen dari Merchant, 5–15%); `tax = (subtotal - discount) x 11%` (fiks); `total = subtotal - discount + service_charge + tax`. Diskon tidak boleh negatif dan `discount_pct <= 100`; tanpa tip. | Must | Unit + integration test |
 
 ### 8.7 Payment record dan receipt
 
 | ID | Requirement | Prioritas | Verifikasi |
 |---|---|---|---|
-| FR-PAY-001 | Sistem harus menerima metode `CASH` dan `CASHLESS_MANUAL` pada MVP. | Must | Acceptance test |
+| FR-PAY-001 | Sistem harus menerima metode `CASH`, `QRIS`, dan `TRANSFER` pada MVP. | Must | Acceptance test |
 | FR-PAY-002 | Payment record harus menyimpan metode, amount, waktu konfirmasi, actor, dan status `CONFIRMED`. Pada MVP manual, Payment langsung `CONFIRMED` ketika checkout commit; tidak ada state `PENDING`, settlement, callback gateway, atau rekonsiliasi bank. | Must | Schema + integration test |
 | FR-PAY-003 | Payment amount harus sama dengan total transaksi untuk single-payment MVP. | Must | Unit + integration test |
 | FR-PAY-004 | Sistem harus menolak metode pembayaran yang tidak aktif/tidak dikenal. | Must | Integration test |
@@ -323,10 +328,10 @@ Keranjang dapat disimpan hanya di client untuk MVP, tetapi checkout server tetap
 
 | ID | Requirement | Prioritas | Verifikasi |
 |---|---|---|---|
-| FR-TRX-001 | Owner/Admin harus dapat melihat daftar transaksi Merchant dengan pagination; Kasir hanya sesuai batas Outlet/riwayatnya. | Must | Acceptance test |
+| FR-TRX-001 | Owner harus dapat melihat daftar transaksi Merchant dengan pagination; Kasir hanya sesuai batas Outlet/riwayatnya. Admin tidak memiliki akses melihat transaksi. | Must | Acceptance test |
 | FR-TRX-002 | Daftar harus dapat difilter minimal berdasarkan rentang tanggal dan status. | Must | Acceptance test |
-| FR-TRX-003 | Owner/Admin harus dapat membuka detail dan receipt transaksi. | Must | Acceptance test |
-| FR-TRX-004 | Kasir harus dapat melihat riwayat transaksi dalam Outlet tugasnya sesuai scope yang akan dikunci; pilihan transaksi sendiri atau seluruh transaksi Outlet tidak mengubah kewajiban bahwa fitur riwayat tersedia. | Must | Acceptance/security test |
+| FR-TRX-003 | Owner harus dapat membuka detail dan receipt transaksi; Kasir hanya untuk transaksi miliknya sendiri (FR-TRX-004). | Must | Acceptance test |
+| FR-TRX-004 | Kasir harus dapat melihat riwayat transaksi yang dilakukan oleh dirinya sendiri dalam Outlet tugasnya (mengunci `OD-003`); sistem harus menolak akses transaksi kasir lain. | Must | Acceptance/security test |
 | FR-TRX-005 | Pengguna harus dapat mencari transaksi berdasarkan receipt number yang tepat. | Must | Acceptance test |
 | FR-TRX-006 | Sistem harus menolak akses detail transaksi merchant lain atau outlet di luar scope pengguna. | Must | Security test |
 | FR-TRX-007 | Transaksi final tidak dapat dihapus melalui fungsi MVP. | Must | Security/integration test |
@@ -336,7 +341,7 @@ Keranjang dapat disimpan hanya di client untuk MVP, tetapi checkout server tetap
 
 #### Definisi metrik MVP
 
-Karena refund di luar scope, metrik awal dihitung dari transaksi `COMPLETED`:
+Karena refund di luar scope, metrik awal dihitung dari transaksi `COMPLETED`. `transaction.total` sudah memperhitungkan diskon, service charge, dan pajak (`total = subtotal - discount + service_charge + tax`; `tax = (subtotal - discount) x 11%`):
 
 - `gross_sales = sum(transaction.total)`;
 - `transaction_count = count(completed transaction)`;
@@ -460,7 +465,7 @@ Karena refund di luar scope, metrik awal dihitung dari transaksi `COMPLETED`:
 | Alternatif | Produk inactive, harga berubah, stok kurang, field Merchant/Outlet User tidak sah, key conflict, database error, response timeout |
 | Postcondition sukses | Tepat satu transaksi `COMPLETED`, payment record, dan stock movement konsisten |
 | Postcondition gagal | Tidak ada hasil parsial; key dapat dipakai untuk lookup/retry sesuai kondisi |
-| Requirement | FR-CART-005–010, FR-CHK-001–017, FR-PAY-001–007 |
+| Requirement | FR-CART-005–010, FR-CHK-001–018, FR-PAY-001–007 |
 
 ### UC-05 — Memeriksa checkout dengan hasil belum diketahui
 
@@ -546,7 +551,7 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir juga harus memil
 |---|---|
 | BR-001 | Semua money amount disimpan sebagai exact fixed-point `DECIMAL/NUMERIC`, dengan precision dan scale yang ditetapkan schema; tidak menggunakan binary floating point. |
 | BR-002 | Kuantitas MVP adalah integer positif pada cart. |
-| BR-003 | Total transaksi adalah jumlah `unit_price_snapshot × quantity` untuk semua line pada scope tanpa diskon/pajak. |
+| BR-003 | Subtotal transaksi adalah jumlah `unit_price_snapshot × quantity` untuk semua line pada scope, sebelum diskon, service charge, dan pajak. |
 | BR-004 | Payment amount harus sama dengan transaction total pada single-payment MVP. |
 | BR-005 | Hanya transaksi `COMPLETED` yang mengurangi stok secara final dan masuk laporan penjualan. |
 | BR-006 | Product name dan unit price snapshot tidak berubah setelah transaksi `COMPLETED`. |
@@ -578,10 +583,11 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir juga harus memil
 | Merchant | Batas tenant dan konfigurasi inventory global | ID, owner user ID, name, timezone, currency, low-stock threshold global, status, timestamps |
 | Outlet | Unit operasional Merchant | ID, merchant ID, name, address opsional, status, timestamps |
 | Category | Pengelompokan Product Merchant | ID, merchant ID, name, active flag, timestamps |
-| Product | Katalog master Merchant | ID, merchant ID, category ID, name, current price, active flag |
+| Product | Katalog master Merchant | ID, merchant ID, category ID, name, current price (harga master global), active flag |
+| ProductOutletPrice | Harga override per Outlet | product, outlet, effective price; tanpa baris = pakai harga master |
 | Inventory | Saldo stok per Outlet | ID, merchant ID, outlet ID, product ID, quantity, updated at |
 | StockMovement | Jejak perubahan stok | inventory/product/outlet, type (`ADJUSTMENT` atau `SALE`), delta, before/after, reason bila adjustment, reference, actor, timestamp |
-| Transaction | Header penjualan | ID, merchant ID, outlet ID, receipt no., cashier, status, total, timestamps, idempotency reference |
+| Transaction | Header penjualan | ID, merchant ID, outlet ID, receipt no., cashier, status, subtotal, `discount_pct` + `discount`, `service_charge_pct` + `service_charge`, `tax_pct` + `tax`, total, timestamps, idempotency reference |
 | TransactionLine | Snapshot item terjual | transaction, product reference, name snapshot, unit price snapshot, quantity, subtotal |
 | Payment | Catatan pembayaran manual | transaction, method, amount, status `CONFIRMED`, confirmed by/at |
 | IdempotencyRecord | Perlindungan duplicate request | merchant, outlet, actor, key hash, payload fingerprint, state, response reference, expiry |
@@ -606,6 +612,8 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir juga harus memil
 | DR-010 | Seed/demo data tidak boleh menggunakan data pelanggan nyata atau secret. |
 | DR-011 | `User.role` hanya menerima `OWNER`, `ADMIN`, atau `CASHIER`; `Product.category_id` tidak boleh null dan wajib menunjuk Category dalam Merchant yang sama. Category harus aktif ketika ditetapkan ke Product. |
 | DR-011A | `Merchant.low_stock_threshold` harus bernilai nonnegatif. Pada MVP, Inventory tidak memiliki threshold per Product maupun per Outlet. |
+| DR-012 | Harga efektif per Outlet ditentukan oleh `ProductOutletPrice` bila ada, fallback ke `Product.price`. `ProductOutletPrice` wajib mengacu Product dan Outlet dalam Merchant yang sama. |
+| DR-013 | `Transaction.total = subtotal - discount + service_charge + tax`. `discount = subtotal x discount_pct/100` (0–100), `service_charge = subtotal x service_charge_pct/100` (5–15%, dari Merchant), `tax = (subtotal - discount) x 11%`; tanpa tip. `Payment.amount = total` untuk single-payment MVP. |
 
 ### 12.3 Retention Proposed Baseline
 
@@ -796,7 +804,7 @@ Catatan: availability 99,9% adalah target produk, bukan jaminan prototype gratis
 | ID | Requirement |
 |---|---|
 | NFR-OBS-001 | Log terstruktur minimal berisi timestamp, level, service/module, correlation ID, safe merchant reference, actor reference, action, result, dan error category. |
-| NFR-OBS-002 | Dashboard operasional minimum menampilkan checkout request rate, success/error rate, p95/p99 latency, database error/pool pressure, dan job backlog age. |
+| NFR-OBS-002 | Dashboard operasional minimum menampilkan checkout request rate, success/error rate, p95/p99 latency, database error/pool pressure, dan job backlog age. **Monitoring wajib memakai Prometheus (scrape endpoint `/metrics`) dan visualisasi/dashboard Grafana.** |
 | NFR-OBS-003 | Alert minimum mencakup lonjakan checkout error, p95 melewati target, database unavailable, dan job backlog melewati freshness threshold. |
 | NFR-OBS-004 | Informasi sensitif harus direduksi/redacted pada log dan metric label. |
 | NFR-OBS-005 | Correlation ID harus dikembalikan secara aman pada error agar support dapat menelusuri masalah. |
@@ -927,7 +935,7 @@ Matriks ringkas ini menghubungkan kebutuhan pengguna dengan kelompok requirement
 | UR-ADM-007–009 | FR-AUD, FR-TEN; NFR-SCALE-002 | Audit/permission + AT-015 |
 | UR-CAS-001–006 | FR-AUTH, FR-CART, FR-PAY | Checkout E2E |
 | UR-CAS-007–013 | FR-CHK, error model | AT-003–012 |
-| UR-CAS-014 | FR-TRX-001,004,006 | Transaction-history acceptance + security test; scope final masih `OD-003` |
+| UR-CAS-014 | FR-TRX-001,004,006 | Transaction-history acceptance + security test; scope Kasir = hanya transaksi sendiri (`OD-003` locked) |
 | UR-REP-001–008, termasuk UR-REP-003A | FR-REP, metric definitions | AT-011, AT-017 + reporting tests |
 | UR-AI-001–010 | FR-AI-001–012; EXT-AI | AT-012 + AI tests |
 | UR-SEC-001–009 | FR-AUTH, FR-TEN, FR-AUD; NFR-SEC/PRIV | AT-002,014 + security suite |
@@ -939,9 +947,9 @@ Matriks ringkas ini menghubungkan kebutuhan pengguna dengan kelompok requirement
 |---|---|---|
 | Lifecycle staf Owner-only (`UR-OWN-003–003B`) | `FR-AUTH-011–014`, `FR-TEN-005–008`, `BR-011`, `DR-001–002,011` | `AT-016` + security test role/Outlet |
 | Category wajib dan soft-deactivation (`UR-ADM-001–002,006`) | `FR-CAT-001–010`, `BR-019`, `DR-008,011` | Category/Product integration test + historical transaction test |
-| Checkout tepat satu kali (`UR-CAS-007–010`) | `FR-CHK-001–017`, `BR-008–010`, `IdempotencyRecord` | `AT-005–010` |
+| Checkout tepat satu kali (`UR-CAS-007–010`) | `FR-CHK-001–018`, `BR-008–010`, `IdempotencyRecord` | `AT-005–010` |
 | Stok per Outlet dan konkurensi (`UR-ADM-003,008`, `UR-CAS-003,010`) | `FR-INV-001–009`, `BR-011A,014`, Inventory + StockMovement | `AT-003–004,008–009` |
-| Riwayat transaksi wajib (`UR-CAS-014`) | `FR-TRX-001–007`, `DR-003–008` | Transaction-history acceptance/security test; batas Kasir mengikuti `OD-003` |
+| Riwayat transaksi wajib (`UR-CAS-014`) | `FR-TRX-001–007`, `DR-003–008` | Transaction-history acceptance/security test; Kasir hanya transaksi sendiri (`OD-003` locked) |
 | Dashboard lengkap (`UR-OWN-004–006`, `UR-OWN-005A`, `UR-REP-001–008`, `UR-REP-003A`) | `FR-REP-001–010`, definisi metrik, `ReportingProjection` | `AT-011,017` + calculation test |
 | AI manual Owner-only maks. 1x/hari (`UR-AI-001–010`) | `FR-AI-001–012`, `BR-016–017,020`, Insight + JobRecord | `AT-012` + authorization/idempotency/limit test |
 | Isolasi 500+ Merchant (`UR-BIZ-003–006`, `UR-OPS-004–006`) | `FR-TEN-009–010`, `NFR-SEC-004–005`, `NFR-SCALE-001–005` | `AT-002,015` |
@@ -960,7 +968,6 @@ Sistem Iterasi 1 tidak diwajibkan untuk:
 - mengelola variant atau bundle produk;
 - beroperasi offline dan melakukan conflict synchronization;
 - mengirim receipt melalui SMS/email;
-- menyediakan native Android/iOS;
 - menyediakan BI ad-hoc query builder;
 - membiarkan AI melakukan tindakan otomatis;
 - menjamin SLA produksi berbayar pada deployment demo gratis.
@@ -973,15 +980,16 @@ Out-of-scope tidak boleh “diam-diam” diimplementasikan dengan mengorbankan r
 
 | Gate | Status | Keputusan | Pemilik keputusan | Dampak |
 |---|---|---|---|---|
-| DG-001 | Open; default proposed tersedia | Payment record manual vs gateway | Product/Business | Mengunci FR-PAY dan checkout state |
-| DG-002 | Open; default harga global | Harga Product master global vs override per Outlet | Product + Engineering | Mengunci relasi Product/Inventory dan pengalaman Admin |
+| DG-001 | Locked | Payment record manual tanpa gateway: `CASH`, `QRIS`, dan `TRANSFER` (menutup `OD-001`) | Product/Business | Mengunci FR-PAY dan checkout state |
+| DG-002 | Locked | Harga master global + override per Outlet (`product_outlet_price`) (menutup `OD-002`) | Product + Engineering | Mengunci relasi Product/Inventory, pricing efektif, dan pengalaman Admin |
 | DG-003 | Locked | Seluruh akun login dengan email; role enum dan Outlet disimpan langsung pada User; lifecycle staf dikelola langsung dan hanya oleh Owner | Product + Security | Authorization matrix/test mengikuti keputusan ini |
-| DG-004 | Open; default di luar Must | Discount/tax/refund scope | Product | Mengunci pricing, state, report formula |
-| DG-005 | Partial: metrik Locked, freshness Open | Dashboard metrics/freshness | Product/Owner persona | Mengunci projection dan NFR-REL-005 |
+| DG-004 | Locked | Pajak fiks 11% (`tax = (subtotal - discount) x 11%`), diskon persen dari Kasir (tanpa voucher), service charge persen dari Merchant (5–15%); refund/void di luar scope (menutup `OD-004`/`OD-005`) | Product | Mengunci pricing, state, report formula |
+| DG-005 | Locked | Metrik dan freshness dashboard: maksimal 5 menit untuk ≥95% pembaruan (menutup `OD-006`) | Product/Owner persona | Mengunci projection dan NFR-REL-005 |
 | DG-006 | Partial: akses/trigger Locked, tipe insight Locked (multi-tipe BI), provider Open | Tipe BI MVP dan penggunaan provider | Product + Engineering | Mengunci data, cost, privacy, failure mode |
 | DG-007 | Open; proposed baseline tersedia | Capacity/load target | Engineering + Business | Mengunci NFR-SCALE dan deployment test |
 | DG-008 | Open; target dipisahkan | Availability/RPO/RTO untuk prototype vs target production | Engineering + Business | Mengunci biaya dan operational plan |
 | DG-009 | Locked | Checkout hanya oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak melakukan checkout (menutup `OD-010`) | Product + Security | Permission, UI, audit, dan validasi checkout mengikuti keputusan ini |
+| DG-010 | Locked | Kasir hanya melihat riwayat transaksi yang dilakukannya sendiri; akses transaksi kasir lain ditolak (menutup `OD-003`) | Product + Security | Filter `cashierUserId = actor.userId` dipaksakan di service; security test menyusul |
 
 ---
 

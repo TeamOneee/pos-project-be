@@ -60,7 +60,7 @@ Keterlambatan di sini langsung terasa: antrean bertambah, pelanggan bingung, kas
 
 ### Kebutuhan pengelolaan: memahami bisnis setelah transaksi terjadi
 
-Admin dan owner perlu membaca banyak transaksi untuk mengelola katalog, memantau penjualan, dan menemukan pola. AI juga perlu memproses riwayat tersebut untuk menghasilkan insight. Aktivitas ini penting, tetapi umumnya tidak harus selesai dalam detik yang sama dengan checkout.
+Owner perlu membaca banyak transaksi untuk memantau penjualan dan menemukan pola; AI juga perlu memproses riwayat tersebut untuk menghasilkan insight. Admin mengelola katalog dan stok dari ringkasan operasional, tanpa akses ke detail transaksi. Aktivitas ini penting, tetapi umumnya tidak harus selesai dalam detik yang sama dengan checkout.
 
 Masalah inti studi kasus muncul ketika kedua kebutuhan tersebut memakai sumber daya sistem yang sama tanpa prioritas yang jelas. Laporan atau AI yang sedang membaca banyak data dapat membuat pembayaran melambat.
 
@@ -582,12 +582,10 @@ Ini belum FRD final. Tujuannya memberi batas agar pandangan bisnis tidak melebar
 - payroll dan shift management penuh;
 - CRM, loyalty, promo kompleks;
 - marketplace atau e-commerce omnichannel;
-- native mobile app;
 - offline-first sync;
 - multi-currency dan perpajakan kompleks;
 - bahan baku, purchase order, dan inventory gudang terpisah;
 - keputusan harga atau ketersediaan produk otomatis oleh AI;
-- microservices/Kubernetes sebagai tujuan tersendiri.
 
 ---
 
@@ -624,13 +622,15 @@ Memisahkan ketiganya mencegah tim menganggap tebakan sebagai requirement.
 
 ### Asumsi dan proposal yang masih perlu divalidasi
 
-- **Proposed:** MVP menggunakan pencatatan pembayaran, bukan integrasi langsung ke payment gateway.
+- **Locked (`OD-001`):** MVP hanya mencatat pembayaran (`CASH` / `QRIS` / `TRANSFER`), tidak mengintegrasikan payment gateway.
 - **Locked:** Category dan Product master dikelola pada Merchant; setiap Product wajib memiliki Category dan stok dikelola per kombinasi Product + Outlet.
-- **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet; hanya Kasir yang dapat melakukan checkout pada Outlet tugasnya, sedangkan Owner dan Admin melihat lintas Outlet sesuai role. Keputusan ini menutup `OD-010`.
+- **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet; hanya Kasir yang dapat melakukan checkout pada Outlet tugasnya. Owner melihat seluruh transaksi lintas Outlet; Kasir hanya transaksi dirinya sendiri; Admin tidak melihat transaksi. Keputusan ini menutup `OD-010`.
 - **Locked:** Owner membuat dan mengelola langsung akun Admin/Kasir; registrasi publik hanya untuk Owner dan semua akun login menggunakan email.
-- **Proposed:** Dashboard dapat menerima keterlambatan data 1–5 menit.
-- **Proposed:** Koreksi/refund bukan bagian flow inti MVP.
-- **Proposed:** Pajak, diskon, dan service charge belum wajib.
+- **Locked (`OD-002`):** harga master global + harga override per Outlet; tanpa override, harga master dipakai.
+- **Locked (`OD-003`):** Kasir hanya melihat riwayat transaksi yang dilakukannya sendiri.
+- **Locked (`OD-004`):** pajak fiks 11% (`tax = (subtotal - discount) x 11%`); diskon berupa persen yang diisi Kasir tanpa voucher; service charge berupa persen yang ditetapkan Owner saat membentuk Merchant (5–15%); tanpa tip. Total transaksi `= subtotal - discount + service_charge + tax`.
+- **Locked (`OD-005`):** refund/void di luar scope MVP.
+- **Locked (`OD-006`):** freshness dashboard ≤ 5 menit untuk ≥95% pembaruan.
 - **Proposed:** AI dapat diwujudkan sebagai insight berbasis aturan/analitik sederhana lebih dahulu, lalu model AI menjadi peningkatan.
 
 ---
@@ -641,28 +641,26 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 
 ### Checkout dan pembayaran
 
-1. **Open —** Apakah sistem benar-benar memproses uang melalui payment gateway, atau hanya mencatat pembayaran tunai/QRIS/manual? Default Iterasi 1 adalah pencatatan manual tanpa payment gateway.
+1. **Resolved (`OD-001` locked) —** Apakah sistem benar-benar memproses uang melalui payment gateway, atau hanya mencatat pembayaran tunai/QRIS/manual? Jawaban: pencatatan manual tanpa payment gateway.
 2. **Resolved untuk proposed baseline —** Kapan transaksi dianggap final: ketika Kasir menekan bayar, ketika pembayaran dikonfirmasi, atau ketika bukti transaksi dibuat? Jawaban saat ini: setelah pembayaran dikonfirmasi Kasir dan commit transaksi, payment record, serta stok berhasil sebagai satu kesatuan; pembuatan bukti mengikuti hasil final tersebut.
-3. **Open —** Apakah diskon dan pajak wajib pada MVP? Default saat ini: di luar Must.
-4. **Open —** Apakah void, cancel, refund, atau koreksi transaksi masuk MVP? Siapa yang menyetujui? Default saat ini: di luar Must.
+3. **Resolved (`OD-004` locked) —** Apakah diskon dan pajak wajib pada MVP? Jawaban: pajak fiks 11%; diskon berupa persen yang diisi Kasir tanpa voucher; service charge persen ditetapkan Owner saat membentuk Merchant (5–15%); tanpa tip.
+4. **Resolved (`OD-005` locked) —** Apakah void, cancel, refund, atau koreksi transaksi masuk MVP? Jawaban: tidak masuk MVP.
 
 ### Struktur merchant dan pengguna
 
-5. **Future —** Apakah satu Owner dapat memiliki lebih dari satu Merchant pada fase setelah MVP? Iterasi 1 mengunci tepat satu Merchant.
-6. **Resolved —** Admin melihat dashboard operasional seluruh Merchant, terutama stok rendah berdasarkan threshold global Merchant. Admin tidak melihat insight BI serta tidak mengelola Outlet atau staf.
-7. **Open —** Apakah Kasir boleh melihat riwayat semua kasir di outletnya atau hanya transaksi sendiri?
+5. **Resolved —** Admin melihat dashboard operasional seluruh Merchant, terutama stok rendah berdasarkan threshold global Merchant. Admin tidak melihat insight BI serta tidak mengelola Outlet atau staf.
+6. **Resolved (`OD-003` locked) —** Apakah Kasir boleh melihat riwayat semua kasir di outletnya atau hanya transaksi sendiri? Jawaban: hanya transaksi yang dilakukannya sendiri.
 
 ### Produk dan inventory
 
-8. **Open —** Apakah produk memiliki variant/SKU atau cukup produk sederhana? Default saat ini: produk sederhana.
-9. **Open —** Apakah harga Product master selalu global, atau boleh memiliki price override per Outlet? Default saat ini: harga global.
+7. **Resolved (`OD-002` locked) —** Apakah harga Product master selalu global, atau boleh memiliki price override per Outlet? Jawaban: harga master global + override per Outlet.
 
 ### Dashboard dan AI
 
-10. **Resolved —** Lima angka atau informasi apa yang paling penting bagi Owner saat demo? Scope Must saat ini mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, dan perbandingan Outlet.
-11. **Open —** Berapa keterlambatan dashboard yang masih dapat diterima? Proposed baseline: maksimal lima menit untuk 95% pembaruan.
-12. **Open —** Insight apa yang paling bernilai dan dapat dibuktikan dari data demo?
-13. **Open —** Apakah istilah “AI” mensyaratkan penggunaan model eksternal, atau kualitas insight dan proses asinkron lebih penting?
+8. **Resolved —** Lima angka atau informasi apa yang paling penting bagi Owner saat demo? Scope Must saat ini mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, dan perbandingan Outlet.
+9. **Resolved (`OD-006` locked) —** Berapa keterlambatan dashboard yang masih dapat diterima? Jawaban: maksimal lima menit untuk ≥95% pembaruan.
+10. **Open —** Insight apa yang paling bernilai dan dapat dibuktikan dari data demo?
+11. **Open —** Apakah istilah “AI” mensyaratkan penggunaan model eksternal, atau kualitas insight dan proses asinkron lebih penting?
 
 Jawaban atas pertanyaan ini akan mengubah FRD, flow detail, ERD, dan pengujian. Karena itu kita tidak boleh menguncinya diam-diam lewat implementasi.
 

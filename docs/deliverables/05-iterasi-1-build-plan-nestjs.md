@@ -32,11 +32,11 @@
 | Correlation ID | **`nestjs-cls`** + middleware | NFR-OBS-001/005 |
 | Background job | **Outbox table (Prisma) + `@nestjs/schedule`** di `apps/worker` | Reporting projection + AI insight generation |
 | Circuit breaker (AI provider eksternal, opsional) | **`cockatiel`** | EXT-AI-003 |
-| Observability | **`nestjs-pino`** (structured JSON log) + `@willsoto/nestjs-prometheus` | NFR-OBS-001–005 |
+| Observability | **`nestjs-pino`** (structured JSON log) + `@willsoto/nestjs-prometheus` (endpoint `/metrics` yang di-scrape **Prometheus**) + dashboard **Grafana** | NFR-OBS-001–005 |
 | API docs | **`@nestjs/swagger`** | API-007 |
 | Test | **Jest** + `supertest` (e2e) + **`testcontainers`** (Postgres asli utk integration test) | NFR-MNT-008 |
 | Frontend | **React + Vite + TypeScript**, `@tanstack/react-query`, `react-hook-form` + `zod`, `recharts` | |
-| Deployment | **Railway**: 2 service (`apps/api`, `apps/worker`) dari 1 repo, **Neon** primary+replica | |
+| Deployment | **Railway**: 2 service (`apps/api`, `apps/worker`) dari 1 repo, **Neon** primary+replica; observability: **Prometheus** (scrape `/metrics` pada `apps/api` & `apps/worker`) + **Grafana** | |
 | CI/CD | **GitHub Actions**: eslint → `prisma validate` → jest → `dependency-cruiser` → build → deploy | |
 
 ---
@@ -72,7 +72,7 @@ aplikasi-k/
 │   ├── tenant/src/{...}/                                + index.ts    # MerchantService, OutletService, TenantAuthorizationService
 │   ├── catalog/src/{...}/                               + index.ts    # CategoryService, ProductService
 │   ├── inventory/src/{...}/                             + index.ts    # InventoryService, StockMovementService
-│   ├── sales/src/{...}/                                 + index.ts    # CartService, CheckoutService, ReceiptService, IdempotencyService
+│   ├── sales/src/{...}/                                 + index.ts    # CheckoutService, ReceiptService, IdempotencyService
 │   ├── reporting/src/{...}/                             + index.ts    # ProjectionUpdateService (worker), DashboardQueryService (api)
 │   ├── insight/src/{...}/                                + index.ts    # InsightTriggerService, InsightGenerationJob, AiProviderPort
 │   └── audit/src/{...}/                                  + index.ts    # AuditListener (@OnEvent), AuditQueryService
@@ -81,6 +81,8 @@ aplikasi-k/
 ```
 
 `tsconfig.json` path alias: `@app/platform`, `@app/identity`, `@app/tenant`, `@app/catalog`, `@app/inventory`, `@app/sales`, `@app/reporting`, `@app/insight`, `@app/audit` — masing-masing menunjuk ke `libs/<nama>/src/index.ts`. Modul lain **hanya** boleh `import { CheckoutService } from '@app/sales'`, tidak pernah ke file internal.
+
+> Definisi formal **interface/port** tiap modul (signature service, event contract, provider binding, anti-corruption boundary) dijelaskan lengkap di `06-iterasi-1-module-interface-contract.md`.
 
 ---
 
@@ -132,7 +134,8 @@ enum TransactionStatus {
 
 enum PaymentMethod {
   CASH
-  CASHLESS_MANUAL
+  QRIS
+  TRANSFER
 }
 
 enum StockMovementType {
@@ -156,6 +159,7 @@ model Merchant {
   timezone           String   @default("Asia/Jakarta")          // BR-018: batas hari laporan
   currency           String   @default("IDR")
   lowStockThreshold  Int      @default(5) @map("low_stock_threshold")  // FR-INV-008, DR-011A: harus >= 0 (app-level check)
+  serviceChargePct   Decimal  @default(10) @map("service_charge_pct") @db.Decimal(5, 2)  // FR-TEN-011, OD-004: 5-15, ditetapkan Owner saat membentuk Merchant
   status             AccountStatus @default(ACTIVE)
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -242,6 +246,20 @@ model Product {
   @@map("product")
 }
 
+model ProductOutletPrice {                       // FR-CAT-011, DG-002 (menutup OD-002): harga override per Outlet
+  id         String   @id @default(uuid())
+  merchantId String   @map("merchant_id")
+  outletId   String   @map("outlet_id")
+  productId  String   @map("product_id")
+  price      Decimal  @db.Decimal(14, 2)          // harga efektif untuk Outlet ini; fallback Product.price bila tidak ada baris
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([outletId, productId])
+  @@index([merchantId])
+  @@map("product_outlet_price")
+}
+
 model Inventory {
   id         String   @id @default(uuid())
   merchantId String   @map("merchant_id")     // <-- FIX: tidak ada di ERD kamu, wajib (DR-007)
@@ -275,30 +293,8 @@ model StockMovement {
   @@map("stock_movement")
 }
 
-model Cart {
-  id         String   @id @default(uuid())
-  merchantId String   @map("merchant_id")
-  outletId   String   @map("outlet_id")
-  userId     String   @map("user_id")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  items CartItem[]
-
-  @@map("cart")
-}
-
-model CartItem {
-  id        String  @id @default(uuid())
-  cartId    String  @map("cart_id")
-  productId String  @map("product_id")
-  quantity  Int
-  unitPrice Decimal @map("unit_price") @db.Decimal(14, 2)   // HANYA display; checkout WAJIB hitung ulang dari Product.price (BR-012)
-
-  cart Cart @relation(fields: [cartId], references: [id])
-
-  @@map("cart_item")
-}
+// Cart = client-side only (Iterasi 1): keranjang dikelola frontend, checkout menerima items inline.
+// Tidak ada model/tabel cart di skema — tidak dipakai layanan mana pun (YAGNI).
 
 model Transaction {
   id              String             @id @default(uuid())
@@ -308,7 +304,13 @@ model Transaction {
   receiptNumber   String             @map("receipt_number")
   status          TransactionStatus                          // <-- FIX: field ini hilang di ERD kamu (FR-CHK-010/011)
   subtotal        Decimal            @db.Decimal(14, 2)
-  total           Decimal            @db.Decimal(14, 2)
+  discountPct     Decimal            @default(0) @map("discount_pct") @db.Decimal(5, 2)   // % diskon dari Kasir, 0-100 (OD-004)
+  discount        Decimal            @default(0) @db.Decimal(14, 2)          // FR-CHK-018, OD-004
+  serviceChargePct Decimal           @default(0) @map("service_charge_pct") @db.Decimal(5, 2)  // % SC snapshot dari Merchant, 5-15 (OD-004)
+  serviceCharge   Decimal            @default(0) @map("service_charge") @db.Decimal(14, 2)  // FR-CHK-018, OD-004
+  taxPct          Decimal            @default(0) @map("tax_pct") @db.Decimal(5, 2)   // fiks 11% (OD-004)
+  tax             Decimal            @default(0) @db.Decimal(14, 2)          // FR-CHK-018, OD-004
+  total           Decimal            @db.Decimal(14, 2)       // = subtotal - discount + serviceCharge + tax (DR-013)
   createdAt       DateTime           @default(now()) @map("created_at")
 
   lines   TransactionLine[]
@@ -506,24 +508,27 @@ Konvensi global (berlaku semua endpoint):
 ### 5.3 Catalog — `/categories`, `/products`
 | Method & Path | Role | Deskripsi |
 |---|---|---|
-| `POST /categories` | OWNER, ADMIN | Buat category |
+| `POST /categories` | ADMIN | Buat category |
 | `GET /categories` | semua role | List (Kasir hanya lihat aktif) |
-| `PATCH /categories/:id` | OWNER, ADMIN | Ubah nama / nonaktifkan (soft) |
-| `POST /products` | OWNER, ADMIN | `{name, price, categoryId, isActive}` |
-| `GET /products?search=&categoryId=&page=` | OWNER, ADMIN | List/search seluruh produk |
-| `GET /products/catalog?outletId=` | CASHIER | Produk aktif yang punya inventory row di outlet tugasnya |
-| `PATCH /products/:id` | OWNER, ADMIN | Ubah nama/harga/category/status |
+| `PATCH /categories/:id` | ADMIN | Ubah nama / nonaktifkan (soft) |
+| `POST /products` | ADMIN | `{name, price, categoryId, isActive}` |
+| `GET /products?search=&categoryId=&page=` | OWNER (read-only), ADMIN | List/search seluruh produk |
+| `GET /products/catalog?outletId=` | CASHIER | Produk aktif yang punya inventory row di outlet tugasnya (harga efektif outlet) |
+| `PATCH /products/:id` | ADMIN | Ubah nama/harga master/category/status |
+| `PUT /products/:id/outlet-prices/:outletId` | ADMIN | Set harga override per Outlet (`product_outlet_price`); `DELETE` dengan body `{price:null}` untuk hapus override (FR-CAT-011) |
 
 ### 5.4 Inventory — `/inventory`
 | Method & Path | Role | Deskripsi |
 |---|---|---|
-| `GET /inventory?outletId=&productId=&page=` | OWNER, ADMIN | Lihat stok |
-| `POST /inventory/adjustments` | OWNER, ADMIN | `{outletId, productId, delta, reason}` |
-| `GET /inventory/movements?outletId=&productId=&page=` | OWNER, ADMIN | Riwayat stock movement |
+| `GET /inventory?outletId=&productId=&page=` | OWNER (read-only), ADMIN | Lihat stok |
+| `POST /inventory/adjustments` | ADMIN | `{outletId, productId, delta, reason}` |
+| `GET /inventory/movements?outletId=&productId=&page=` | OWNER (read-only), ADMIN | Riwayat stock movement |
 
-### 5.5 Sales — `/cart`, `/checkout`, `/transactions`, `/receipts`
+### 5.5 Sales — `/checkout`, `/transactions`, `/receipts`
 
 **`POST /checkout`** — CASHIER only
+
+> Cart Iterasi 1 = **client-side only**: keranjang dikelola di frontend, tidak ada endpoint `/cart/*` di REST. Checkout menerima `items` inline seperti di bawah. Tidak ada tabel `cart`/`cart_item` di skema (YAGNI).
 
 Request:
 ```json
@@ -531,10 +536,11 @@ Request:
   "idempotencyKey": "a3f5c9d2-client-generated",
   "outletId": "uuid",
   "items": [{ "productId": "uuid", "quantity": 2, "expectedUnitPrice": "15000.00" }],
-  "payment": { "method": "CASH", "amount": "30000.00" }
+  "discountPct": 10,
+  "payment": { "method": "CASH", "amount": "32970.00" }
 }
 ```
-`expectedUnitPrice` hanya untuk deteksi `PRICE_CHANGED` yang ramah UX — server selalu hitung ulang dari `Product.price` (BR-012).
+`expectedUnitPrice` hanya untuk deteksi `PRICE_CHANGED` yang ramah UX — server selalu hitung ulang dari **harga efektif** (`ProductOutletPrice` bila ada, fallback `Product.price`, FR-CAT-012/BR-012). `discountPct` (0–100) opsional diisi Kasir, tanpa voucher; `serviceChargePct` diambil dari Merchant (5–15%) dan `taxPct` fiks 11%. Semua nilai rupiah dihitung server (FR-CHK-018/OD-004): `discount = subtotal x discountPct/100`; `serviceCharge = subtotal x serviceChargePct/100`; `tax = (subtotal - discount) x 11%`; `total = subtotal - discount + serviceCharge + tax`.
 
 Response `200 COMPLETED`:
 ```json
@@ -542,7 +548,11 @@ Response `200 COMPLETED`:
   "transactionId": "uuid", "receiptNumber": "INV-2026-000123", "status": "COMPLETED",
   "outletId": "uuid", "cashier": {"id":"uuid","name":"..."},
   "items": [{"productId":"uuid","name":"...","unitPrice":"15000.00","quantity":2,"subtotal":"30000.00"}],
-  "total": "30000.00", "payment": {"method":"CASH","amount":"30000.00","status":"CONFIRMED"},
+  "subtotal": "30000.00",
+  "discountPct": 10, "discount": "3000.00",
+  "serviceChargePct": 10, "serviceCharge": "3000.00",
+  "taxPct": 11, "tax": "2970.00",
+  "total": "32970.00", "payment": {"method":"CASH","amount":"32970.00","status":"CONFIRMED"},
   "createdAt": "2026-08-13T10:00:00+07:00"
 }
 ```
@@ -550,10 +560,12 @@ Response `200 COMPLETED`:
 | Method & Path | Role | Deskripsi |
 |---|---|---|
 | `GET /transactions/status?idempotencyKey=` | CASHIER | Lookup status checkout |
-| `GET /transactions?dateFrom=&dateTo=&status=&page=` | OWNER, ADMIN, CASHIER (scope `OD-003`) | List riwayat |
+| `GET /transactions?dateFrom=&dateTo=&status=&page=` | OWNER, CASHIER (hanya transaksi sendiri — `OD-003`) | List riwayat |
 | `GET /transactions/:id` | sesuai scope | Detail transaksi |
 | `GET /transactions/search?receiptNumber=` | sesuai scope | Cari exact by receipt number |
 | `GET /receipts/:transactionId` | sesuai scope | Receipt dari snapshot, bukan re-query katalog saat ini |
+
+> Admin tidak memiliki akses ke `GET /transactions*` dan `GET /receipts*`; lihat transaksi hanya untuk Owner (seluruh Merchant) dan Kasir (riwayat dirinya di Outlet tugasnya).
 
 ### 5.6 Reporting — `/dashboard`
 | Method & Path | Role |
@@ -620,8 +632,12 @@ export class CheckoutService {
         }});
       }
 
-      // 2) validasi produk aktif + harga server (BR-012, FR-CART-005/006/007)
-      const priced = await this.priceAndValidate(tx, actor.merchantId, dto.items);
+      // 2) validasi produk aktif + harga efektif server (master atau override per Outlet — FR-CAT-011/012, BR-012, FR-CART-005/006/007)
+      const priced = await this.priceAndValidate(tx, actor.merchantId, actor.outletId, dto.items);
+
+      // 2b) snapshot service charge dari Merchant (FR-TEN-011, OD-004: 5-15%)
+      const merchant = await tx.merchant.findUniqueOrThrow({ where: { id: actor.merchantId } });
+      const serviceChargePct = merchant.serviceChargePct;
 
       // 3) kurangi stok atomik — conditional update, bukan pessimistic lock (FR-INV-004, AT-004)
       for (const line of priced.lines) {
@@ -638,11 +654,18 @@ export class CheckoutService {
         }});
       }
 
-      // 4) commit transaction + lines + payment
+      // 4) commit transaction + lines + payment (FR-CHK-018, OD-004: total = subtotal - discount + serviceCharge + tax)
+      const discountPct = dto.discountPct ?? new Prisma.Decimal(0);
+      const taxPct = TAX_PCT; // 11, konstanta OD-004
+      const discount = priced.subtotal.mul(discountPct).div(100);
+      const serviceCharge = priced.subtotal.mul(serviceChargePct).div(100);
+      const tax = priced.subtotal.sub(discount).mul(taxPct).div(100);
+      const total = priced.subtotal.sub(discount).add(serviceCharge).add(tax);
       const transaction = await tx.transaction.create({ data: {
         merchantId: actor.merchantId, outletId: dto.outletId, cashierUserId: actor.userId,
         receiptNumber: await this.nextReceiptNumber(tx, actor.merchantId),
-        status: 'COMPLETED', subtotal: priced.subtotal, total: priced.total,
+        status: 'COMPLETED', subtotal: priced.subtotal,
+        discountPct, discount, serviceChargePct, serviceCharge, taxPct, tax, total,
         lines: { create: priced.lines.map(l => ({
           productId: l.productId, productNameSnapshot: l.name,
           unitPriceSnapshot: l.unitPrice, quantity: l.quantity, subtotal: l.subtotal,
@@ -743,10 +766,10 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 |---|---|---|---|
 | Merchant/Outlet CRUD | Full | Read outlet | - |
 | Staff lifecycle | Full | - | - |
-| Category/Product | Full | Full | Read aktif (scope outlet) |
-| Inventory adjustment | Full | Full | - |
-| Cart/Checkout | - | - | Full (outlet sendiri) |
-| Transaction history | Full merchant | Full merchant | Sesuai `OD-003` (default: outlet sendiri) |
+| Category/Product | Read aktif (read-only) | Full | Read aktif (scope outlet) |
+| Inventory adjustment | - | Full | - |
+| Cart/Checkout | - | - | Full (outlet sendiri, cart dikelola client-side) |
+| Transaction history | Full merchant | - | Hanya transaksi sendiri (`OD-003` locked) |
 | Dashboard | Full | Operasional + low-stock | - |
 | Insight BI | Full | - | - |
 | Audit | Full | - | - |
@@ -792,12 +815,12 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 
 1. **Platform + Identity + Tenant** — Prisma schema awal, JWT auth, Owner registration, staff lifecycle, error format global, correlation-id middleware.
 2. **Catalog + Inventory** — Category/Product CRUD, inventory per outlet, stock adjustment + StockMovement.
-3. **Sales (Cart + Checkout + Payment + Receipt + Idempotency)** — modul paling kritis; termasuk concurrency test stok terakhir.
+3. **Sales (Checkout + Payment + Receipt + Idempotency)** — modul paling kritis; cart client-side (frontend) lalu checkout kirim `items` inline; termasuk concurrency test stok terakhir.
 4. **Outbox + Reporting projection + Dashboard read API** — `apps/worker` pertama kali dijalankan di sini.
 5. **Audit trail** — `@OnEvent` listener lintas modul (bisa paralel dengan 2–4).
 6. **Insight/AI** — mulai dari `RuleBasedInsightAdapter` (analitik dari `ReportingProjection`, tanpa provider eksternal) supaya demo tidak bergantung API pihak ketiga.
-7. **NFR hardening** — rate limiting, load test, security test matrix, observability, backup/restore test.
-8. **DevOps** — CI/CD, deployment Railway (`api` + `worker` + Neon primary/replica), README setup lokal.
+7. **NFR hardening** — rate limiting, load test, security test matrix, observability (**Prometheus scrape `/metrics` + dashboard Grafana**), backup/restore test.
+8. **DevOps** — CI/CD, deployment Railway (`api` + `worker` + Neon primary/replica), setup **Prometheus + Grafana** (scrape `/metrics`, dashboard operasional, alert), README setup lokal.
 
 ---
 
@@ -805,9 +828,9 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 
 | Decision gate | Dampak ke desain ini kalau berubah |
 |---|---|
-| `DG-002` harga global vs override per Outlet | Tambah tabel `product_outlet_price`; `CheckoutService` ambil dari situ dulu, fallback ke `Product.price` |
+| `DG-002` harga global vs override per Outlet | **Locked** (`OD-002`): harga master global + override per Outlet. Tabel `product_outlet_price`; `CheckoutService` ambil dari situ dulu, fallback ke `Product.price` |
 | `DG-009`/`OD-010` checkout Owner/Admin | **Locked**: hanya Kasir yang checkout. `@Roles(CASHIER)` + validasi `outletId` dari klaim JWT; tidak ada perluasan role |
 | `OD-003` scope riwayat Kasir | Query `GET /transactions` untuk CASHIER tinggal tambah/hapus filter `cashierUserId = actor.userId` — tidak mengubah skema |
 | `DG-006` provider AI eksternal | Sudah diantisipasi lewat `AiProviderPort` interface — tinggal tambah adapter baru tanpa ubah `InsightTriggerService` |
 
-Dokumen ini tidak mengasumsikan decision gate yang masih `Open` sebagai final, mengikuti aturan §8 `00-document-guide.md`. Keputusan yang sudah `Locked` (mis. `OD-007` multi-tipe BI dan `OD-010` checkout hanya Kasir) menjadi dasar implementasi.
+Dokumen ini tidak mengasumsikan decision gate yang masih `Open` sebagai final, mengikuti aturan §8 `00-document-guide.md`. Keputusan yang sudah `Locked` (mis. `OD-001`–`OD-006`, `OD-007` multi-tipe BI, dan `OD-010` checkout hanya Kasir) menjadi dasar implementasi.
