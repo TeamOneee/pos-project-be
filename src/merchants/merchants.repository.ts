@@ -19,14 +19,19 @@ export class MerchantsRepository extends BaseRepository {
     });
   }
 
-  async updateMerchantName(
+  async updateMerchant(
     merchantId: string,
-    name: string,
+    data: { name?: string; lowStockThreshold?: number },
     tx?: Prisma.TransactionClient,
   ) {
     return this.getPrismaClient(tx).merchant.update({
       where: { merchantId },
-      data: { name },
+      data: {
+        ...(data.name !== undefined && { name: data.name }),
+        ...(data.lowStockThreshold !== undefined && {
+          low_stock_threshold: data.lowStockThreshold,
+        }),
+      },
     });
   }
 }

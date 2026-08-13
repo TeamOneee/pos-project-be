@@ -8,6 +8,9 @@ export const MERCHANT_PORT = 'MERCHANT_PORT';
 
 /**
  * Public contract yang disediakan Merchant Module untuk module lain.
+ *
+ * `low_stock_threshold` adalah satu threshold global nonnegatif per Merchant
+ * yang berlaku untuk seluruh Inventory Merchant (FR-INV-008, DR-011A).
  */
 export interface MerchantPort {
   createMerchant(
@@ -20,9 +23,9 @@ export interface MerchantPort {
     tx?: Prisma.TransactionClient,
   ): Promise<Merchant | null>;
 
-  updateName(
+  update(
     merchantId: string,
-    name: string,
+    data: { name?: string; lowStockThreshold?: number },
     tx?: Prisma.TransactionClient,
   ): Promise<Merchant>;
 }
