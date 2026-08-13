@@ -4,8 +4,7 @@
 Dibaca oleh manusia maupun AI (AI context). Urutan baca penting: mulai dari ringkasan, lalu
 masuk ke detail sesuai kebutuhan.
 
-> **Sumber kebenaran (source of truth)** ada di `deliverables/` (URS/SRS/FRD/business flow — dokumen acuan, **jangan diubah**). Dokumen di folder ini adalah turunan/ringkasan yang
-> konsisten dengan deliverables.
+> **Sumber kebenaran (source of truth)** ada di `deliverables/` (URS/SRS/FRD/business flow —
 
 ---
 
@@ -57,7 +56,7 @@ Mau memahami AI Insight
 
 ## 3. Deliverables (Sumber Kebenaran — JANGAN DIUBAH)
 
-Folder `deliverables/` berisi dokumen yang menjadi **acuan utama**:
+Folder `deliverables/` berisi dokumen yang menjadi **acuan utama** (punya teman):
 
 | Dokumen | Isi |
 |---|---|

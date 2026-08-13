@@ -22,7 +22,6 @@ Satu Owner hanya memiliki satu Merchant pada MVP (FR-TEN-002, DR-002).
 |---|---|  
 | `merchant_id` | Primary Key |  
 | `name` | Nama merchant |  
-| `low_stock_threshold` | Threshold stok rendah global, nonnegatif, berlaku untuk semua Inventory Merchant (FR-INV-008, DR-011A) |
 
 ---
 
@@ -126,7 +125,7 @@ Satu checkout menghasilkan paling banyak satu transaksi final `COMPLETED` (FR-CH
 | `status` | Status transaksi — `COMPLETED` untuk final sukses (FR-CHK-011) |  
 | `subtotal` | Total sebelum perhitungan akhir |  
 | `total` | Total transaksi (sama dengan payment amount — FR-PAY-003) |  
-| `created_at` | Waktu transaksi |
+| `created_at` | Waktu konfirmasi pembayaran |  
 
 ---
 
@@ -192,44 +191,6 @@ Harga tampilan (`unit_price`) adalah **snapshot** — checkout menghitung ulang 
 | `product_id` | Foreign Key → `product.product_id` |  
 | `quantity` | Jumlah produk (integer positif — BR-002) |  
 | `unit_price` | Harga produk saat dimasukkan ke cart (snapshot) |
-
----
-
-### 2.12 Payment
-
-Merepresentasikan pembayaran untuk satu transaksi.
-
-Pada MVP manual, Payment langsung berstatus `CONFIRMED` ketika checkout commit; tidak ada state `PENDING`, settlement, callback gateway, atau rekonsiliasi bank (FR-PAY-002, ASM-008). `idempotency_key` mencegah double-charge: key sama + payload sama → transaksi yang sama dikembalikan (FR-CHK-003); key sama + payload berbeda → conflict (FR-CHK-004).
-
-| Attribute | Description |  
-|---|---|  
-| `payment_id` | Primary Key |  
-| `transaction_id` | Foreign Key → `transaction.transaction_id` (1:1) |  
-| `payment_method` | Metode — `CASH` \| `CASHLESS_MANUAL` (FR-PAY-001) |  
-| `amount` | Jumlah = total transaksi (FR-PAY-003) |  
-| `status` | Status — `CONFIRMED` (FR-PAY-002) |  
-| `idempotency_key` | Kunci idempotensi checkout, unik per niat bayar (FR-CHK-001) |  
-| `paid_at` | Waktu konfirmasi pembayaran |  
-| `actor` | Kasir yang melakukan checkout |
-
----
-
-### 2.13 StockMovement
-
-Merepresentasikan jejak setiap perubahan stok (FR-INV-003, FR-CHK-006). Tidak pernah dihapus (SRS §12 — data audit).
-
-| Attribute | Description |  
-|---|---|  
-| `stock_movement_id` | Primary Key |  
-| `inventory_id` | Foreign Key → `inventory.inventory_id` |  
-| `type` | `ADJUSTMENT` \| `SALE` (FR-INV-003; transfer antar-outlet bila ada juga dicatat) |  
-| `delta` | Perubahan jumlah (positif/negatif) |  
-| `before` | Jumlah sebelum perubahan |  
-| `after` | Jumlah sesudah perubahan |  
-| `reason` | Alasan — wajib untuk `ADJUSTMENT` manual (FR-INV-003) |  
-| `reference` | Referensi (mis. `transaction_id` untuk SALE) |  
-| `actor` | Pengguna yang melakukan perubahan |  
-| `timestamp` | Waktu perubahan |
 
 ---
 

@@ -22,9 +22,7 @@ Arsitektur utama terdiri dari:
 - Frontend sebagai client application.  
 - Backend menggunakan NestJS sebagai REST API server.  
 - PostgreSQL sebagai relational database utama.  
-- Redis sebagai penyimpanan queue untuk BullMQ.  
-- BullMQ sebagai mekanisme asynchronous job processing.  
-- Worker sebagai proses yang menangani pekerjaan asynchronous, terutama AI analysis.  
+- Worker sebagai proses yang menangani pekerjaan asynchronous, terutama AI analysis (Level 1 disimpan di DB, Level 2 opsional Redis + BullMQ).  
 - Docker sebagai containerization tool untuk menjalankan service tertentu secara konsisten.
 
 Arsitektur dirancang agar dapat dikembangkan secara bertahap. Komponen seperti database replica, multiple backend instances, load balancer, dan Kubernetes tidak dianggap sebagai kebutuhan wajib pada tahap awal dan akan dipertimbangkan berdasarkan hasil pengujian performa dan kebutuhan scalability.
@@ -47,9 +45,9 @@ flowchart TB
 
     Replica[(PostgreSQL\<br/>Read Replica\<br/>Optional)]
 
-    Redis[(Redis)]
+    
 
-    Queue[BullMQ Queue]
+    
 
     Worker[AI Worker\<br/>NestJS]
 
@@ -421,10 +419,8 @@ Wajib dibangun terlebih dahulu:
 * Inventory.  
 * Transaction.  
 * Dashboard baseline.  
-* Redis.  
-* BullMQ.  
 * AI Worker.  
-* Docker untuk Redis.
+* Docker (for API container only).
 
 ### **Priority 2 — Performance and Reliability**
 
@@ -471,8 +467,8 @@ Dipertimbangkan apabila kompleksitas sistem sudah membutuhkannya:
 | Backend | NestJS | REST API & business logic |
 | API Style | REST | Communication between frontend and backend |
 | Database | PostgreSQL | Primary relational database |
-| Queue | BullMQ | Asynchronous job processing |
-| Queue Storage | Redis | Storage and broker for BullMQ jobs |
+| Queue | – | Asynchronous job processing (Level 1: DB-only via AiJobRecord) |
+| Queue Storage | – | PostgreSQL (Level 1) / Redis (Level 2, optional) |
 | Worker | NestJS Worker | Asynchronous processing, especially AI |
 | Containerization | Docker | Consistent service environment |
 | Database Scaling | PostgreSQL Read Replica | Future read-heavy workload |
@@ -661,7 +657,6 @@ Backend
 ├── User  
 ├── Checkout  
 ├── Inventory  
-├── Payment  
 └── Analytics
 
 Setiap module bertanggung jawab terhadap domain masing-masing.
