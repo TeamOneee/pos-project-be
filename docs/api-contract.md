@@ -1,4 +1,4 @@
-# API CONTRACT — Full Document (UPDATED - Removed Stock Movement & Payment)
+# API CONTRACT — Full Document (UPDATED)
 
 ---
 
@@ -731,7 +731,7 @@ Create new category.
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Access:** OWNER
+**Access:** OWNER, ADMIN
 
 **Request Body:**
 ```json
@@ -762,7 +762,7 @@ Update category.
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Access:** OWNER
+**Access:** OWNER, ADMIN
 
 **Path Parameters:**
 | Parameter | Type | Description |
@@ -796,7 +796,7 @@ Deactivate category (soft delete).
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Access:** OWNER
+**Access:** OWNER, ADMIN
 
 **Path Parameters:**
 | Parameter | Type | Description |
@@ -847,7 +847,7 @@ Get all products with pagination and filters.
         "category_id": "550e8400-e29b-41d4-a716-446655440006",
         "name": "Coca Cola 1.5L",
         "sku": "CC-1500",
-        "price": 15000,
+        "price": "15000.00",
         "status": "ACTIVE",
         "created_at": "2026-08-13T14:30:00.000Z",
         "updated_at": "2026-08-13T14:30:00.000Z",
@@ -872,14 +872,14 @@ Create new product.
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Access:** OWNER
+**Access:** OWNER, ADMIN
 
 **Request Body:**
 ```json
 {
   "name": "Sprite 1.5L",
   "sku": "SP-1500",
-  "price": 15000,
+  "price": "15000.00",
   "category_id": "550e8400-e29b-41d4-a716-446655440006",
   "status": "ACTIVE"
 }
@@ -897,7 +897,7 @@ Create new product.
     "category_id": "550e8400-e29b-41d4-a716-446655440006",
     "name": "Sprite 1.5L",
     "sku": "SP-1500",
-    "price": 15000,
+    "price": "15000.00",
     "status": "ACTIVE"
   }
 }
@@ -941,7 +941,7 @@ Get product by ID.
     "category_id": "550e8400-e29b-41d4-a716-446655440006",
     "name": "Coca Cola 1.5L",
     "sku": "CC-1500",
-    "price": 15000,
+    "price": "15000.00",
     "status": "ACTIVE",
     "category": {
       "category_id": "550e8400-e29b-41d4-a716-446655440006",
@@ -958,7 +958,7 @@ Update product.
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Access:** OWNER
+**Access:** OWNER, ADMIN
 
 **Path Parameters:**
 | Parameter | Type | Description |
@@ -970,7 +970,7 @@ Update product.
 {
   "name": "Coca Cola 2L",
   "sku": "CC-2000",
-  "price": 18000,
+  "price": "18000.00",
   "category_id": "550e8400-e29b-41d4-a716-446655440006",
   "status": "ACTIVE"
 }
@@ -986,7 +986,7 @@ Update product.
     "product_id": "550e8400-e29b-41d4-a716-446655440008",
     "name": "Coca Cola 2L",
     "sku": "CC-2000",
-    "price": 18000,
+    "price": "18000.00",
     "status": "ACTIVE"
   }
 }
@@ -999,7 +999,7 @@ Deactivate product (soft delete).
 
 **Headers:** `Authorization: Bearer <token>`
 
-**Access:** OWNER
+**Access:** OWNER, ADMIN
 
 **Path Parameters:**
 | Parameter | Type | Description |
@@ -1053,7 +1053,7 @@ Get inventory by outlet.
           "product_id": "550e8400-e29b-41d4-a716-446655440008",
           "name": "Coca Cola 1.5L",
           "sku": "CC-1500",
-          "price": 15000
+          "price": "15000.00"
         }
       }
     ],
@@ -1361,17 +1361,17 @@ Returns the active cart for the authenticated cashier.
         "cart_id": "550e8400-e29b-41d4-a716-446655440014",
         "product_id": "550e8400-e29b-41d4-a716-446655440008",
         "quantity": 2,
-        "unit_price": 15000,
-        "subtotal": 30000,
+        "unit_price": "15000.00",
+        "subtotal": "30000.00",
         "product": {
           "product_id": "550e8400-e29b-41d4-a716-446655440008",
           "name": "Coca Cola 1.5L",
           "sku": "CC-1500",
-          "price": 15000
+          "price": "15000.00"
         }
       }
     ],
-    "subtotal": 30000,
+    "subtotal": "30000.00",
     "total_items": 1
   }
 }
@@ -1424,11 +1424,11 @@ Add a product to the current cart.
         "cart_item_id": "550e8400-e29b-41d4-a716-446655440015",
         "product_id": "550e8400-e29b-41d4-a716-446655440008",
         "quantity": 2,
-        "unit_price": 15000,
-        "subtotal": 30000
+        "unit_price": "15000.00",
+        "subtotal": "30000.00"
       }
     ],
-    "subtotal": 30000,
+    "subtotal": "30000.00",
     "total_items": 1
   }
 }
@@ -1487,11 +1487,11 @@ Update cart item quantity.
         "cart_item_id": "550e8400-e29b-41d4-a716-446655440015",
         "product_id": "550e8400-e29b-41d4-a716-446655440008",
         "quantity": 3,
-        "unit_price": 15000,
-        "subtotal": 45000
+        "unit_price": "15000.00",
+        "subtotal": "45000.00"
       }
     ],
-    "subtotal": 45000,
+    "subtotal": "45000.00",
     "total_items": 1
   }
 }
@@ -1520,7 +1520,7 @@ Remove item from cart.
   "data": {
     "cart_id": "550e8400-e29b-41d4-a716-446655440014",
     "items": [],
-    "subtotal": 0,
+    "subtotal": "0.00",
     "total_items": 0
   }
 }
@@ -1544,7 +1544,7 @@ Clear all items from cart.
   "data": {
     "cart_id": "550e8400-e29b-41d4-a716-446655440014",
     "items": [],
-    "subtotal": 0,
+    "subtotal": "0.00",
     "total_items": 0
   }
 }
@@ -1584,8 +1584,8 @@ Get transactions with filters and pagination.
         "outlet_id": "550e8400-e29b-41d4-a716-446655440002",
         "user_id": "550e8400-e29b-41d4-a716-446655440004",
         "transaction_number": "TRX-20260813-001",
-        "subtotal": 150000,
-        "total": 150000,
+        "subtotal": "150000.00",
+        "total": "150000.00",
         "status": "COMPLETED",
         "created_at": "2026-08-13T14:30:00.000Z",
         "outlet": {
@@ -1650,8 +1650,8 @@ Create new transaction (checkout).
       "outlet_id": "550e8400-e29b-41d4-a716-446655440002",
       "user_id": "550e8400-e29b-41d4-a716-446655440004",
       "transaction_number": "TRX-20260813-002",
-      "subtotal": 45000,
-      "total": 45000,
+      "subtotal": "45000.00",
+      "total": "45000.00",
       "status": "COMPLETED",
       "created_at": "2026-08-13T14:35:00.000Z"
     },
@@ -1661,16 +1661,16 @@ Create new transaction (checkout).
         "transaction_id": "550e8400-e29b-41d4-a716-446655440017",
         "product_id": "550e8400-e29b-41d4-a716-446655440008",
         "quantity": 2,
-        "unit_price": 15000,
-        "subtotal": 30000
+        "unit_price": "15000.00",
+        "subtotal": "30000.00"
       },
       {
         "transaction_item_id": "550e8400-e29b-41d4-a716-446655440019",
         "transaction_id": "550e8400-e29b-41d4-a716-446655440017",
         "product_id": "550e8400-e29b-41d4-a716-446655440009",
         "quantity": 1,
-        "unit_price": 15000,
-        "subtotal": 15000
+        "unit_price": "15000.00",
+        "subtotal": "15000.00"
       }
     ],
     "receipt": {
@@ -1692,7 +1692,7 @@ Create new transaction (checkout).
     "transaction": {
       "transaction_id": "550e8400-e29b-41d4-a716-446655440017",
       "transaction_number": "TRX-20260813-002",
-      "total": 45000,
+      "total": "45000.00",
       "status": "COMPLETED"
     }
   }
@@ -1730,8 +1730,8 @@ Create new transaction (checkout).
       "code": "PRICE_CHANGED",
       "product_id": "550e8400-e29b-41d4-a716-446655440008",
       "product_name": "Coca Cola 1.5L",
-      "cart_price": 15000,
-      "current_price": 18000
+      "cart_price": "15000.00",
+      "current_price": "18000.00"
     }
   ],
   "timestamp": "2026-08-13T14:30:00.000Z"
@@ -1764,8 +1764,8 @@ Get transaction by ID.
       "outlet_id": "550e8400-e29b-41d4-a716-446655440002",
       "user_id": "550e8400-e29b-41d4-a716-446655440004",
       "transaction_number": "TRX-20260813-002",
-      "subtotal": 45000,
-      "total": 45000,
+      "subtotal": "45000.00",
+      "total": "45000.00",
       "status": "COMPLETED",
       "created_at": "2026-08-13T14:35:00.000Z"
     },
@@ -1774,8 +1774,8 @@ Get transaction by ID.
         "transaction_item_id": "550e8400-e29b-41d4-a716-446655440018",
         "product_id": "550e8400-e29b-41d4-a716-446655440008",
         "quantity": 2,
-        "unit_price": 15000,
-        "subtotal": 30000,
+        "unit_price": "15000.00",
+        "subtotal": "30000.00",
         "product": {
           "product_id": "550e8400-e29b-41d4-a716-446655440008",
           "name": "Coca Cola 1.5L",
@@ -1833,10 +1833,10 @@ Get complete Owner dashboard data.
   "message": "Dashboard data retrieved successfully",
   "data": {
     "summary": {
-      "total_revenue": 15750000,
+      "total_revenue": "15750000.00",
       "total_transactions": 1250,
       "total_orders": 1250,
-      "average_order_value": 12600,
+      "average_order_value": "12600.00",
       "total_products_sold": 3420,
       "total_outlets": 3,
       "total_employees": 12,
@@ -1847,23 +1847,23 @@ Get complete Owner dashboard data.
     "sales_trend": {
       "labels": ["2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"],
       "datasets": {
-        "revenue": [2100000, 1800000, 2250000, 1950000, 2400000, 2700000, 2550000],
+        "revenue": ["2100000.00", "1800000.00", "2250000.00", "1950000.00", "2400000.00", "2700000.00", "2550000.00"],
         "transactions": [180, 150, 190, 165, 210, 230, 220]
       },
       "summary": {
-        "highest_revenue": 2700000,
-        "lowest_revenue": 1800000,
-        "average_revenue": 2250000,
-        "total_revenue": 15750000
+        "highest_revenue": "2700000.00",
+        "lowest_revenue": "1800000.00",
+        "average_revenue": "2250000.00",
+        "total_revenue": "15750000.00"
       }
     },
     "outlet_performance": [
       {
         "outlet_id": "550e8400-e29b-41d4-a716-446655440002",
         "outlet_name": "Outlet A - Mall Central",
-        "total_revenue": 7250000,
+        "total_revenue": "7250000.00",
         "total_transactions": 580,
-        "average_order_value": 12500,
+        "average_order_value": "12500.00",
         "total_products_sold": 1520,
         "contribution_percentage": 46.03,
         "revenue_growth": 15.2
@@ -1877,7 +1877,7 @@ Get complete Owner dashboard data.
           "sku": "CC-1500",
           "category_name": "Beverages",
           "total_quantity_sold": 450,
-          "total_revenue": 6750000,
+          "total_revenue": "6750000.00",
           "rank": 1
         }
       ],
@@ -1888,7 +1888,7 @@ Get complete Owner dashboard data.
           "sku": "CC-1500",
           "category_name": "Beverages",
           "total_quantity_sold": 450,
-          "total_revenue": 6750000,
+          "total_revenue": "6750000.00",
           "rank": 1
         }
       ]
@@ -1900,7 +1900,7 @@ Get complete Owner dashboard data.
         "sku": "PCB-001",
         "category_name": "Coffee",
         "total_quantity_sold": 5,
-        "total_revenue": 175000,
+        "total_revenue": "175000.00",
         "stock_level": 50,
         "days_without_sale": 14,
         "recommendation": "PROMOTION"
@@ -1908,9 +1908,9 @@ Get complete Owner dashboard data.
     ],
     "time_pattern": {
       "hourly_distribution": [
-        {"hour": 8, "revenue": 150000, "transaction_count": 12},
-        {"hour": 12, "revenue": 450000, "transaction_count": 35},
-        {"hour": 19, "revenue": 500000, "transaction_count": 38}
+        {"hour": 8, "revenue": "150000.00", "transaction_count": 12},
+        {"hour": 12, "revenue": "450000.00", "transaction_count": 35},
+        {"hour": 19, "revenue": "500000.00", "transaction_count": 38}
       ],
       "peak_hours": [12, 13, 19, 20],
       "busiest_day": "Saturday",
@@ -1922,9 +1922,9 @@ Get complete Owner dashboard data.
     },
     "aov_trend": {
       "labels": ["Week 1", "Week 2", "Week 3", "Week 4"],
-      "values": [11200, 11800, 12500, 12600],
-      "current_aov": 12600,
-      "previous_aov": 11800,
+      "values": ["11200.00", "11800.00", "12500.00", "12600.00"],
+      "current_aov": "12600.00",
+      "previous_aov": "11800.00",
       "growth_percentage": 6.78
     },
     "recent_transactions": [
@@ -1933,7 +1933,7 @@ Get complete Owner dashboard data.
         "transaction_number": "TRX-20260813-001",
         "outlet_name": "Outlet A - Mall Central",
         "cashier_name": "Budi Santoso",
-        "total": 150000,
+        "total": "150000.00",
         "created_at": "2026-08-13T14:30:00.000Z"
       }
     ],
@@ -1950,13 +1950,13 @@ Get complete Owner dashboard data.
       "current_period": {
         "start_date": "2026-08-01",
         "end_date": "2026-08-11",
-        "total_revenue": 15750000,
+        "total_revenue": "15750000.00",
         "total_transactions": 1250
       },
       "previous_period": {
         "start_date": "2026-07-21",
         "end_date": "2026-07-31",
-        "total_revenue": 14000000,
+        "total_revenue": "14000000.00",
         "total_transactions": 1150
       },
       "changes": {
@@ -1996,7 +1996,7 @@ Dashboard for Admin - operational inventory management overview. Only Admin can 
     "summary": {
       "total_outlets": 3,
       "total_products": 156,
-      "total_stock_value": 27500000,
+      "total_stock_value": "27500000.00",
       "total_stock_items": 3420,
       "low_stock_products_count": 8,
       "out_of_stock_products_count": 3
@@ -2010,8 +2010,7 @@ Dashboard for Admin - operational inventory management overview. Only Admin can 
         "outlet_id": "550e8400-e29b-41d4-a716-446655440002",
         "outlet_name": "Outlet A - Mall Central",
         "current_stock": 5,
-        "threshold": 10,
-        "days_until_empty": 2
+        "threshold": 10
       }
     ],
     "out_of_stock_alerts": [
@@ -2020,8 +2019,7 @@ Dashboard for Admin - operational inventory management overview. Only Admin can 
         "product_name": "Mineral Water 600ml",
         "sku": "MW-600",
         "outlet_id": "550e8400-e29b-41d4-a716-446655440003",
-        "outlet_name": "Outlet B - City Plaza",
-        "last_sold_date": "2026-08-12T14:30:00.000Z"
+        "outlet_name": "Outlet B - City Plaza"
       }
     ],
     "outlet_quick_stats": [
@@ -2087,18 +2085,18 @@ Get sales trend data for charts.
     "trend": [
       {
         "date": "2026-08-01",
-        "total_sales": 2100000,
+        "total_sales": "2100000.00",
         "transaction_count": 180
       },
       {
         "date": "2026-08-02",
-        "total_sales": 1800000,
+        "total_sales": "1800000.00",
         "transaction_count": 150
       }
     ],
     "summary": {
-      "total_revenue": 15750000,
-      "average_daily_revenue": 2250000,
+      "total_revenue": "15750000.00",
+      "average_daily_revenue": "2250000.00",
       "total_transactions": 1250,
       "average_daily_transactions": 178
     }
@@ -2129,9 +2127,9 @@ Get hourly sales distribution pattern.
   "message": "Time pattern data retrieved",
   "data": {
     "patterns": [
-      {"hour": 8, "revenue": 150000, "transaction_count": 12},
-      {"hour": 9, "revenue": 250000, "transaction_count": 20},
-      {"hour": 10, "revenue": 180000, "transaction_count": 15}
+      {"hour": 8, "revenue": "150000.00", "transaction_count": 12},
+      {"hour": 9, "revenue": "250000.00", "transaction_count": 20},
+      {"hour": 10, "revenue": "180000.00", "transaction_count": 15}
     ],
     "peak_hours": [12, 13, 19, 20],
     "average_transactions_per_hour": 35
@@ -2162,12 +2160,12 @@ Get Average Order Value trend.
   "message": "AOV trend data retrieved",
   "data": {
     "trend": [
-      {"period": "Week 1", "aov": 11200, "transaction_count": 280},
-      {"period": "Week 2", "aov": 11800, "transaction_count": 310},
-      {"period": "Week 3", "aov": 12500, "transaction_count": 330},
-      {"period": "Week 4", "aov": 12600, "transaction_count": 330}
+      {"period": "Week 1", "aov": "11200.00", "transaction_count": 280},
+      {"period": "Week 2", "aov": "11800.00", "transaction_count": 310},
+      {"period": "Week 3", "aov": "12500.00", "transaction_count": 330},
+      {"period": "Week 4", "aov": "12600.00", "transaction_count": 330}
     ],
-    "overall_aov": 12600,
+    "overall_aov": "12600.00",
     "aov_change_percentage": 6.78
   }
 }
@@ -2204,7 +2202,7 @@ Get product performance analysis (best/worst sellers).
         "sku": "CC-1500",
         "category_name": "Beverages",
         "total_sold": 450,
-        "total_revenue": 6750000,
+        "total_revenue": "6750000.00",
         "rank": 1
       }
     ],
@@ -2215,7 +2213,7 @@ Get product performance analysis (best/worst sellers).
         "sku": "PCB-001",
         "category_name": "Coffee",
         "total_sold": 5,
-        "total_revenue": 175000,
+        "total_revenue": "175000.00",
         "rank": 1,
         "days_without_sale": 14
       }
@@ -2271,7 +2269,6 @@ Trigger AI analysis (manual by Owner only).
   "errors": null,
   "timestamp": "2026-08-13T14:30:00.000Z"
 }
-```
 
 ---
 
@@ -2332,53 +2329,5 @@ Hubungan Merchant → AI Insight bersifat **1:1** dan sistem **tidak menyimpan h
 | 409 | Conflict |
 | 500 | Internal Server Error |
 
----
-
-## 6. Role-Based Access Control (RBAC)
-
-| Endpoint | Method | OWNER | ADMIN | CASHIER |
-|----------|--------|-------|-------|---------|
-| `/auth/login` | POST | ✅ | ✅ | ✅ |
-| `/auth/me` | GET | ✅ | ✅ | ✅ |
-| `/merchants` | GET/PUT | ✅ | ❌ | ❌ |
-| `/outlets` | GET/POST/PUT/DELETE | ✅ | ❌ | ❌ |
-| `/users` | GET/POST/PUT/DELETE | ✅ | ❌ | ❌ |
-| `/categories` | GET | ✅ | ✅ | ❌ |
-| `/categories` | POST/PUT/DELETE | ✅ | ❌ | ❌ |
-| `/products` | GET | ✅ | ✅ | ✅ |
-| `/products` | POST/PUT/DELETE | ✅ | ❌ | ❌ |
-| `/inventory` | GET | ✅ | ✅ | ✅ |
-| `/inventory/outlet/{oid}/product/{pid}` | GET | ✅ | ✅ | ✅ |
-| `/inventory/{id}` | PUT | ❌ | ✅ | ❌ |
-| `/inventory/bulk` | PUT | ❌ | ✅ | ❌ |
-| `/inventory/transfer` | POST | ❌ | ✅ | ❌ |
-| `/inventory/low-stock` | GET | ❌ | ✅ | ❌ |
-| `/cart` | GET | ❌ | ❌ | ✅ |
-| `/cart/items` | POST | ❌ | ❌ | ✅ |
-| `/cart/items/{id}` | PUT/DELETE | ❌ | ❌ | ✅ |
-| `/cart/clear` | DELETE | ❌ | ❌ | ✅ |
-| `/transactions` | GET | ✅ | ✅ | ✅ (own outlet only) |
-| `/transactions` | POST | ❌ | ❌ | ✅ |
-| `/transactions/{id}` | GET | ✅ | ✅ | ✅ (own outlet only) |
-| `/dashboard/owner` | GET | ✅ | ❌ | ❌ |
-| `/dashboard/admin` | GET | ❌ | ✅ | ❌ |
-| `/analytics/*` | GET | ✅ | ❌ | ❌ |
-| `/ai-insights/analyze` | POST | ✅ | ❌ | ❌ |
-| `/ai-insights` | GET | ✅ | ❌ | ❌ |
-
----
-
-## 7. Notes
-
-1. **Dashboard Endpoint:** `/dashboard/owner` returns all Owner dashboard data in one response; `/dashboard/admin` provides the Admin inventory overview.
-2. **Read Replica:** All `GET` endpoints should use Read Replica for better performance.
-3. **Write Operations:** `POST`, `PUT`, `DELETE`, `PATCH` operations use Primary Database.
-4. **AI Analysis:** Tidak ada limit harian (FR-AI-012) — manual trigger oleh OWNER, async via worker; insight hanya **saran** dan tidak mengubah data.
-5. **Transaction Consistency:** Checkout memakai semua operasi (transaction + stock deduction + receipt) dalam satu database transaction.
-6. **Inventory Management:** Hanya **ADMIN** yang dapat mengubah stok (adjustment, bulk, transfer, low-stock alerts). Owner dan Cashier hanya dapat melihat stok.
-7. **Product & Category Management:** Hanya **OWNER** yang dapat membuat, mengubah, atau menonaktifkan product dan category. Admin hanya dapat melihat (read-only).
-8. **Authentication:** All endpoints (except login & register) require valid JWT token.
-
----
 
 **End of Document**

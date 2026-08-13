@@ -358,6 +358,8 @@ Merchant
 
 **Tidak bertanggung jawab terhadap:** stock, transaction, product, AI analysis
 
+**Akses:** OWNER (full)
+
 ---
 
 ### 11.2 Outlet Module
@@ -375,6 +377,8 @@ Outlet
 **Owns:** `outlet`
 
 **Dependency:** Merchant (via `merchantId` dari JWT)
+
+**Akses:** OWNER (full)
 
 ---
 
@@ -396,7 +400,7 @@ Category
 
 **Akses:**
 - **OWNER:** Full CRUD (create, read, update, delete)
-- **ADMIN:** Read only
+- **ADMIN:** Full CRUD (create, read, update, delete)
 - **CASHIER:** Tidak ada akses
 
 ---
@@ -420,7 +424,7 @@ Product
 
 **Akses:**
 - **OWNER:** Full CRUD (create, read, update, delete)
-- **ADMIN:** Read only
+- **ADMIN:** Full CRUD (create, read, update, delete)
 - **CASHIER:** Read only
 
 ---
@@ -464,7 +468,7 @@ Inventory
 └── get low stock alerts
 ```
 
-**Owns:** `inventory`, `stock_movement`
+**Owns:** `inventory`
 
 **Akses:**
 - **ADMIN:** Full CRUD (adjustment, transfer, bulk, low stock alerts)
@@ -616,9 +620,9 @@ Maka quantity lebih tepat menjadi bagian dari **Inventory**, bukan Product.
 | Endpoint | OWNER | ADMIN | CASHIER |
 |---|---|---|---|
 | GET /products | ✅ | ✅ | ✅ |
-| POST /products | ✅ | ❌ | ❌ |
-| PUT /products/{id} | ✅ | ❌ | ❌ |
-| DELETE /products/{id} | ✅ | ❌ | ❌ |
+| POST /products | ✅ | ✅ | ❌ |
+| PUT /products/{id} | ✅ | ✅ | ❌ |
+| DELETE /products/{id} | ✅ | ✅ | ❌ |
 
 ---
 
@@ -640,7 +644,7 @@ Inventory
 
 ### Owns
 
-`inventory`, `stock_movement`
+`inventory`
 
 ### Akses
 
@@ -1053,9 +1057,6 @@ PostgreSQL
 │       → Product Module
 │
 ├── inventory
-│       → Inventory Module
-│
-├── stock_movements
 │       → Inventory Module
 │
 ├── carts

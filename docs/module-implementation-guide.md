@@ -1,4 +1,4 @@
-# MODULE IMPLEMENTATION GUIDE — Full Document (UPDATED - Removed Stock Movement)
+# MODULE IMPLEMENTATION GUIDE — Full Document (UPDATED)
 
 ---
 
@@ -280,25 +280,25 @@ Merchant (scope dari JWT).
 #### GET /categories — OWNER, ADMIN
 **Logic:**
 - `listByMerchant(merchantId)` → return array kategori
-- **Admin hanya bisa melihat** (read-only). Tidak dapat membuat/mengubah/menonaktifkan.
+- **Owner dan Admin** dapat melihat daftar kategori
 
-#### POST /categories — OWNER
+#### POST /categories — OWNER, ADMIN
 **Logic:**
 1. Body `{ name }` → cek unik dalam merchant
 2. `createCategory(merchantId, name)` → 201
-3. **Hanya OWNER yang dapat membuat kategori**
+3. **Owner dan Admin** dapat membuat kategori
 
-#### PUT /categories/{categoryId} — OWNER
+#### PUT /categories/{categoryId} — OWNER, ADMIN
 **Logic:**
 - `ensureMerchantOwnership(categoryId, merchantId)` → pastikan milik merchant
 - Update nama (cek unik)
-- **Hanya OWNER yang dapat mengubah kategori**
+- **Owner dan Admin** dapat mengubah kategori
 
-#### DELETE /categories/{categoryId} — OWNER
+#### DELETE /categories/{categoryId} — OWNER, ADMIN
 **Logic:**
 - **Soft delete**: `ensureMerchantOwnership(...)` lalu set `status = INACTIVE` — **bukan hapus fisik**
 - Category nonaktif tidak boleh dipilih untuk Product baru
-- **Hanya OWNER yang dapat menonaktifkan kategori**
+- **Owner dan Admin** dapat menonaktifkan kategori
 
 ---
 
@@ -334,30 +334,30 @@ Merchant (scope dari JWT).
 - Response **pagination**: `{ items, total, page, limit, total_pages }`
 - Item menyertakan relasi `category` (nama)
 
-#### POST /products — OWNER
+#### POST /products — OWNER, ADMIN
 **Logic:**
 1. Body `{ name, sku, price, category_id, status? }`
 2. Validasi `category_id` milik merchant **dan aktif** (tolak Category kosong/nonaktif/asing)
 3. `createProduct({ ..., merchantId })` → 201
 4. Catat audit harga/status (nilai sebelum = null)
-5. **Hanya OWNER yang dapat membuat produk**
+5. **Owner dan Admin** dapat membuat produk
 
 #### GET /products/{productId} — semua role
 **Logic:**
 - `findById` + pastikan milik merchant → return product + category
 
-#### PUT /products/{productId} — OWNER
+#### PUT /products/{productId} — OWNER, ADMIN
 **Logic:**
 - Update `{ name?, sku?, price?, category_id?, status? }`
 - Validasi category tetap milik merchant & aktif
 - Catat audit: actor, waktu, nilai harga/status sebelum & sesudah
 - Perubahan harga hanya berlaku untuk checkout yang belum selesai, tidak mengubah transaksi historis
-- **Hanya OWNER yang dapat mengubah produk**
+- **Owner dan Admin** dapat mengubah produk
 
-#### DELETE /products/{productId} — OWNER
+#### DELETE /products/{productId} — OWNER, ADMIN
 **Logic:**
 - **Soft delete**: set `status = INACTIVE` — tidak menghapus riwayat transaksi
-- **Hanya OWNER yang dapat menonaktifkan produk**
+- **Owner dan Admin** dapat menonaktifkan produk
 
 ---
 
@@ -374,7 +374,7 @@ src/inventory/
 ```
 
 ### Owns
-`inventory` (stock)
+`inventory`
 
 ### Dependency
 Product (info nama/SKU untuk tampilan via `ProductPort`), Outlet (scope).
@@ -396,26 +396,25 @@ Product (info nama/SKU untuk tampilan via `ProductPort`), Outlet (scope).
 - Jika tidak ada, return `{ quantity: 0 }` atau 404 sesuai kebijakan
 - **Semua role dapat melihat**
 
-#### PUT /inventory/{inventoryId} — ADMIN (fokus utama: adjustment stok operasional)
-Logic:
-1. Body **`{ quantity }`** — untuk mengubah stok.
-2. Validasi hasil akhir ≥ 0 (FR-INV-002 / BR-011A: stok tidak boleh negatif).
-3. Dalam **satu transaction** (UnitOfWork):
-   - `updateQuantity(inventoryId, target)`;
-   - Return `{ inventory_id }`.
+#### PUT /inventory/{inventoryId} — ADMIN
+**Logic:**
+1. Body **`{ quantity, reason }`** — `reason` wajib untuk adjustment manual
+2. Validasi hasil akhir ≥ 0 (stok tidak boleh negatif)
+3. Update `quantity` di inventory
+4. Return `{ inventory_id, quantity }`
 
-> **Hanya ADMIN yang dapat melakukan adjustment stok.** Owner tidak memiliki akses. Fokus Admin: stok operasional sehari-hari, alarm stok rendah, transfer antar outlet. Owner hanya bisa melihat stok (read-only).
+> **Hanya ADMIN yang dapat melakukan adjustment stok.** Owner tidak memiliki akses.
 
 #### PUT /inventory/bulk — ADMIN
 **Logic:**
-- Body: `{ outlet_id, items: [{ inventory_id, quantity }] }` untuk satu `outlet_id`
+- Body: `{ outlet_id, items: [{ inventory_id, quantity, reason }] }` untuk satu `outlet_id`
 - Semua operasi (update) dalam **satu transaction** (UnitOfWork) agar konsisten
 
 > **Hanya ADMIN yang dapat melakukan bulk update stok.**
 
 #### POST /inventory/transfer — ADMIN
 **Logic:**
-1. Body `{ product_id, from_outlet_id, to_outlet_id, quantity }`
+1. Body `{ product_id, from_outlet_id, to_outlet_id, quantity, reason? }`
 2. Cek stock cukup di `from_outlet_id` → jika tidak `BadRequestException`
 3. **Dalam satu transaction**: `decreaseStock(from, ...)` + `increaseStock(to, ...)` (pakai `transferStock` port)
 4. Pastikan `from !== to`
@@ -708,20 +707,20 @@ Analytics (data agregasi via `AnalyticsPort`), BullMQ/Redis (async), AI provider
 | User | GET,POST /users | OWNER |
 | User | GET,PUT,DELETE /users/{id} | OWNER |
 | Category | GET /categories | OWNER, ADMIN |
-| Category | POST /categories | OWNER |
-| Category | PUT /categories/{id} | OWNER |
-| Category | DELETE /categories/{id} | OWNER |
+| Category | POST /categories | OWNER, ADMIN |
+| Category | PUT /categories/{id} | OWNER, ADMIN |
+| Category | DELETE /categories/{id} | OWNER, ADMIN |
 | Product | GET /products | semua |
-| Product | POST /products | OWNER |
+| Product | POST /products | OWNER, ADMIN |
 | Product | GET /products/{id} | semua |
-| Product | PUT /products/{id} | OWNER |
-| Product | DELETE /products/{id} | OWNER |
-| **Inventory** | **GET /inventory** | **semua** |
-| **Inventory** | **GET /inventory/outlet/{oid}/product/{pid}** | **semua** |
-| **Inventory** | **PUT /inventory/{id}** | **ADMIN** |
-| **Inventory** | **PUT /inventory/bulk** | **ADMIN** |
-| **Inventory** | **POST /inventory/transfer** | **ADMIN** |
-| **Inventory** | **GET /inventory/low-stock** | **ADMIN** |
+| Product | PUT /products/{id} | OWNER, ADMIN |
+| Product | DELETE /products/{id} | OWNER, ADMIN |
+| Inventory | GET /inventory | semua |
+| Inventory | GET /inventory/outlet/{oid}/product/{pid} | semua |
+| Inventory | PUT /inventory/{id} | ADMIN |
+| Inventory | PUT /inventory/bulk | ADMIN |
+| Inventory | POST /inventory/transfer | ADMIN |
+| Inventory | GET /inventory/low-stock | ADMIN |
 | Cart | GET /cart | CASHIER |
 | Cart | POST /cart/items | CASHIER |
 | Cart | PUT,DELETE /cart/items/{id} | CASHIER |
@@ -744,16 +743,16 @@ Analytics (data agregasi via `AnalyticsPort`), BullMQ/Redis (async), AI provider
 ## 6. Role-Based Access Control (RBAC) — UPDATED
 
 | Endpoint | Method | OWNER | ADMIN | CASHIER |
-|----------|--------|-------|-------|---------|
+|---|---|---|---|---|
 | `/auth/login` | POST | ✅ | ✅ | ✅ |
 | `/auth/me` | GET | ✅ | ✅ | ✅ |
 | `/merchants` | GET/PUT | ✅ | ❌ | ❌ |
 | `/outlets` | GET/POST/PUT/DELETE | ✅ | ❌ | ❌ |
 | `/users` | GET/POST/PUT/DELETE | ✅ | ❌ | ❌ |
 | `/categories` | GET | ✅ | ✅ | ❌ |
-| `/categories` | POST/PUT/DELETE | ✅ | ❌ | ❌ |
+| `/categories` | POST/PUT/DELETE | ✅ | ✅ | ❌ |
 | `/products` | GET | ✅ | ✅ | ✅ |
-| `/products` | POST/PUT/DELETE | ✅ | ❌ | ❌ |
+| `/products` | POST/PUT/DELETE | ✅ | ✅ | ❌ |
 | `/inventory` | GET | ✅ | ✅ | ✅ |
 | `/inventory/outlet/{oid}/product/{pid}` | GET | ✅ | ✅ | ✅ |
 | `/inventory/{id}` | PUT | ❌ | ✅ | ❌ |

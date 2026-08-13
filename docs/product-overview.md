@@ -1,3 +1,7 @@
+# MODUL 1 — PRODUCT-OVERVIEW.md (UPDATED)
+
+---
+
 # PRODUCT OVERVIEW — Full Document
 
 ## 1. Overview
@@ -12,8 +16,7 @@ Arsitektur bisnis utama yang digunakan adalah:
 - Multi Outlet
 - Multi Kasir
 - Stock Management
-- Owner dan Admin berada pada scope Merchant
-- Kasir berada pada scope Outlet
+- Owner, Admin, dan Kasir memiliki scope dan tanggung jawab masing-masing
 - AI Insight dapat dijalankan secara manual oleh Owner tanpa batasan harian
 
 ---
@@ -26,10 +29,10 @@ Struktur bisnis dalam sistem adalah:
 Merchant
 │
 ├── Owner (scope Merchant)
-│   └── Fokus: Manajemen Bisnis & Katalog
+│   └── Fokus: Manajemen Bisnis & Staf
 │
 ├── Admin (scope Merchant)
-│   └── Fokus: Manajemen Stok Operasional
+│   └── Fokus: Manajemen Katalog & Stok Operasional
 │
 ├── Outlet A
 │   ├── Cashier 1
@@ -48,7 +51,7 @@ Merchant
 
 ### 2.1 Merchant
 
-Sistem merupakan **multi-tenant SaaS**: platform dapat melayani banyak Merchant, namun setiap Owner memiliki tepat satu Merchant (FR-TEN-002).
+Sistem merupakan **multi-tenant SaaS**: platform dapat melayani banyak Merchant, namun setiap Owner memiliki tepat satu Merchant.
 
 Artinya, satu Merchant memiliki beberapa Outlet, dan seluruh data (katalog, inventory, transaksi) di-scope per Merchant.
 
@@ -88,20 +91,15 @@ Owner tidak terikat pada outlet tertentu karena tanggung jawabnya berkaitan deng
 - **Manajemen Outlet**: Membuat, mengubah, dan menonaktifkan outlet
 - **Manajemen User/Staf**: Membuat, mengubah role, dan menonaktifkan Admin & Cashier
 
-**B. Manajemen Katalog (Product & Category)**
-- **Manajemen Category**: Membuat, mengubah, dan menonaktifkan kategori produk
-- **Manajemen Product**: Membuat, mengubah harga, mengubah status, dan menonaktifkan produk
-- **Katalog Produk**: Owner adalah pemilik tunggal data product & category. Admin tidak memiliki akses untuk mengubah katalog.
-
-**C. Analisis Bisnis & Pengambilan Keputusan**
+**B. Analisis Bisnis & Pengambilan Keputusan**
 - **Dashboard Owner**: Melihat overview bisnis komprehensif (omzet, tren, performa outlet, top products, AOV, pola waktu)
 - **Analytics Mendalam**: Menganalisis tren penjualan, pola waktu, AOV trend, dan performa produk (terlaris vs tidak laku)
 - **AI Insight**: Memicu analisis AI secara manual, membaca hasil insight, dan mengambil keputusan bisnis berdasarkan rekomendasi
 
-**D. Monitoring Stok (View Only)**
-- Owner dapat melihat stok dan alarm stok rendah, namun **tidak melakukan adjustment stok** — itu adalah tanggung jawab Admin.
+**C. Monitoring (View Only)**
+- Owner dapat melihat katalog produk, kategori, dan stok, namun **tidak melakukan perubahan operasional** — itu adalah tanggung jawab Admin.
 
-> **Ringkasan:** Owner berfokus pada **strategi bisnis, pengelolaan katalog, dan pengambilan keputusan berdasarkan data & AI**. Owner tidak terlibat dalam aktivitas stok operasional harian atau checkout.
+> **Ringkasan:** Owner berfokus pada **strategi bisnis, pengelolaan staf & outlet, dan pengambilan keputusan berdasarkan data & AI**. Owner tidak terlibat dalam aktivitas operasional harian (katalog, stok, checkout).
 
 ---
 
@@ -113,21 +111,25 @@ Artinya, satu Admin dapat menangani dan mengelola beberapa outlet dalam merchant
 
 #### Fokus Utama Admin:
 
-**A. Manajemen Stok Operasional**
+**A. Manajemen Katalog (Category & Product)**
+- **Manajemen Category**: Membuat, mengubah, dan menonaktifkan kategori produk
+- **Manajemen Product**: Membuat, mengubah harga, mengubah status, dan menonaktifkan produk
+- **Katalog Produk**: Admin adalah pemilik utama data product & category untuk operasional sehari-hari
+
+**B. Manajemen Stok Operasional**
 - **Monitoring Stok**: Melihat stok per produk per outlet secara real-time
-- **Adjustment Stok**: Mengubah jumlah stok suatu produk di outlet tertentu (dengan alasan/justifikasi)
+- **Adjustment Stok**: Mengubah jumlah stok suatu produk di outlet tertentu (wajib dengan alasan)
 - **Bulk Update Stok**: Memperbarui stok banyak produk sekaligus dalam satu outlet
 - **Transfer Stok**: Memindahkan stok antar outlet
 
-**B. Dashboard Inventory**
+**C. Dashboard Inventory**
 - **Inventory Overview**: Dashboard khusus yang menampilkan ringkasan stok, produk mendekati habis, dan produk sudah habis
 - **Low Stock Alerts**: Melihat daftar produk dengan stok di bawah threshold untuk tindakan segera
 
-**C. Monitoring (View Only)**
-- Admin dapat melihat daftar produk dan kategori, namun **tidak dapat mengubah atau membuat** product/category
+**D. Monitoring (View Only)**
 - Admin dapat melihat transaksi untuk keperluan penelusuran, namun **tidak melakukan checkout**
 
-> **Ringkasan:** Admin berfokus pada **ketersediaan stok untuk operasi checkout harian**. Admin adalah "penjaga gudang" yang memastikan outlet siap berjualan. Admin tidak memiliki akses untuk mengubah katalog produk atau melakukan analisis bisnis mendalam.
+> **Ringkasan:** Admin berfokus pada **pengelolaan katalog produk dan ketersediaan stok untuk operasi checkout harian**. Admin adalah "pengelola toko" yang memastikan produk tersedia dan stok mencukupi. Admin tidak memiliki akses ke dashboard bisnis Owner, analytics mendalam, atau AI Insight.
 
 ---
 
@@ -165,7 +167,7 @@ Outlet B
 - Melihat daftar transaksi yang dilakukan di outlet-nya sendiri
 - Melihat detail transaksi yang dilakukan sendiri
 
-> **Ringkasan:** Cashier berfokus pada **proses transaksi dari awal hingga selesai**. Cashier tidak memiliki akses ke dashboard, analytics, AI insights, atau manajemen stok. Sistem diprioritaskan agar checkout cepat dan tidak terganggu oleh proses lain.
+> **Ringkasan:** Cashier berfokus pada **proses transaksi dari awal hingga selesai**. Cashier tidak memiliki akses ke dashboard, analytics, AI insights, atau manajemen stok/katalog. Sistem diprioritaskan agar checkout cepat dan tidak terganggu oleh proses lain.
 
 ---
 
@@ -185,13 +187,19 @@ Category 1 ───── N Product
 
 Category dibuat sebagai entitas terpisah agar satu category dapat digunakan oleh banyak product.
 
-### 4.1 Ownership Product & Category
+### 4.1 Aturan Category & Product
 
-**Product dan Category adalah milik Owner.**
+- **Setiap Product wajib memiliki satu Category aktif** saat dipilih
+- Category dapat **dinonaktifkan (soft delete)**, bukan dihapus fisik
+- Category nonaktif **tidak dapat dipilih** untuk Product baru
+- Product dapat **dinonaktifkan (soft delete)**, tidak menghapus riwayat transaksi
 
-- Hanya **Owner** yang dapat membuat, mengubah, atau menonaktifkan product dan category.
-- **Admin** hanya dapat melihat product dan category (read-only) untuk keperluan manajemen stok.
-- **Cashier** hanya dapat melihat product aktif untuk keperluan transaksi.
+### 4.2 Ownership Category & Product
+
+**Category dan Product dikelola oleh Owner dan Admin.**
+
+- **Owner** dan **Admin** dapat membuat, mengubah, atau menonaktifkan product dan category.
+- **Cashier** hanya dapat melihat product aktif untuk keperluan transaksi (read-only).
 
 ---
 
@@ -223,12 +231,19 @@ Inventory menyimpan informasi stock product pada outlet tertentu.
 
 Stock akan berkaitan dengan proses transaksi dan checkout.
 
-### 5.1 Ownership Inventory
+### 5.1 Aturan Inventory
 
-**Inventory adalah milik Admin.**
+- **Stok numerik** disimpan per kombinasi `(outlet_id, product_id)`
+- **Stok tidak boleh negatif** (FR-INV-002 / BR-011A)
+- **Adjustment manual** untuk menambah atau mengurangi stok **wajib memiliki alasan**
+- Setiap perubahan stok tercatat dalam **audit trail** (siapa, kapan, sebelum, sesudah, alasan)
 
-- Hanya **Admin** (dan Owner jika diperlukan) yang dapat melakukan adjustment stok, bulk update, dan transfer stok.
-- **Admin** bertanggung jawab menjaga ketersediaan stok di semua outlet.
+### 5.2 Ownership Inventory
+
+**Inventory dikelola oleh Admin.**
+
+- **Admin** dapat melakukan adjustment stok, bulk update, dan transfer stok.
+- **Owner** hanya dapat melihat stok (read-only).
 - **Cashier** hanya dapat melihat stok saat menambahkan item ke keranjang (untuk validasi), namun tidak dapat mengubah stok secara langsung.
 
 ---
@@ -267,18 +282,33 @@ Transaction
 
 - Product
 - Quantity
-- Unit price
+- Unit price (snapshot)
 - Subtotal
 
 Harga pada saat transaksi perlu disimpan agar histori transaksi tetap valid apabila harga product berubah di kemudian hari.
 
-### 6.1 Ownership Transaction
+### 6.1 Aturan Transaksi
 
-**Transaction adalah milik Cashier dan Transaction Module.**
+- **Riwayat transaksi wajib dipertahankan** (tidak boleh dihapus)
+- **Harga dan nama item saat penjualan disimpan sebagai snapshot**
+- Transaksi final **COMPLETED** tidak dapat diubah
+- Satu checkout menghasilkan **paling banyak satu transaksi final**
 
-- Hanya **Cashier** yang dapat membuat transaksi (checkout).
-- **Owner** dan **Admin** dapat melihat transaksi untuk keperluan monitoring dan analisis.
-- **Cashier** hanya dapat melihat transaksi di outlet-nya sendiri.
+### 6.2 Uang (Currency)
+
+- Semua nilai uang menggunakan exact **`DECIMAL(15,2)`** / **`NUMERIC(15,2)`** di database
+- API mengirim dan menerima nilai uang sebagai **decimal string** (misal `"15000.00"`), bukan floating point
+- Hal ini menghindari masalah pembulatan dan presisi
+
+### 6.3 Payment Gateway
+
+**Payment gateway tidak menjadi bagian MVP.**
+
+Sistem hanya mencatat pembayaran manual:
+- `CASH` — pembayaran tunai
+- `CASHLESS_MANUAL` — pembayaran non-tunai (QRIS, transfer, kartu) dicatat manual oleh kasir
+
+Keputusan detail payment record masih menjadi gate sebelum baseline.
 
 ---
 
@@ -351,27 +381,54 @@ Tujuan dari pembatasan ini:
 
 - Menghindari spam request ke AI
 - Mengurangi penggunaan token
-- Menghindari analisis berulang yang terlalu sering
 - Menjaga efisiensi penggunaan resource
 
 ---
 
-## 9. Ringkasan Role & Tanggung Jawab
+## 9. Dashboard
+
+### 9.1 Dashboard Owner
+
+**Must mencakup:**
+- **Omzet** (total revenue)
+- **Jumlah transaksi** (total transactions)
+- **AOV** (Average Order Value)
+- **Tren penjualan** (sales trend)
+- **Tren AOV** (AOV trend)
+- **Pola waktu** (time pattern / peak hours)
+- **Produk terlaris** (top products by revenue & quantity)
+- **Produk tidak laku** (underperforming products)
+- **Perbandingan Outlet** (outlet performance)
+- **Perbandingan periode** (period comparison)
+- **Waktu pembaruan data** (last updated timestamp)
+
+### 9.2 Dashboard Admin
+
+**Fokus pada Inventory:**
+- Total outlet, total produk, total stok
+- Jumlah produk low stock
+- Jumlah produk out of stock
+- Daftar produk mendekati habis per outlet
+- Daftar produk sudah habis per outlet
+
+---
+
+## 10. Ringkasan Role & Tanggung Jawab
 
 | Role | Scope | Fokus Utama | Boleh Mengubah | Hanya Membaca |
-| :--- | :--- | :--- | :--- | :--- |
-| **Owner** | Merchant | Strategi bisnis, katalog, analisis, AI | Merchant, Outlet, User, Category, Product | Inventory, Transaction, AI Insight |
-| **Admin** | Merchant | Stok operasional | Inventory (adjustment, transfer, bulk) | Product, Category, Transaction |
+|---|---|---|---|---|
+| **Owner** | Merchant | Strategi bisnis, staf, outlet, AI | Merchant, Outlet, User | Category, Product, Inventory, Transaction, AI Insight |
+| **Admin** | Merchant | Katalog produk & stok operasional | Category, Product, Inventory | Transaction |
 | **Cashier** | 1 Outlet | Transaksional | Cart, Transaction (checkout) | Product (aktif), Inventory (stok), Transaction (outlet sendiri) |
 
 ---
 
-## 10. Batasan Sistem
+## 11. Batasan Sistem
 
 Batasan berikut menjadi scope yang disepakati untuk project.
 
 ### Business Structure
-- Sistem merupakan **multi-tenant SaaS** — dapat melayani banyak merchant; setiap Owner memiliki tepat satu merchant pada MVP (FR-TEN-002)
+- Sistem merupakan **multi-tenant SaaS** — dapat melayani banyak merchant; setiap Owner memiliki tepat satu merchant
 - Satu merchant dapat memiliki banyak outlet
 - Satu outlet dapat memiliki banyak cashier
 - Satu cashier hanya terhubung dengan satu outlet
@@ -382,50 +439,57 @@ Batasan berikut menjadi scope yang disepakati untuk project.
 ### Product & Category
 - Product berada pada scope merchant
 - Category dibuat sebagai entitas terpisah
-- **Hanya Owner** yang dapat membuat, mengubah, atau menonaktifkan product & category
-- Admin dan Cashier hanya dapat melihat product & category (read-only)
+- Setiap Product wajib memiliki satu Category aktif
+- Category dapat dinonaktifkan (soft delete), bukan dihapus fisik
+- **Owner** dan **Admin** dapat membuat, mengubah, atau menonaktifkan product & category
+- Cashier hanya dapat melihat product & category (read-only)
 
 ### Inventory
 - Sistem menggunakan stock management
 - Stock dikelola berdasarkan outlet dan product
-- Stock berkaitan dengan proses checkout
-- **Admin adalah pemilik utama** data inventory (adjustment, transfer, monitoring)
-- Owner dapat melihat inventory namun tidak melakukan adjustment (kecuali darurat)
+- Stok tidak boleh negatif
+- Adjustment manual wajib memiliki alasan dan audit trail
+- **Admin** adalah pemilik utama data inventory (adjustment, transfer, monitoring)
+- Owner dapat melihat inventory namun tidak melakukan adjustment
 
 ### Transaction
 - Transaction selalu terkait dengan outlet
 - Transaction mencatat cashier yang melakukan transaksi
 - Transaction dapat memiliki banyak transaction item
-- **Hanya Cashier** yang dapat melakukan checkout
+- Hanya Cashier yang dapat melakukan checkout
+- Riwayat transaksi wajib dipertahankan
+- Harga dan nama item disimpan sebagai snapshot
 - Transaction tidak menggunakan payment gateway (manual cash/cashless)
+
+### Uang (Currency)
+- Semua nilai uang menggunakan `DECIMAL(15,2)` / `NUMERIC(15,2)`
+- API mengirim nilai uang sebagai decimal string
 
 ### AI
 - AI hanya dapat dipicu secara manual oleh Owner
 - AI tidak menggunakan cron job sebagai trigger utama
-- Tidak ada batas harian analisis AI (FR-AI-012)
+- Tidak ada batas harian analisis AI
 - AI digunakan untuk menghasilkan insight dan rekomendasi berdasarkan data bisnis
-- AI tidak melakukan perubahan data bisnis secara langsung tanpa melalui sistem
+- AI tidak melakukan perubahan data bisnis secara langsung
 
 ### Dashboard
-- **Owner Dashboard**: Komprehensif (omzet, tren, performa outlet, top products, AOV, pola waktu, AI)
-- **Admin Dashboard**: Fokus inventory (stok, low stock alerts, overview outlet)
-- **Cashier**: Tidak memiliki akses dashboard
+- **Owner Dashboard**: Komprehensif (omzet, transaksi, AOV, tren, pola waktu, produk, outlet, periode, waktu pembaruan)
+- **Admin Dashboard**: Fokus inventory (stok, low stock alerts, out of stock alerts)
 
 ---
 
-## 11. Scope yang Tidak Ditangani
+## 12. Scope yang Tidak Ditangani
 
-Project ini secara eksplisit tidak memprioritaskan (bisa ada tapi bukan fokus utama):
+Project ini secara eksplisit tidak memprioritaskan:
 
-- **Admin Deep-Dive Analytics**: Admin fokus stok operasional, analisis bisnis menitikberatkan pada Owner
-- **Admin Product Management**: Admin tidak dapat mengubah product/category
-- **AI untuk Admin/Cashier**: AI hanya untuk Owner
 - **Payment Gateway Integrasi**: Sistem hanya mencatat manual, tidak terintegrasi gateway eksternal
 - **Laporan Ad-Hoc**: Query analitis bebas, dashboard hanya menyediakan overview preset
+- **Refund / Void Transaksi**: Di luar scope MVP (future)
+- **AI untuk Admin/Cashier**: AI hanya untuk Owner
 
 ---
 
-## 12. Prinsip Arsitektur
+## 13. Prinsip Arsitektur
 
 Arsitektur sistem akan dikembangkan dengan mempertimbangkan:
 
@@ -440,22 +504,15 @@ Sistem perlu mampu menangani kondisi traffic normal maupun peningkatan traffic s
 
 Untuk workload yang berbeda, sistem dapat mempertimbangkan pemisahan:
 
-Write Heavy
-    ↓
-Primary Database
-
-Read Heavy
-    ↓
-Read Replica
+**Write Heavy** → Primary Database
+**Read Heavy** → Read Replica
 
 Read-heavy workload dapat digunakan untuk kebutuhan seperti:
-
 - Dashboard Owner
 - Analytics
 - AI data processing
 
-Sedangkan write-heavy workload seperti:
-
+Write-heavy workload seperti:
 - Checkout
 - Transaction
 - Stock update
@@ -464,33 +521,25 @@ tetap diprioritaskan agar responsif dan konsisten.
 
 ---
 
-## 13. Prinsip Pengembangan
-
-Dokumen ini digunakan sebagai **single source of truth** untuk memahami konteks dan batasan project.
-
-Sebelum mengubah struktur database, business flow, role, atau architecture, perubahan sebaiknya didiskusikan dan disepakati bersama tim.
-
-Jika terdapat perubahan requirement, dokumen ini perlu diperbarui agar seluruh anggota memiliki pemahaman yang sama.
-
----
-
 ## 14. Ringkasan Keputusan
 
 | Aspek | Keputusan |
-| :--- | :--- |
+|---|---|
 | Merchant | Multi-Tenant (satu Owner = satu Merchant) |
 | Outlet | Multi Outlet |
 | Cashier | Multi Cashier |
 | Cashier Scope | 1 Cashier → 1 Outlet (fokus transaksional) |
-| Admin Scope | Merchant (fokus stok operasional) |
-| Owner Scope | Merchant (fokus strategi, katalog, analisis, AI) |
+| Admin Scope | Merchant (fokus katalog & stok operasional) |
+| Owner Scope | Merchant (fokus strategi, staf, outlet, AI) |
 | Stock | Ada, dikelola oleh Admin |
-| Category | Entitas terpisah, dikelola oleh Owner |
-| Product | Dikelola oleh Owner (Admin read-only) |
+| Category | Entitas terpisah, dikelola oleh Owner & Admin |
+| Product | Dikelola oleh Owner & Admin (Cashier read-only) |
 | AI Trigger | Manual oleh Owner (tanpa batas harian) |
 | AI Scope | Merchant (hanya Owner yang mengelola) |
 | Transaction | Hanya Cashier yang dapat checkout |
-| Owner Dashboard | Komprehensif (bisnis + analytics + AI) |
+| Payment Gateway | Tidak termasuk MVP |
+| Uang | DECIMAL/NUMERIC, API sebagai decimal string |
+| Owner Dashboard | Komprehensif (omzet, transaksi, AOV, tren, pola waktu, produk, outlet, periode, waktu pembaruan) |
 | Admin Dashboard | Fokus inventory (stok + alerts) |
 | Scalability | Menjadi consideration utama (scale when needed) |
 | Cost Efficiency | Menjadi consideration utama |
