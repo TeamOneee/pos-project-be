@@ -35,9 +35,7 @@
       "@app/reporting": ["libs/reporting/src/index"],
       "@app/reporting/*": ["libs/reporting/src/*"],
       "@app/insight": ["libs/insight/src/index"],
-      "@app/insight/*": ["libs/insight/src/*"],
-      "@app/audit": ["libs/audit/src/index"],
-      "@app/audit/*": ["libs/audit/src/*"]
+      "@app/insight/*": ["libs/insight/src/*"]
     }
   }
 }
