@@ -13,9 +13,9 @@ name: CI/CD
 #
 # 2) Railway → tiap project (pos-staging & pos-production) buat 2 service:
 #      service `api`    → Build: `npm ci && npx prisma generate && npm run build`,
-#                         Start: `node dist/apps/api/main`
+#                         Start: `node dist/apps/api/apps/api/src/main.js`
 #      service `worker` → Build: `npm ci && npx prisma generate && npm run build`,
-#                         Start: `node dist/apps/worker/main`
+#                         Start: `node dist/apps/worker/apps/worker/src/main.js`
 #    Set variabel service di Railway (BUKAN secret GitHub):
 #      api:    PORT, CORS_ORIGINS, NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ_REPLICA, JWT_*
 #      worker: NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ_REPLICA

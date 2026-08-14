@@ -7,7 +7,7 @@ async function bootstrap() {
     bufferLogs: true,
   });
   app.useLogger(app.get(Logger));
-  new Logger('Worker').log('Worker started');
+  app.get(Logger).log('Worker started');
   void app;
 }
 
