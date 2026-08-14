@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PlatformModule } from '@app/platform';
 import { TenantModule } from '@app/tenant';
 import { CategoryService } from './application/category.service';
 import { OutletPriceService } from './application/outlet-price.service';
@@ -13,7 +14,7 @@ import { ProductController } from './web/product.controller';
 
 // menyatukan fitur catalog dan hanya mengekspor kontrak baca lintas modul.
 @Module({
-  imports: [TenantModule],
+  imports: [PlatformModule, TenantModule],
   controllers: [CategoryController, ProductController],
   providers: [
     CategoryService,
