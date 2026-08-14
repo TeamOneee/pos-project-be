@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { LoggerModule } from 'nestjs-pino';
 import { PlatformModule } from '@app/platform';
 import { IdentityModule } from '@app/identity';
 import { TenantModule } from '@app/tenant';
@@ -13,6 +14,7 @@ import { AuditModule } from '@app/audit';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    LoggerModule.forRoot(),
     PlatformModule,
     IdentityModule,
     TenantModule,
