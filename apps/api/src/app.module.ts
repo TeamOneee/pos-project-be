@@ -9,7 +9,6 @@ import { InventoryModule } from '@app/inventory';
 import { SalesModule } from '@app/sales';
 import { ReportingModule } from '@app/reporting';
 import { InsightModule } from '@app/insight';
-import { AuditModule } from '@app/audit';
 
 @Module({
   imports: [
@@ -23,7 +22,6 @@ import { AuditModule } from '@app/audit';
     SalesModule,
     ReportingModule,
     InsightModule,
-    AuditModule,
   ],
 })
 export class AppModule {}
