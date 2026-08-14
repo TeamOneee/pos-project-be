@@ -457,7 +457,7 @@ Pertanyaan berikut menambah lapisan berpikir tersebut. Tujuannya bukan menambah 
 - Bagaimana request yang gagal di-retry tanpa membuat transaksi atau insight duplikat?
 - Kapan sistem harus menolak request secara jelas daripada terus mencoba sampai resource habis?
 - Apakah ada batas waktu (*timeout*), batas retry, dan batas antrean yang masuk akal?
-- Data atau tindakan apa yang perlu audit trail agar masalah dapat dipulihkan atau dijelaskan?
+- Log operasional minimum apa yang diperlukan agar gangguan checkout dapat dipulihkan atau dijelaskan, tanpa membangun jejak aktivitas pengguna sebagai fitur MVP?
 - Bagaimana sistem melakukan *graceful degradation*: fitur mana yang boleh diturunkan lebih dulu agar checkout tetap hidup?
 
 ### E. Pertanyaan kapasitas, biaya, dan scale trigger
@@ -483,7 +483,7 @@ Pertanyaan berikut menambah lapisan berpikir tersebut. Tujuannya bukan menambah 
 - Apakah setiap query sensitif sudah dibatasi oleh tenant yang benar?
 - Bagaimana dashboard dan insight AI menghindari pencampuran data antarmerchant?
 - Data apa yang termasuk sensitif: akun, transaksi, harga, pola penjualan, atau credential?
-- Siapa yang boleh melihat audit log dan data transaksi historis?
+- Siapa yang boleh melihat data transaksi historis, dan data operasional apa yang perlu disamarkan pada log?
 - Bagaimana data sensitif disamarkan di log, screenshot demo, atau environment test?
 - Jika satu akun pindah role atau dinonaktifkan, akses apa yang harus langsung dicabut?
 
@@ -559,7 +559,7 @@ Pertanyaan berikut menambah lapisan berpikir tersebut. Tujuannya bukan menambah 
 - Daftar failure mode beserta perilaku degradasi/fallback.
 - Scale trigger dan batas biaya/operasional MVP.
 - Daftar keputusan reversibel dan sulit dibalik.
-- Model isolasi tenant, data sensitif, dan audit trail.
+- Model isolasi tenant, data sensitif, dan observability minimum.
 - Rencana observability dan runbook minimum.
 - Decision log yang menghubungkan requirement, opsi, pilihan, bukti, dan trade-off.
 

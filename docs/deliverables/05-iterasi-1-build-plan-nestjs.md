@@ -1,6 +1,6 @@
 # Iterasi 1 — Rencana Pembangunan Aplikasi K (NestJS Modular Monolith)
 
-> Dokumen ini **menggantikan sepenuhnya** `05-iterasi-1-build-plan-modular-monolith.md` (versi Spring Boot) dan `06-iterasi-1-build-plan-nestjs-adjustment.md` (adendum). Stack final: **NestJS + Prisma + PostgreSQL (Neon) + React**. Sumber kebenaran requirement tetap di `01`–`04` (business flow, URS, SRS, FRD) — dokumen ini murni turunan implementasi. Bila ada konflik, SRS menang.
+> Dokumen ini adalah baseline implementasi Iterasi 1 dengan stack final **NestJS + Prisma + PostgreSQL (Neon) + React**. Sumber kebenaran requirement tetap di `01`–`04` (business flow, URS, SRS, FRD); bila ada konflik, SRS menang.
 
 ---
 
@@ -9,7 +9,7 @@
 | Keputusan | Pilihan | Alasan |
 |---|---|---|
 | Gaya arsitektur | **Modular monolith** dalam **Nest monorepo** (bukan microservices dari awal) | Tim kecil, biaya harus rendah, tapi tetap butuh isolasi *workload* (checkout vs reporting vs AI) — microservices di awal menambah biaya operasional tanpa bukti kebutuhan (StudyCase §5: *architectural improvement, bukan sekadar infra*) |
-| Batas modul | Per **bounded context bisnis** (Identity, Tenant, Catalog, Inventory, Sales, Reporting, Insight, Audit), masing-masing jadi `libs/*` di Nest monorepo | Supaya tiap modul bisa diekstrak jadi service sendiri nanti tanpa refactor besar |
+| Batas modul | Per **bounded context bisnis** (Identity, Tenant, Catalog, Inventory, Sales, Reporting, Insight), masing-masing jadi `libs/*` di Nest monorepo | Supaya tiap modul bisa diekstrak jadi service sendiri nanti tanpa refactor besar |
 | Komunikasi antar modul | In-process, hanya lewat **barrel export** (`index.ts`) tiap `lib`, tidak pernah import file internal modul lain | Ini yang membuat monolith bisa dipecah nanti tanpa "distributed ball of mud" |
 | Penegakan batas modul | **`dependency-cruiser`** dijalankan di CI (Nest tidak punya *module boundary checker* bawaan seperti Spring Modulith) | Build gagal kalau ada modul yang melanggar batas — bukti konkret untuk "Architectural Justification" |
 | Isolasi checkout vs reporting/AI | **2 deployable dari 1 codebase**: `apps/api` (HTTP, melayani checkout/CRUD) dan `apps/worker` (proses terpisah, jalankan outbox relay + job AI), plus **2 datasource Postgres** (primary utk write, read replica utk reporting/AI) | Checkout tidak pernah menunggu/berbagi resource dengan reporting/AI, tanpa perlu microservice terpisah dulu |
@@ -53,7 +53,7 @@ aplikasi-k/
 ├── apps/
 │   ├── api/src/
 │   │   ├── main.ts                 # bootstrap HTTP (semua *Controller*)
-│   │   └── app.module.ts           # import: Identity, Tenant, Catalog, Inventory, Sales, Reporting, Insight, Audit Module
+│   │   └── app.module.ts           # import: Identity, Tenant, Catalog, Inventory, Sales, Reporting, Insight Module
 │   └── worker/src/
 │       ├── main.ts                 # NestFactory.createApplicationContext (tanpa HTTP, atau HTTP minimal utk healthcheck)
 │       └── worker.module.ts        # import: OutboxRelayModule, JobRunnerModule, Reporting(Projection)Module, InsightModule
@@ -75,14 +75,13 @@ aplikasi-k/
 │   ├── sales/src/{...}/                                 + index.ts    # CheckoutService, ReceiptService, IdempotencyService
 │   ├── reporting/src/{...}/                             + index.ts    # ProjectionUpdateService (worker), DashboardQueryService (api)
 │   ├── insight/src/{...}/                                + index.ts    # InsightTriggerService, InsightGenerationJob, AiProviderPort
-│   └── audit/src/{...}/                                  + index.ts    # AuditListener (@OnEvent), AuditQueryService
 │
 └── test/                             # e2e (supertest) + testcontainers setup
 ```
 
-`tsconfig.json` path alias: `@app/platform`, `@app/identity`, `@app/tenant`, `@app/catalog`, `@app/inventory`, `@app/sales`, `@app/reporting`, `@app/insight`, `@app/audit` — masing-masing menunjuk ke `libs/<nama>/src/index.ts`. Modul lain **hanya** boleh `import { CheckoutService } from '@app/sales'`, tidak pernah ke file internal.
+`tsconfig.json` path alias: `@app/platform`, `@app/identity`, `@app/tenant`, `@app/catalog`, `@app/inventory`, `@app/sales`, `@app/reporting`, dan `@app/insight` — masing-masing menunjuk ke `libs/<nama>/src/index.ts`. Modul lain **hanya** boleh `import { CheckoutService } from '@app/sales'`, tidak pernah ke file internal.
 
-> Definisi formal **interface/port** tiap modul (signature service, event contract, provider binding, anti-corruption boundary) dijelaskan lengkap di `06-iterasi-1-module-interface-contract.md`.
+> Boundary, dependency, dan interface publik antar-modul dirangkum pada `06-iterasi-1-module-library.md`; kontrak HTTP dan payload normatif dijelaskan pada `07-iterasi-1-api-contract.md`.
 
 ---
 
@@ -96,7 +95,6 @@ inventory  -> catalog, tenant, platform
 sales      -> catalog, inventory, tenant, identity, platform
 reporting  -> platform            (baca lewat outbox event / ReportingProjection, TIDAK query tabel sales langsung)
 insight    -> reporting, platform (baca lewat ReportingProjection, bukan tabel Transaction mentah)
-audit      -> platform            (didengarkan semua modul via @OnEvent, bukan dipanggil langsung)
 ```
 
 Ditegakkan oleh `dependency-cruiser` di CI (lihat §7). Aturan keras yang sama seperti rencana sebelumnya: `reporting`/`insight` tidak boleh depend ke `infrastructure` milik `sales`/`inventory`/`catalog` — ini yang membuat modul-modul itu bisa diekstrak ke service terpisah nanti tanpa migrasi skema besar.
@@ -128,8 +126,6 @@ enum AccountStatus {
 
 enum TransactionStatus {
   COMPLETED
-  FAILED
-  REJECTED
 }
 
 enum PaymentMethod {
@@ -158,8 +154,6 @@ model Merchant {
   name               String
   timezone           String   @default("Asia/Jakarta")          // BR-018: batas hari laporan
   currency           String   @default("IDR")
-  lowStockThreshold  Int      @default(5) @map("low_stock_threshold")  // FR-INV-008, DR-011A: harus >= 0 (app-level check)
-  serviceChargePct   Decimal  @default(10) @map("service_charge_pct") @db.Decimal(5, 2)  // FR-TEN-011, OD-004: 5-15, ditetapkan Owner saat membentuk Merchant
   status             AccountStatus @default(ACTIVE)
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
@@ -198,7 +192,6 @@ model User {
   fullName         String        @map("full_name")
   role             UserRole
   status           AccountStatus @default(ACTIVE)
-  createdBy        String?       @map("created_by")
   createdAt        DateTime      @default(now()) @map("created_at")
   updatedAt        DateTime      @updatedAt @map("updated_at")
 
@@ -234,6 +227,7 @@ model Product {
   categoryId String   @map("category_id")
   name       String
   price      Decimal  @db.Decimal(14, 2)                  // BR-001
+  lowStockThreshold Int @map("low_stock_threshold")       // FR-CAT-002, FR-INV-007, DR-011A: wajib >= 0
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
@@ -246,7 +240,7 @@ model Product {
   @@map("product")
 }
 
-model ProductOutletPrice {                       // FR-CAT-011, DG-002 (menutup OD-002): harga override per Outlet
+model ProductOutletPrice {                       // FR-CAT-010, DG-002 (menutup OD-002): harga override per Outlet
   id         String   @id @default(uuid())
   merchantId String   @map("merchant_id")
   outletId   String   @map("outlet_id")
@@ -266,6 +260,7 @@ model Inventory {
   outletId   String   @map("outlet_id")
   productId  String   @map("product_id")
   quantity   Int      @default(0)             // CHECK quantity >= 0 (raw SQL migration)
+  lowStockThresholdOverride Int? @map("low_stock_threshold_override") // null = fallback Product.lowStockThreshold; bila ada harus >= 0
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   product Product @relation(fields: [productId], references: [id])
@@ -304,13 +299,7 @@ model Transaction {
   receiptNumber   String             @map("receipt_number")
   status          TransactionStatus                          // <-- FIX: field ini hilang di ERD kamu (FR-CHK-010/011)
   subtotal        Decimal            @db.Decimal(14, 2)
-  discountPct     Decimal            @default(0) @map("discount_pct") @db.Decimal(5, 2)   // % diskon dari Kasir, 0-100 (OD-004)
-  discount        Decimal            @default(0) @db.Decimal(14, 2)          // FR-CHK-018, OD-004
-  serviceChargePct Decimal           @default(0) @map("service_charge_pct") @db.Decimal(5, 2)  // % SC snapshot dari Merchant, 5-15 (OD-004)
-  serviceCharge   Decimal            @default(0) @map("service_charge") @db.Decimal(14, 2)  // FR-CHK-018, OD-004
-  taxPct          Decimal            @default(0) @map("tax_pct") @db.Decimal(5, 2)   // fiks 11% (OD-004)
-  tax             Decimal            @default(0) @db.Decimal(14, 2)          // FR-CHK-018, OD-004
-  total           Decimal            @db.Decimal(14, 2)       // = subtotal - discount + serviceCharge + tax (DR-013)
+  total           Decimal            @db.Decimal(14, 2)       // = subtotal (DR-013)
   createdAt       DateTime           @default(now()) @map("created_at")
 
   lines   TransactionLine[]
@@ -385,7 +374,7 @@ model JobRecord {
   id               String   @id @default(uuid())
   type             String                              // 'REPORTING_PROJECTION' | 'AI_INSIGHT'
   tenantMerchantId String   @map("tenant_merchant_id")
-  dedupeKey        String   @map("dedupe_key")
+  dedupeKey        String   @map("dedupe_key")          // AI: "${merchantId}:${merchantLocalDate}"; tanpa insight type/data version
   state            String                              // PENDING | PROCESSING | READY | RETRY_SCHEDULED | FAILED
   attempts         Int      @default(0)
   nextRetryAt      DateTime? @map("next_retry_at")
@@ -393,7 +382,7 @@ model JobRecord {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  @@unique([type, dedupeKey])   // FR-AI-007 idempotent job
+  @@unique([dedupeKey])         // AI key hanya merchantId + Merchant-local date (FR-AI-007)
   @@map("job_record")
 }
 
@@ -404,7 +393,7 @@ model ReportingProjection {
   periodStart      DateTime @map("period_start")
   periodEnd        DateTime @map("period_end")
   granularity      String                               // 'HOUR' | 'DAY'
-  grossSales       Decimal  @map("gross_sales") @db.Decimal(16, 2)
+  omzet            Decimal  @db.Decimal(16, 2)
   transactionCount BigInt   @map("transaction_count")
   unitsSold        Decimal  @map("units_sold") @db.Decimal(16, 0)
   metrics          Json                                  // top_products, least_selling, outlet_comparison, dll
@@ -435,23 +424,6 @@ model Insight {
   @@map("insight")
 }
 
-model AuditEvent {
-  id            String   @id @default(uuid())   // <-- FIX: tabel ini hilang total di ERD kamu (FR-AUD-001–006)
-  merchantId    String   @map("merchant_id")
-  outletId      String?  @map("outlet_id")
-  actorUserId   String   @map("actor_user_id")
-  action        String                            // 'STAFF_CREATED', 'PRICE_CHANGED', 'STOCK_ADJUSTED', 'CHECKOUT_COMPLETED', dll
-  targetType    String   @map("target_type")
-  targetId      String   @map("target_id")
-  beforeJson    Json?    @map("before_json")
-  afterJson     Json?    @map("after_json")
-  correlationId String   @map("correlation_id")
-  result        String                             // SUCCESS | DENIED | ERROR
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  @@index([merchantId, createdAt])
-  @@map("audit_event")
-}
 ```
 
 **Datasource kedua (read replica)** tidak didefinisikan lewat Prisma schema kedua (Prisma 1 schema = 1 datasource per client), melainkan lewat **2 instance `PrismaClient`** yang di-construct manual di `libs/platform/prisma`:
@@ -476,7 +448,7 @@ export class PrismaReadService extends PrismaClient {
 ## 5. API contract
 
 Konvensi global (berlaku semua endpoint):
-- Base path `/api/v1`. Auth via `Authorization: Bearer <jwt>`; `merchantId`/`role`/`outletId` selalu diambil dari klaim JWT tervalidasi, **tidak pernah** dari body request (FR-TEN-010).
+- Base path `/api/v1`. Auth via `Authorization: Bearer <jwt>`; `merchantId` dan `role` selalu berasal dari klaim JWT tervalidasi. Outlet Kasir berasal dari klaim JWT; selector Outlet milik Owner/Admin pada path/body/query wajib divalidasi berada dalam Merchant dari JWT (FR-TEN-010).
 - Uang dikirim sebagai string desimal (`"total": "125000.00"`), waktu ISO-8601 dengan offset (API-005/006).
 - Pagination: `?page=0&size=20` (maks `size=100`).
 - Format error konsisten (semua non-2xx):
@@ -500,7 +472,7 @@ Konvensi global (berlaku semua endpoint):
 | Method & Path | Role | Deskripsi |
 |---|---|---|
 | `GET /merchant` | semua role | Detail merchant sendiri |
-| `PATCH /merchant` | OWNER | Ubah setting termasuk `lowStockThreshold` |
+| `PATCH /merchant` | OWNER | Ubah profil Merchant; tidak ada konfigurasi low-stock global |
 | `POST /outlets` | OWNER | Buat outlet |
 | `GET /outlets` | OWNER, ADMIN | List outlet |
 | `PATCH /outlets/:id` | OWNER | Ubah/nonaktifkan outlet |
@@ -511,18 +483,20 @@ Konvensi global (berlaku semua endpoint):
 | `POST /categories` | ADMIN | Buat category |
 | `GET /categories` | semua role | List (Kasir hanya lihat aktif) |
 | `PATCH /categories/:id` | ADMIN | Ubah nama / nonaktifkan (soft) |
-| `POST /products` | ADMIN | `{name, price, categoryId, isActive}` |
+| `POST /products` | ADMIN | `{name, price, categoryId, lowStockThreshold, isActive}`; threshold dasar wajib |
 | `GET /products?search=&categoryId=&page=` | OWNER (read-only), ADMIN | List/search seluruh produk |
-| `GET /products/catalog?outletId=` | CASHIER | Produk aktif yang punya inventory row di outlet tugasnya (harga efektif outlet) |
+| `GET /products/catalog?search=&categoryId=&page=` | CASHIER | Produk aktif yang punya inventory row di Outlet tugas Kasir; pencarian/filter dilakukan server dan UI dapat memfilter hasil yang sudah dimuat |
 | `PATCH /products/:id` | ADMIN | Ubah nama/harga master/category/status |
-| `PUT /products/:id/outlet-prices/:outletId` | ADMIN | Set harga override per Outlet (`product_outlet_price`); `DELETE` dengan body `{price:null}` untuk hapus override (FR-CAT-011) |
+| `PUT /products/:id/outlet-prices/:outletId` | ADMIN | Set harga override per Outlet (`product_outlet_price`) (FR-CAT-010) |
+| `DELETE /products/:id/outlet-prices/:outletId` | ADMIN | Hapus override; harga efektif kembali ke harga master |
 
 ### 5.4 Inventory — `/inventory`
 | Method & Path | Role | Deskripsi |
 |---|---|---|
-| `GET /inventory?outletId=&productId=&page=` | OWNER (read-only), ADMIN | Lihat stok |
+| `GET /inventory?outletId=&productId=&page=` | OWNER (read-only), ADMIN | Lihat stok seluruh Merchant; `outletId` adalah filter opsional |
 | `POST /inventory/adjustments` | ADMIN | `{outletId, productId, delta, reason}` |
-| `GET /inventory/movements?outletId=&productId=&page=` | OWNER (read-only), ADMIN | Riwayat stock movement |
+| `PUT /inventory/:productId/outlets/:outletId/low-stock-threshold` | ADMIN | Set threshold override Product–Outlet; `DELETE` menghapus override dan fallback ke threshold Product |
+| `GET /inventory/movements?outletId=&productId=&page=` | OWNER (read-only), ADMIN | Riwayat seluruh Merchant; `outletId` adalah filter opsional |
 
 ### 5.5 Sales — `/checkout`, `/transactions`, `/receipts`
 
@@ -536,11 +510,10 @@ Request:
   "idempotencyKey": "a3f5c9d2-client-generated",
   "outletId": "uuid",
   "items": [{ "productId": "uuid", "quantity": 2, "expectedUnitPrice": "15000.00" }],
-  "discountPct": 10,
-  "payment": { "method": "CASH", "amount": "32970.00" }
+  "payment": { "method": "CASH", "amount": "30000.00" }
 }
 ```
-`expectedUnitPrice` hanya untuk deteksi `PRICE_CHANGED` yang ramah UX — server selalu hitung ulang dari **harga efektif** (`ProductOutletPrice` bila ada, fallback `Product.price`, FR-CAT-012/BR-012). `discountPct` (0–100) opsional diisi Kasir, tanpa voucher; `serviceChargePct` diambil dari Merchant (5–15%) dan `taxPct` fiks 11%. Semua nilai rupiah dihitung server (FR-CHK-018/OD-004): `discount = subtotal x discountPct/100`; `serviceCharge = subtotal x serviceChargePct/100`; `tax = (subtotal - discount) x 11%`; `total = subtotal - discount + serviceCharge + tax`.
+`expectedUnitPrice` hanya untuk deteksi `PRICE_CHANGED` yang ramah UX — server selalu hitung ulang dari **harga efektif** (`ProductOutletPrice` bila ada, fallback `Product.price`, FR-CAT-011/BR-012). Pada MVP, tidak ada diskon, pajak, atau service charge sehingga `total = subtotal`; `payment.amount` harus sama dengan total.
 
 Response `200 COMPLETED`:
 ```json
@@ -549,10 +522,7 @@ Response `200 COMPLETED`:
   "outletId": "uuid", "cashier": {"id":"uuid","name":"..."},
   "items": [{"productId":"uuid","name":"...","unitPrice":"15000.00","quantity":2,"subtotal":"30000.00"}],
   "subtotal": "30000.00",
-  "discountPct": 10, "discount": "3000.00",
-  "serviceChargePct": 10, "serviceCharge": "3000.00",
-  "taxPct": 11, "tax": "2970.00",
-  "total": "32970.00", "payment": {"method":"CASH","amount":"32970.00","status":"CONFIRMED"},
+  "total": "30000.00", "payment": {"method":"CASH","amount":"30000.00","status":"CONFIRMED"},
   "createdAt": "2026-08-13T10:00:00+07:00"
 }
 ```
@@ -560,7 +530,7 @@ Response `200 COMPLETED`:
 | Method & Path | Role | Deskripsi |
 |---|---|---|
 | `GET /transactions/status?idempotencyKey=` | CASHIER | Lookup status checkout |
-| `GET /transactions?dateFrom=&dateTo=&status=&page=` | OWNER, CASHIER (hanya transaksi sendiri — `OD-003`) | List riwayat |
+| `GET /transactions?dateFrom=&dateTo=&page=` | OWNER, CASHIER (hanya transaksi sendiri — `OD-003`) | List riwayat; seluruh hasil berstatus `COMPLETED` pada MVP |
 | `GET /transactions/:id` | sesuai scope | Detail transaksi |
 | `GET /transactions/search?receiptNumber=` | sesuai scope | Cari exact by receipt number |
 | `GET /receipts/:transactionId` | sesuai scope | Receipt dari snapshot, bukan re-query katalog saat ini |
@@ -570,15 +540,16 @@ Response `200 COMPLETED`:
 ### 5.6 Reporting — `/dashboard`
 | Method & Path | Role |
 |---|---|
-| `GET /dashboard/summary?dateFrom=&dateTo=&outletId=` | OWNER, ADMIN(operasional) |
+| `GET /dashboard/summary?dateFrom=&dateTo=&outletId=` | OWNER |
+| `GET /dashboard/operations?outletId=` | ADMIN (inventory summary, low-stock, dan kondisi katalog; tanpa metrik penjualan) |
 | `GET /dashboard/sales-trend?dateFrom=&dateTo=&bucket=DAY` | OWNER |
 | `GET /dashboard/aov-trend?dateFrom=&dateTo=&bucket=DAY` | OWNER |
 | `GET /dashboard/time-pattern?dateFrom=&dateTo=` | OWNER |
 | `GET /dashboard/top-products?dateFrom=&dateTo=&limit=10` | OWNER |
 | `GET /dashboard/outlet-comparison?dateFrom=&dateTo=` | OWNER |
-| `GET /dashboard/low-stock?threshold=` | OWNER, ADMIN |
+| `GET /dashboard/low-stock?outletId=` | OWNER (inventory read-only), ADMIN (`outletId` opsional dalam Merchant; threshold efektif tidak dioverride lewat query) |
 
-Semua response menyertakan `dataUpdatedAt` dan `freshnessStatus: "FRESH"|"STALE"`.
+Endpoint bisnis Owner membaca `ReportingProjection` dan menyertakan `dataUpdatedAt` serta `freshnessStatus: "FRESH"|"STALE"`. Endpoint `operations` dan `low-stock` membaca current state melalui read port Catalog/Inventory, bukan projection penjualan, sehingga tidak membuka metrik bisnis kepada Admin.
 
 ### 5.7 Insight BI — `/insights`
 
@@ -586,15 +557,8 @@ Semua response menyertakan `dataUpdatedAt` dan `freshnessStatus: "FRESH"|"STALE"
 
 | Method & Path | Role |
 |---|---|
-| `POST /insights/trigger` | OWNER only — `{type, dateFrom, dateTo, outletId?}` → `202 {jobId, status:"PENDING"}` (maks. 1x/hari/merchant; tipe: SALES_TREND, OUTLET_COMPARISON, TOP_PRODUCTS, TIME_PATTERN, AOV_TREND) |
+| `POST /insights/trigger` | OWNER only — `{dateFrom, dateTo, outletId?}` → job harian dengan dedupe `merchantId + tanggal lokal Merchant` (maks. 1 analisis/hari/Merchant; trigger ulang memakai job yang sama; tipe insight dan versi data tidak membentuk job baru) |
 | `GET /insights` | OWNER only — hasil insight terbaru per tipe (beberapa tipe BI; tanpa histori) |
-
-### 5.8 Audit — `/audit`
-| Method & Path | Role |
-|---|---|
-| `GET /audit?actorId=&action=&dateFrom=&dateTo=&page=` | OWNER |
-
----
 
 ## 6. Pola implementasi kritis
 
@@ -632,12 +596,8 @@ export class CheckoutService {
         }});
       }
 
-      // 2) validasi produk aktif + harga efektif server (master atau override per Outlet — FR-CAT-011/012, BR-012, FR-CART-005/006/007)
+      // 2) validasi produk aktif + harga efektif server (master atau override per Outlet — FR-CAT-010/011, BR-012, FR-CART-005/006/007)
       const priced = await this.priceAndValidate(tx, actor.merchantId, actor.outletId, dto.items);
-
-      // 2b) snapshot service charge dari Merchant (FR-TEN-011, OD-004: 5-15%)
-      const merchant = await tx.merchant.findUniqueOrThrow({ where: { id: actor.merchantId } });
-      const serviceChargePct = merchant.serviceChargePct;
 
       // 3) kurangi stok atomik — conditional update, bukan pessimistic lock (FR-INV-004, AT-004)
       for (const line of priced.lines) {
@@ -654,18 +614,12 @@ export class CheckoutService {
         }});
       }
 
-      // 4) commit transaction + lines + payment (FR-CHK-018, OD-004: total = subtotal - discount + serviceCharge + tax)
-      const discountPct = dto.discountPct ?? new Prisma.Decimal(0);
-      const taxPct = TAX_PCT; // 11, konstanta OD-004
-      const discount = priced.subtotal.mul(discountPct).div(100);
-      const serviceCharge = priced.subtotal.mul(serviceChargePct).div(100);
-      const tax = priced.subtotal.sub(discount).mul(taxPct).div(100);
-      const total = priced.subtotal.sub(discount).add(serviceCharge).add(tax);
+      // 4) commit transaction + lines + payment (FR-CHK-018, OD-004: total = subtotal)
+      const total = priced.subtotal;
       const transaction = await tx.transaction.create({ data: {
         merchantId: actor.merchantId, outletId: dto.outletId, cashierUserId: actor.userId,
         receiptNumber: await this.nextReceiptNumber(tx, actor.merchantId),
-        status: 'COMPLETED', subtotal: priced.subtotal,
-        discountPct, discount, serviceChargePct, serviceCharge, taxPct, tax, total,
+        status: 'COMPLETED', subtotal: priced.subtotal, total,
         lines: { create: priced.lines.map(l => ({
           productId: l.productId, productNameSnapshot: l.name,
           unitPriceSnapshot: l.unitPrice, quantity: l.quantity, subtotal: l.subtotal,
@@ -770,9 +724,8 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 | Inventory adjustment | - | Full | - |
 | Cart/Checkout | - | - | Full (outlet sendiri, cart dikelola client-side) |
 | Transaction history | Full merchant | - | Hanya transaksi sendiri (`OD-003` locked) |
-| Dashboard | Full | Operasional + low-stock | - |
+| Dashboard | Bisnis lengkap + low-stock read-only | Operasional: inventory summary, low-stock, kondisi katalog | - |
 | Insight BI | Full | - | - |
-| Audit | Full | - | - |
 
 ---
 
@@ -817,10 +770,9 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 2. **Catalog + Inventory** — Category/Product CRUD, inventory per outlet, stock adjustment + StockMovement.
 3. **Sales (Checkout + Payment + Receipt + Idempotency)** — modul paling kritis; cart client-side (frontend) lalu checkout kirim `items` inline; termasuk concurrency test stok terakhir.
 4. **Outbox + Reporting projection + Dashboard read API** — `apps/worker` pertama kali dijalankan di sini.
-5. **Audit trail** — `@OnEvent` listener lintas modul (bisa paralel dengan 2–4).
-6. **Insight/AI** — mulai dari `RuleBasedInsightAdapter` (analitik dari `ReportingProjection`, tanpa provider eksternal) supaya demo tidak bergantung API pihak ketiga.
-7. **NFR hardening** — rate limiting, load test, security test matrix, observability (**Prometheus scrape `/metrics` + dashboard Grafana**), backup/restore test.
-8. **DevOps** — CI/CD, deployment Railway (`api` + `worker` + Neon primary/replica), setup **Prometheus + Grafana** (scrape `/metrics`, dashboard operasional, alert), README setup lokal.
+5. **Insight/AI** — mulai dari `RuleBasedInsightAdapter` (analitik dari `ReportingProjection`, tanpa provider eksternal) supaya demo tidak bergantung API pihak ketiga.
+6. **NFR hardening** — rate limiting, load test, security test matrix, observability (**Prometheus scrape `/metrics` + dashboard Grafana**), backup/restore test.
+7. **DevOps** — CI/CD, deployment Railway (`api` + `worker` + Neon primary/replica), setup **Prometheus + Grafana** (scrape `/metrics`, dashboard operasional, alert), README setup lokal.
 
 ---
 
@@ -833,4 +785,4 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 | `OD-003` scope riwayat Kasir | Query `GET /transactions` untuk CASHIER tinggal tambah/hapus filter `cashierUserId = actor.userId` — tidak mengubah skema |
 | `DG-006` provider AI eksternal | Sudah diantisipasi lewat `AiProviderPort` interface — tinggal tambah adapter baru tanpa ubah `InsightTriggerService` |
 
-Dokumen ini tidak mengasumsikan decision gate yang masih `Open` sebagai final, mengikuti aturan §8 `00-document-guide.md`. Keputusan yang sudah `Locked` (mis. `OD-001`–`OD-006`, `OD-007` multi-tipe BI, dan `OD-010` checkout hanya Kasir) menjadi dasar implementasi.
+Dokumen ini tidak mengasumsikan decision gate yang masih `Open` sebagai final, mengikuti hierarki pada `00-iterasi-1-document-guide.md` §3. Keputusan yang sudah `Locked` (mis. `OD-001`–`OD-007` dan `OD-010`) menjadi dasar implementasi.
