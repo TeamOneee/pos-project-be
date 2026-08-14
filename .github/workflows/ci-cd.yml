@@ -69,7 +69,12 @@ jobs:
 
   migrate:
     name: Migrate DB (${{ matrix.name }})
-    if: github.event_name == 'push'
+    if: |
+      github.event_name == 'push' &&
+      (
+        (github.ref == 'refs/heads/staging' && matrix.name == 'staging') ||
+        (github.ref == 'refs/heads/main' && matrix.name == 'production')
+      )
     needs: ci
     runs-on: ubuntu-latest
     strategy:
@@ -96,7 +101,12 @@ jobs:
 
   deploy:
     name: Deploy (${{ matrix.name }})
-    if: github.event_name == 'push'
+    if: |
+      github.event_name == 'push' &&
+      (
+        (github.ref == 'refs/heads/staging' && matrix.name == 'staging') ||
+        (github.ref == 'refs/heads/main' && matrix.name == 'production')
+      )
     needs: migrate
     runs-on: ubuntu-latest
     strategy:
@@ -120,7 +130,8 @@ jobs:
         run: npx prisma generate
       - name: Build
         run: npm run build
-      - uses: railwayapp/cli-action@v3
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
       - name: Deploy apps/api ke Railway
         run: railway up --service api --detach
         env:
