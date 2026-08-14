@@ -812,8 +812,7 @@
           },
           "status": {
             "type": "string",
-            "enum": ["COMPLETED"],
-            "description": "Transaksi final; refund/void di luar scope MVP (ASM-007)"
+            "enum": ["COMPLETED"]
           },
           "created_at": {
             "type": "string",
@@ -3305,7 +3304,7 @@
       "post": {
         "tags": ["Transaction"],
         "summary": "Create new transaction (checkout)",
-        "description": "Checkout. Wajib idempotency_key (FR-CHK-001) dan payment_method CASH/CASHLESS_MANUAL (FR-PAY-001). Semua operasi (transaction + payment + stock + receipt) dalam satu UnitOfWork. Refund/void di luar scope MVP.",
+        "description": "Checkout. Wajib idempotency_key (FR-CHK-001) dan payment_method CASH/CASHLESS_MANUAL (FR-PAY-001). Semua operasi (transaction + payment + stock + receipt) dalam satu UnitOfWork.",
         "operationId": "createTransaction",
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -3422,38 +3421,6 @@
           },
           "404": {
             "description": "Transaction not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/transactions/{transactionId}/cancel": {
-      "post": {
-        "tags": ["Transaction"],
-        "summary": "Cancel transaction (FUTURE / OUT OF SCOPE)",
-        "description": "Refund/void transaksi final di luar scope MVP (ASM-007, OD-005). Endpoint tidak tersedia di Iterasi 1 — return 501 Not Implemented. Jika kelak ditambahkan harus membuat reversal/audit record tanpa mengubah transaksi final (FR-TRX-008).",
-        "operationId": "cancelTransaction",
-        "security": [{ "bearerAuth": [] }],
-        "parameters": [
-          {
-            "name": "transactionId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "501": {
-            "description": "Not implemented in MVP",
             "content": {
               "application/json": {
                 "schema": {

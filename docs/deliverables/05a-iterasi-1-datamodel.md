@@ -4,8 +4,6 @@ merchant [icon: briefcase, color: purple] {
   name string
   timezone string
   currency string
-  low_stock_threshold int
-  service_charge_pct decimal   // FR-TEN-011, OD-004: 5-15, default 10
   status string
   created_at datetime
   updated_at datetime
@@ -31,7 +29,6 @@ user [icon: user, color: orange] {
   full_name string
   role string
   status string
-  created_by string fk nullable
   created_at datetime
   updated_at datetime
 
@@ -59,6 +56,7 @@ product [icon: package, color: green] {
   category_id string fk
   name string
   price decimal
+  low_stock_threshold int
   is_active boolean
   created_at datetime
   updated_at datetime
@@ -68,7 +66,7 @@ product [icon: package, color: green] {
   }
 }
 
-product_outlet_price [icon: tag, color: teal] {   // NEW: FR-CAT-011, OD-002
+product_outlet_price [icon: tag, color: teal] {   // NEW: FR-CAT-010, OD-002
   product_outlet_price_id string pk
   merchant_id string fk
   outlet_id string fk
@@ -89,6 +87,7 @@ inventory [icon: layers, color: yellow] {
   outlet_id string fk
   product_id string fk
   quantity int    // CHECK quantity >= 0 (raw SQL)
+  low_stock_threshold_override int nullable // CHECK >= 0; null = fallback product.low_stock_threshold
   updated_at datetime
 
   indexes {
@@ -122,14 +121,8 @@ transaction [icon: shopping-cart, color: red] {
   outlet_id string fk
   cashier_user_id string fk
   receipt_number string
-  status string
+  status string // COMPLETED adalah satu-satunya status Transaction pada MVP
   subtotal decimal
-  discount_pct decimal        // FIX: OD-004, default 0 (dari Kasir, 0-100)
-  discount decimal            // FIX: OD-004
-  service_charge_pct decimal  // FIX: OD-004, snapshot dari merchant (5-15)
-  service_charge decimal      // FIX: OD-004
-  tax_pct decimal             // FIX: OD-004, fiks 11%
-  tax decimal                 // FIX: OD-004
   total decimal
   created_at datetime
 
@@ -196,7 +189,7 @@ job_record [icon: clock, color: gray] {
   job_record_id string pk
   type string
   tenant_merchant_id string fk
-  dedupe_key string
+  dedupe_key string // AI: merchant_id + Merchant-local date; excludes insight type/data version
   state string
   attempts int
   next_retry_at datetime nullable
@@ -205,7 +198,7 @@ job_record [icon: clock, color: gray] {
   updated_at datetime
 
   indexes {
-    (type, dedupe_key) [unique]   // FR-AI-007
+    (dedupe_key) [unique]   // AI key only merchant_id + Merchant-local date (FR-AI-007)
   }
 }
 
@@ -216,7 +209,7 @@ reporting_projection [icon: bar-chart, color: indigo] {
   period_start datetime
   period_end datetime
   granularity string
-  gross_sales decimal
+  omzet decimal
   transaction_count bigint
   units_sold decimal
   metrics json
@@ -249,25 +242,6 @@ insight [icon: zap, color: purple] {
   }
 }
 
-audit_event [icon: file-text, color: gray] {
-  audit_event_id string pk
-  merchant_id string fk
-  outlet_id string fk nullable
-  actor_user_id string fk
-  action string
-  target_type string
-  target_id string
-  before_json json nullable
-  after_json json nullable
-  correlation_id string
-  result string
-  created_at datetime
-
-  indexes {
-    (merchant_id, created_at)
-  }
-}
-
 user.user_id - merchant.owner_user_id
 
 merchant.merchant_id < outlet.merchant_id
@@ -282,7 +256,6 @@ merchant.merchant_id < idempotency_record.merchant_id
 merchant.merchant_id < job_record.tenant_merchant_id
 merchant.merchant_id < reporting_projection.merchant_id
 merchant.merchant_id < insight.merchant_id
-merchant.merchant_id < audit_event.merchant_id
 
 outlet.outlet_id < user.outlet_id
 outlet.outlet_id < product_outlet_price.outlet_id
@@ -292,15 +265,11 @@ outlet.outlet_id < transaction.outlet_id
 outlet.outlet_id < idempotency_record.outlet_id
 outlet.outlet_id < reporting_projection.outlet_id
 outlet.outlet_id < insight.outlet_id
-outlet.outlet_id < audit_event.outlet_id
 
 user.user_id < transaction.cashier_user_id
 user.user_id < stock_movement.actor_user_id
 user.user_id < payment.confirmed_by
 user.user_id < idempotency_record.actor_user_id
-user.user_id < audit_event.actor_user_id
-user.user_id < user.created_by
-
 category.category_id < product.category_id
 product.product_id < product_outlet_price.product_id
 product.product_id < inventory.product_id

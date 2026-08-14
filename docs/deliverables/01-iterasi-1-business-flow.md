@@ -205,9 +205,10 @@ Admin berada pada scope Merchant dan bertanggung jawab menjaga data operasional 
 - membuat, memperbarui, dan menonaktifkan Category serta Product master Merchant;
 - mengatur harga dan status produk aktif/tidak aktif;
 - melihat stok per produk pada Outlet yang dipilih;
+- menentukan low-stock threshold dasar ketika membuat Product dan dapat mengubah override-nya untuk setiap Outlet;
 - menambah, mengurangi, dan mengoreksi stok per Outlet dengan alasan yang jelas;
 - melihat perubahan yang berhasil atau gagal disimpan;
-- mengetahui siapa melakukan perubahan penting dan kapan;
+- melihat actor, waktu, dan alasan khusus untuk perubahan stok melalui StockMovement;
 - tidak dapat mengakses data merchant lain, mengelola Outlet, atau mengelola akun/role staf;
 - melakukan perubahan tanpa merusak transaksi yang sedang berjalan atau riwayat transaksi lama.
 
@@ -262,13 +263,12 @@ Owner tidak membutuhkan sebanyak mungkin grafik. Owner membutuhkan jawaban yang 
 - “Penjualan produk A meningkat dibanding periode sebelumnya.”
 - “Penjualan produk B turun dibanding periode sebelumnya; periksa harga, ketersediaan, atau promosi.”
 - “Jam ramai cenderung terjadi pada rentang tertentu.”
-- “Produk C dan D sering terjual pada transaksi yang sama.”
 
 Insight harus menyertakan periode data dan alasan singkat. AI adalah **pemberi saran**, bukan pihak yang otomatis mengubah harga, status produk, atau akses staf.
 
 > **Notifikasi:** Fitur "AI Insight" pada produk ini **digunakan sebagai Business Intelligence (BI)**. AI bukan satu fitur insight tunggal, melainkan mesin yang menghasilkan kumpulan insight analitik (beberapa tipe) berbasis data merchant untuk mendukung keputusan Owner.
 
-Fitur BI (Business Intelligence) hanya dapat dipicu secara manual, dilihat, dan dikelola oleh Owner. Admin dan Kasir tidak memiliki akses ke insight BI. BI menghasilkan **beberapa tipe insight** (tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV). Analisis dibatasi maksimal satu kali per hari per merchant.
+Fitur BI (Business Intelligence) hanya dapat dipicu secara manual, dilihat, dan dikelola oleh Owner. Admin dan Kasir tidak memiliki akses ke insight BI. Satu analisis per Merchant per hari dapat menghasilkan atau memperbarui **beberapa tipe insight** sekaligus—tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV—sesuai data yang tersedia.
 
 #### Ukuran sukses owner
 
@@ -307,7 +307,7 @@ AI disebut sebagai aktor dalam studi kasus karena memiliki pola penggunaan siste
 | Aktor/fungsi | Mengubah data utama | Membaca data | Butuh hasil langsung? | Jika gagal/terlambat |
 |---|---|---|---|---|
 | Kasir | Membuat transaksi dan mencatat pembayaran pada outlet tugasnya; mengurangi stok sebagai akibat checkout | Produk, harga, stok, status transaksi outlet | Ya | Pelayanan dan pendapatan langsung terdampak. |
-| Admin | Category, produk, harga, dan stok per Outlet pada Merchant | Katalog, inventory, dan riwayat perubahan seluruh Merchant | Sebagian besar ya, tetapi bukan seketat checkout | Operasi toko dapat terganggu, tetapi transaksi yang sedang berlangsung harus tetap diprioritaskan. |
+| Admin | Category, produk, harga, dan stok per Outlet pada Merchant | Katalog, inventory, dan riwayat StockMovement seluruh Merchant | Sebagian besar ya, tetapi bukan seketat checkout | Operasi toko dapat terganggu, tetapi transaksi yang sedang berlangsung harus tetap diprioritaskan. |
 | Owner | Merchant, outlet, akun staf, `User.role`/`User.outlet_id`, dan keputusan pengelolaan | Ringkasan lintas outlet, laporan, detail transaksi, insight | Tidak selalu; beberapa menit keterlambatan dapat diterima | Keputusan tertunda, tetapi kasir tetap harus dapat menjual. |
 | Reporting | Membuat ringkasan turunan | Banyak transaksi historis | Tidak | Dashboard tertunda; checkout tidak boleh terdampak. |
 | AI | Membuat insight turunan | Riwayat atau ringkasan transaksi | Tidak | Insight diberi status belum tersedia/terlambat; checkout dan dashboard dasar tetap berjalan. |
@@ -384,8 +384,11 @@ flowchart TD
     E --> F
     F --> G["Validasi perubahan"]
     G --> H["Tidak valid: tampilkan alasan dan jangan mengubah data"]
-    G --> I["Valid: simpan perubahan dan jejak siapa/kapan/alasan"]
-    I --> J["Perubahan berlaku untuk operasi berikutnya"]
+    G --> I["Valid: simpan perubahan"]
+    I --> L{"Perubahan stok?"}
+    L -->|Ya| M["Simpan StockMovement: actor, waktu, dan alasan"]
+    L -->|Tidak| J["Perubahan berlaku untuk operasi berikutnya"]
+    M --> J
     J --> K["Riwayat transaksi lama tetap utuh"]
 ```
 
@@ -417,7 +420,7 @@ Owner tidak seharusnya diberi kesan bahwa dashboard selalu real-time jika memang
 
 ### 10.1 Satu sumber kebenaran untuk transaksi
 
-Transaksi final harus memiliki satu catatan resmi yang menjadi dasar audit, reporting, dan AI. Dashboard dan insight adalah turunan; keduanya tidak boleh menjadi pihak yang menentukan apakah transaksi kasir berhasil.
+Transaksi final harus memiliki satu catatan resmi yang menjadi dasar reporting dan AI. Dashboard dan insight adalah turunan; keduanya tidak boleh menjadi pihak yang menentukan apakah transaksi kasir berhasil.
 
 ### 10.2 Harga historis tidak mengikuti katalog terbaru
 
@@ -439,12 +442,6 @@ Checkout tidak menunggu dashboard atau AI. Bila proses ringkasan atau AI gagal, 
 
 Role saja tidak cukup. Kasir Merchant A mungkin memiliki role yang sama dengan Kasir Merchant B, tetapi tetap tidak boleh melihat produk, transaksi, atau laporan satu sama lain.
 
-### 10.7 Aksi penting harus dapat ditelusuri
-
-Transaksi, perubahan harga/status produk, adjustment manual stok, perubahan outlet, dan perubahan hak akses harus mencatat siapa, kapan, dan konteksnya. Tujuannya bukan mengawasi pegawai secara berlebihan, tetapi memungkinkan masalah dijelaskan dan diperbaiki.
-
----
-
 ## 11. Pendekatan solusi secara abstrak
 
 Pendekatan yang disarankan adalah **satu produk yang terasa utuh bagi pengguna, tetapi memiliki jalur kerja dengan prioritas berbeda di dalamnya**.
@@ -462,7 +459,7 @@ Pendekatan yang disarankan adalah **satu produk yang terasa utuh bagi pengguna, 
 - Sediakan pengelolaan Category, Product master, harga, stok per Outlet, outlet, serta role dan Outlet langsung pada User.
 - Pastikan perubahan tidak merusak sejarah transaksi.
 - Batasi akses per role dan per merchant.
-- Simpan jejak perubahan penting.
+- Simpan StockMovement untuk perubahan stok dan log operasional untuk observability.
 
 ### Lapisan 3 — Understand the business: ubah transaksi menjadi informasi
 
@@ -514,7 +511,7 @@ Benchmark ini hanya dipakai untuk menguji kewajaran flow, bukan menyalin seluruh
 
 ### Shopify POS
 
-- Shopify menjelaskan flow dasarnya sebagai membuat keranjang, mengubah item atau diskon bila perlu, lalu menerima pembayaran dengan metode yang tersedia. Ini mendukung bentuk flow kasir kita: **pilih item → review keranjang → bayar → selesai**.
+- Shopify menjelaskan flow dasarnya sebagai membuat keranjang, mengubah item bila perlu, lalu menerima pembayaran dengan metode yang tersedia. Ini mendukung bentuk flow kasir kita: **pilih item → review keranjang → bayar → selesai**.
 - Shopify memisahkan role dan permission staf, termasuk akses lokasi. Ini menguatkan bahwa role harus digabung dengan batas merchant/lokasi, bukan sekadar label “kasir”.
 - Laporan retail Shopify dapat tertinggal sekitar 1–5 menit. Ini merupakan bukti praktik bahwa dashboard operasional tidak harus memperbarui transaksi dalam milidetik agar tetap berguna.
 - Shopify mempertahankan nilai asli dari saat order pada laporan tertentu. Ini selaras dengan kebutuhan snapshot harga/nama produk pada transaksi.
@@ -562,7 +559,6 @@ Ini belum FRD final. Tujuannya memberi batas agar pandangan bisnis tidak melebar
 - riwayat dan detail transaksi;
 - dashboard dengan omzet, jumlah transaksi, AOV, tren penjualan dan AOV, pola waktu, produk terlaris/tidak laku, perbandingan outlet, serta waktu pembaruan data;
 - beberapa tipe insight BI (tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu, tren AOV) yang diproses di luar jalur checkout;
-- audit minimum untuk perubahan penting;
 - bukti bahwa reporting/AI tidak membuat checkout menunggu.
 
 ### Jika waktu cukup
@@ -570,20 +566,22 @@ Ini belum FRD final. Tujuannya memberi batas agar pandangan bisnis tidak melebar
 - pencarian produk yang lebih kaya;
 - perbandingan periode dan filter dashboard yang lebih fleksibel;
 - ekspor laporan;
-- koreksi/pembatalan transaksi dengan approval;
-- tipe insight lanjutan (mis. prediksi stok habis, rekomendasi restock, rekomendasi pemindahan stok antar outlet);
 - konfigurasi metode pembayaran atau receipt.
 
 ### Di luar scope awal
 
-- integrasi payment gateway nyata, kecuali tim sengaja memilih satu untuk kebutuhan demo;
 - akuntansi lengkap dan rekonsiliasi bank;
 - procurement/supplier/purchase order;
 - payroll dan shift management penuh;
 - CRM, loyalty, promo kompleks;
 - marketplace atau e-commerce omnichannel;
 - offline-first sync;
-- multi-currency dan perpajakan kompleks;
+- multi-currency dan perpajakan;
+- diskon, promo, dan service charge;
+- refund, void, koreksi, atau pembatalan transaksi final, termasuk flow approval terkait;
+- integrasi payment gateway, settlement, atau rekonsiliasi pembayaran otomatis;
+- transfer/pemindahan stok antar-Outlet dan rekomendasi AI untuk menjalankan transfer/restock otomatis;
+- audit trail umum untuk perubahan katalog, staf, atau Outlet; MVP hanya menyimpan StockMovement dan log operasional sesuai fungsinya;
 - bahan baku, purchase order, dan inventory gudang terpisah;
 - keputusan harga atau ketersediaan produk otomatis oleh AI;
 
@@ -612,23 +610,23 @@ Memisahkan ketiganya mencegah tim menganggap tebakan sebagai requirement.
 - Owner adalah otoritas tertinggi merchant; Admin mengelola operasi; Kasir bertransaksi.
 - Satu Owner memiliki satu Merchant; satu Merchant dapat memiliki banyak Outlet.
 - Owner mengelola penuh lifecycle akun Admin/Kasir; role dan Outlet disimpan langsung pada User. Semua pengguna login dengan email dan memiliki tepat satu role enum `OWNER`, `ADMIN`, atau `CASHIER`; Admin bekerja pada Merchant dan Kasir memiliki tepat satu Outlet.
-- Setiap Product wajib memiliki satu Category aktif saat dipilih; Category dinonaktifkan, bukan dihapus fisik, tanpa memutus relasi Product dan riwayat yang sudah ada.
-- Adjustment manual untuk penambahan atau pengurangan stok wajib memiliki alasan yang dapat ditelusuri.
+- Setiap Product wajib memiliki satu Category aktif saat dipilih; Category dinonaktifkan, bukan dihapus fisik, tanpa memutus relasi Product dan riwayat yang sudah ada. Product dengan Category nonaktif tidak tampil di katalog Kasir dan tidak dapat di-checkout.
+- Adjustment manual untuk penambahan atau pengurangan stok wajib memiliki alasan.
 - Riwayat transaksi tersedia sesuai batas akses setiap role.
-- Fitur BI hanya tersedia dan dipicu secara manual oleh Owner, maksimal satu kali per hari per merchant, dengan beberapa tipe insight.
+- Fitur BI hanya tersedia dan dipicu secara manual oleh Owner. Satu analisis per Merchant per hari dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data yang tersedia.
 - Harga historis disimpan pada transaksi.
 - Setiap data dibatasi oleh merchant.
 - Insight BI tidak melakukan tindakan otomatis pada MVP.
 
 ### Asumsi dan proposal yang masih perlu divalidasi
 
-- **Locked (`OD-001`):** MVP hanya mencatat pembayaran (`CASH` / `QRIS` / `TRANSFER`), tidak mengintegrasikan payment gateway.
+- **Locked (`OD-001`):** MVP hanya mencatat pembayaran (`CASH` / `QRIS` / `TRANSFER`); sistem tidak memindahkan dana.
 - **Locked:** Category dan Product master dikelola pada Merchant; setiap Product wajib memiliki Category dan stok dikelola per kombinasi Product + Outlet.
 - **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet; hanya Kasir yang dapat melakukan checkout pada Outlet tugasnya. Owner melihat seluruh transaksi lintas Outlet; Kasir hanya transaksi dirinya sendiri; Admin tidak melihat transaksi. Keputusan ini menutup `OD-010`.
 - **Locked:** Owner membuat dan mengelola langsung akun Admin/Kasir; registrasi publik hanya untuk Owner dan semua akun login menggunakan email.
 - **Locked (`OD-002`):** harga master global + harga override per Outlet; tanpa override, harga master dipakai.
 - **Locked (`OD-003`):** Kasir hanya melihat riwayat transaksi yang dilakukannya sendiri.
-- **Locked (`OD-004`):** pajak fiks 11% (`tax = (subtotal - discount) x 11%`); diskon berupa persen yang diisi Kasir tanpa voucher; service charge berupa persen yang ditetapkan Owner saat membentuk Merchant (5–15%); tanpa tip. Total transaksi `= subtotal - discount + service_charge + tax`.
+- **Locked (`OD-004`):** diskon, pajak, dan service charge di luar MVP; total transaksi sama dengan subtotal.
 - **Locked (`OD-005`):** refund/void di luar scope MVP.
 - **Locked (`OD-006`):** freshness dashboard ≤ 5 menit untuk ≥95% pembaruan.
 - **Proposed:** AI dapat diwujudkan sebagai insight berbasis aturan/analitik sederhana lebih dahulu, lalu model AI menjadi peningkatan.
@@ -641,25 +639,25 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 
 ### Checkout dan pembayaran
 
-1. **Resolved (`OD-001` locked) —** Apakah sistem benar-benar memproses uang melalui payment gateway, atau hanya mencatat pembayaran tunai/QRIS/manual? Jawaban: pencatatan manual tanpa payment gateway.
-2. **Resolved untuk proposed baseline —** Kapan transaksi dianggap final: ketika Kasir menekan bayar, ketika pembayaran dikonfirmasi, atau ketika bukti transaksi dibuat? Jawaban saat ini: setelah pembayaran dikonfirmasi Kasir dan commit transaksi, payment record, serta stok berhasil sebagai satu kesatuan; pembuatan bukti mengikuti hasil final tersebut.
-3. **Resolved (`OD-004` locked) —** Apakah diskon dan pajak wajib pada MVP? Jawaban: pajak fiks 11%; diskon berupa persen yang diisi Kasir tanpa voucher; service charge persen ditetapkan Owner saat membentuk Merchant (5–15%); tanpa tip.
-4. **Resolved (`OD-005` locked) —** Apakah void, cancel, refund, atau koreksi transaksi masuk MVP? Jawaban: tidak masuk MVP.
+1. **Resolved untuk proposed baseline —** Kapan transaksi dianggap final: ketika Kasir menekan bayar, ketika pembayaran dikonfirmasi, atau ketika bukti transaksi dibuat? Jawaban saat ini: setelah pembayaran dikonfirmasi Kasir dan commit transaksi, payment record, serta stok berhasil sebagai satu kesatuan; pembuatan bukti mengikuti hasil final tersebut.
+2. **Resolved (`OD-004` locked) —** Apakah diskon, pajak, atau service charge wajib pada MVP? Jawaban: tidak; ketiganya di luar MVP dan total transaksi sama dengan subtotal.
+3. **Resolved (`OD-005` locked) —** Apakah void, cancel, refund, atau koreksi transaksi masuk MVP? Jawaban: tidak masuk MVP.
 
 ### Struktur merchant dan pengguna
 
-5. **Resolved —** Admin melihat dashboard operasional seluruh Merchant, terutama stok rendah berdasarkan threshold global Merchant. Admin tidak melihat insight BI serta tidak mengelola Outlet atau staf.
-6. **Resolved (`OD-003` locked) —** Apakah Kasir boleh melihat riwayat semua kasir di outletnya atau hanya transaksi sendiri? Jawaban: hanya transaksi yang dilakukannya sendiri.
+4. **Resolved —** Admin melihat dashboard operasional seluruh Merchant yang hanya memuat ringkasan inventory, stok rendah berdasarkan threshold efektif Product–Outlet, dan kondisi katalog. Admin tidak melihat omzet, AOV, analytics bisnis, insight BI, serta tidak mengelola Outlet atau staf. Owner dapat membaca daftar stok rendah sebagai bagian dari akses inventory read-only, tetapi tidak memiliki dashboard operasional Admin.
+5. **Resolved (`OD-003` locked) —** Apakah Kasir boleh melihat riwayat semua kasir di outletnya atau hanya transaksi sendiri? Jawaban: hanya transaksi yang dilakukannya sendiri.
 
 ### Produk dan inventory
 
-7. **Resolved (`OD-002` locked) —** Apakah harga Product master selalu global, atau boleh memiliki price override per Outlet? Jawaban: harga master global + override per Outlet.
+6. **Resolved (`OD-002` locked) —** Apakah harga Product master selalu global, atau boleh memiliki price override per Outlet? Jawaban: harga master global + override per Outlet.
+7. **Resolved —** Low-stock threshold tidak disimpan pada Merchant. Admin wajib menentukan threshold dasar per Product saat membuat Product dan dapat menetapkan override untuk tiap Outlet; tanpa override, Outlet memakai threshold Product.
 
 ### Dashboard dan AI
 
 8. **Resolved —** Lima angka atau informasi apa yang paling penting bagi Owner saat demo? Scope Must saat ini mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, dan perbandingan Outlet.
 9. **Resolved (`OD-006` locked) —** Berapa keterlambatan dashboard yang masih dapat diterima? Jawaban: maksimal lima menit untuk ≥95% pembaruan.
-10. **Open —** Insight apa yang paling bernilai dan dapat dibuktikan dari data demo?
+10. **Resolved (`OD-007` locked) —** Insight BI MVP mencakup tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV; satu analisis dapat menghasilkan beberapa tipe sekaligus.
 11. **Open —** Apakah istilah “AI” mensyaratkan penggunaan model eksternal, atau kualitas insight dan proses asinkron lebih penting?
 
 Jawaban atas pertanyaan ini akan mengubah FRD, flow detail, ERD, dan pengujian. Karena itu kita tidak boleh menguncinya diam-diam lewat implementasi.

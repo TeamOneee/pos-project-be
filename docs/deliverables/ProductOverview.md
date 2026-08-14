@@ -116,7 +116,7 @@ Admin dapat mengelola data yang dibutuhkan untuk operasional merchant dan dapat 
 
 Admin tidak ditempelkan secara khusus pada satu outlet.
 
-Admin **tidak memiliki akses** ke transaksi, analytics, dashboard Owner, maupun insight BI — murni operasional (katalog, harga, stok, dan dashboard operasional).
+Admin **tidak memiliki akses** ke transaksi, analytics, dashboard Owner, maupun insight BI — murni operasional. Dashboard Admin hanya memuat ringkasan inventory, stok rendah, dan kondisi katalog, tanpa omzet atau AOV.
 
 ---
 
@@ -166,6 +166,8 @@ Product berada pada **scope Merchant**.
 Satu merchant dapat memiliki banyak product.
 
 Product memiliki category yang digunakan untuk melakukan pengelompokan produk.
+
+Category dapat dinonaktifkan tanpa menghapus Product yang sudah terhubung. Product tersebut tetap tersimpan untuk riwayat, tetapi tidak ditampilkan di katalog Kasir dan tidak dapat di-checkout sampai Category diaktifkan kembali.
 
 Relasi:
 
@@ -254,17 +256,13 @@ Fitur **"AI Insight"** pada produk ini **diimplementasikan sebagai Business Inte
 
 BI digunakan untuk melakukan analisis berdasarkan data bisnis yang tersedia dan menghasilkan **beberapa tipe insight**, bukan hanya satu tipe.
 
-Tipe insight/rekomendasi yang dapat dihasilkan antara lain:
+Satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight berikut sekaligus, sesuai kecukupan data:
 
-* Prediksi stock akan habis  
-* Rekomendasi restock  
-* Rekomendasi pemindahan stock antar outlet  
-* Analisis produk terlaris  
-* Analisis produk yang kurang laku  
-* Analisis performa outlet  
 * Tren penjualan  
+* Perbandingan performa Outlet
+* Produk terlaris dan tidak laku
 * Pola waktu penjualan  
-* AOV trend
+* Tren AOV
 
 BI Insight (AI) berada pada **scope Merchant**, karena analisis dapat menggunakan data bisnis dari beberapa outlet.
 
@@ -289,7 +287,7 @@ System
 AI Analysis  
   │  
   ↓  
-Insight / Recommendation
+Beberapa insight yang relevan
 
 ### **Batasan AI**
 
@@ -353,14 +351,13 @@ Batasan berikut menjadi scope yang disepakati untuk project.
 * Checkout hanya dapat dilakukan oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak melakukan checkout.  
 * Transaction mencatat cashier yang melakukan transaksi.  
 * Transaction dapat memiliki banyak transaction item.  
-* Transaction tidak menggunakan payment gateway.  
 * Sistem hanya menangani proses transaksi pada sisi POS.
 
 ### **AI**
 
 * AI hanya dapat dipicu secara manual oleh Owner.  
 * AI tidak menggunakan cron job sebagai trigger utama.  
-* Analisis AI dibatasi maksimal satu kali per hari per merchant.  
+* Analisis AI dibatasi maksimal satu kali per hari per Merchant; satu analisis dapat menghasilkan beberapa tipe insight sekaligus.
 * AI digunakan untuk menghasilkan insight dan rekomendasi berdasarkan data bisnis.  
 * AI tidak melakukan perubahan data bisnis secara langsung tanpa melalui sistem.
 
@@ -370,8 +367,11 @@ Batasan berikut menjadi scope yang disepakati untuk project.
 
 Project ini tidak berfokus pada:
 
-* Payment gateway  
-* Sistem pembayaran eksternal  
+* Integrasi pembayaran eksternal
+* Diskon, pajak, service charge, tip, voucher, atau promo
+* Refund, void, koreksi, pembatalan, atau reversal transaksi final
+* Transfer/pemindahan stok antar-Outlet melalui workflow khusus
+* Audit trail umum untuk katalog, staf, atau Outlet; StockMovement dan log operasional tetap tersedia sesuai fungsi MVP
 * Kasir yang dapat ditugaskan ke banyak outlet secara bersamaan  
 * AI yang berjalan otomatis setiap periode menggunakan cron job  
 * Analisis AI tanpa batas penggunaan  
@@ -420,7 +420,7 @@ tetap diprioritaskan agar responsif dan konsisten.
 
 # **12\. Prinsip Pengembangan**
 
-Dokumen ini digunakan sebagai **single source of truth** untuk memahami konteks dan batasan project.
+Dokumen ini merupakan ringkasan konteks dan batasan project. Urutan sumber kebenaran dan aturan penyelesaian konflik tetap mengikuti `00-iterasi-1-document-guide.md`.
 
 Pedoman yang menjadi problem set project adalah **[StudyCase](./StudyCase.md)**, **[StudyCase-Ind](./StudyCase-Ind.md)**, **[FinalProject](./FinalProject.md)**, dan **[HowUnderstand](./HowUnderstand.md)**. Requirement dan keputusan di dokumen ini diturunkan dari dan harus tetap selaras dengan pedoman tersebut.
 
@@ -441,25 +441,25 @@ Jika terdapat perubahan requirement, dokumen ini perlu diperbarui agar seluruh a
 | Checkout | Hanya oleh Kasir pada Outlet tugasnya |
 | Cashier History | Hanya transaksi yang dilakukan Kasir itu sendiri (`OD-003`) |
 | Harga | Harga master global + override per Outlet (`OD-002`) |
-| Diskon/Pajak/Service Charge | Diskon persen dari Kasir (tanpa voucher), service charge persen dari Merchant (5–15%), pajak fiks 11% (`tax = (subtotal - discount) x 11%`); tanpa tip. Total = `subtotal - discount + service_charge + tax` (`OD-004`) |
+| Low-stock Threshold | Wajib per Product; dapat dioverride untuk setiap Outlet, tanpa threshold global Merchant |
+| Diskon/Pajak/Service Charge | Di luar MVP; `total = subtotal` (`OD-004`) |
 | Refund | Tidak ada pada MVP (`OD-005`) |
 | Dashboard Freshness | ≤ 5 menit untuk ≥95% pembaruan (`OD-006`) |
 | Monitoring | Prometheus (scrape `/metrics`) + dashboard Grafana (wajib) |
-| Admin Scope | Merchant (katalog, harga, stok, dashboard operasional) |
+| Admin Scope | Merchant (katalog, harga, stok, dashboard operasional inventory/katalog; tanpa omzet/AOV) |
 | Owner Scope | Merchant (bisnis, transaksi, dashboard, analytics, AI) |
 | Transaction Access | Owner: semua transaksi merchant; Cashier: transaksi dirinya sendiri; Admin: tidak ada |
 | Catalog/Stock Management | Hanya Admin; Owner read-only |
 | Stock | Ada |
 | Category | Entitas terpisah |
-| Payment Gateway | Tidak ditangani; payment dicatat manual (`OD-001`) |
+| Payment | Dicatat manual: `CASH`, `QRIS`, atau `TRANSFER` (`OD-001`) |
 | AI Trigger | Manual oleh Owner |
-| AI Limit | 1x per hari per Merchant |
+| AI Limit | 1 analisis per hari per Merchant; satu analisis dapat menghasilkan beberapa tipe insight |
 | AI Cron Job | Tidak digunakan sebagai trigger utama |
 | AI Scope | Merchant |
-| BI Insight | Beberapa tipe: tren penjualan, perbandingan outlet, produk terlaris, pola waktu, tren AOV |
+| BI Insight | Beberapa tipe: tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV |
 | Transaction | Terhubung dengan Outlet & Cashier |
 | Scalability | Menjadi consideration utama |
 | Cost Efficiency | Menjadi consideration utama |
 | Read Heavy | Dapat menggunakan Read Replica |
 | Write Heavy | Primary Database |
-

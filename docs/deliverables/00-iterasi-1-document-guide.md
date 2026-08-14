@@ -52,27 +52,31 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | Scope staf | Admin berada pada Merchant dengan `User.outlet_id = null`; Kasir berada pada tepat satu Outlet aktif. |
 | Tanggung jawab | Owner mengelola Merchant, Outlet, dan lifecycle staf. Admin mengelola Category, Product master, harga, dan inventory seluruh Outlet. Kasir menjalankan penjualan pada Outlet tugasnya. |
 | Checkout | Hanya Kasir yang dapat melakukan checkout, pada Outlet tugasnya. Owner dan Admin tidak memiliki permission checkout. |
-| Category | Setiap Product wajib memiliki satu Category aktif saat dipilih. Category dinonaktifkan, bukan dihapus fisik. |
-| Inventory | Stok numerik disimpan per kombinasi Product + Outlet dan tidak boleh negatif. Adjustment manual untuk menambah atau mengurangi stok wajib memiliki alasan dan audit. |
+| Category | Setiap Product wajib memiliki satu Category aktif saat dipilih. Category dinonaktifkan, bukan dihapus fisik. Product yang Category-nya nonaktif tetap tersimpan untuk riwayat, tetapi tidak tampil di katalog Kasir dan tidak dapat di-checkout. |
+| Inventory | Stok numerik disimpan per kombinasi Product + Outlet dan tidak boleh negatif. Setiap Product memiliki low-stock threshold dasar yang wajib ditentukan Admin saat Product dibuat; threshold dapat dioverride pada setiap Outlet. Adjustment manual untuk menambah atau mengurangi stok wajib memiliki alasan. |
+| Transfer stok | Tidak ada workflow transfer/pemindahan stok antar-Outlet pada MVP; setiap perubahan saldo dilakukan sebagai adjustment pada satu Outlet yang dipilih. |
+| Audit | Audit trail umum untuk katalog, staf, dan Outlet berada di luar MVP. StockMovement tetap menyimpan actor/alasan perubahan stok, sedangkan log operasional digunakan untuk observability. |
+| Dashboard Admin | Hanya dashboard operasional Merchant: ringkasan inventory, daftar stok rendah, dan kondisi katalog. Tidak memuat omzet, AOV, analytics bisnis, atau insight BI. |
 | Transaksi | Riwayat transaksi wajib dipertahankan. Harga dan nama item saat penjualan disimpan sebagai snapshot. |
 | Uang | Nilai uang menggunakan exact `DECIMAL/NUMERIC`; kontrak API mengirim nilai uang sebagai decimal string. |
 | Dashboard Owner | Must mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, perbandingan Outlet, periode, dan waktu pembaruan. |
-| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan AI sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Trigger manual maksimal satu kali per hari per merchant; pemrosesan tetap asynchronous dan terlindung dari checkout. MVP menyediakan **beberapa tipe insight BI** (tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), bukan hanya satu tipe. |
-| Payment gateway | Tidak menjadi bagian MVP. Sistem mencatat pembayaran manual (`CASH`/`QRIS`/`TRANSFER`); keputusan detail payment record **Locked** (`OD-001`). |
+| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan AI sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Satu trigger manual maksimal satu kali per hari per Merchant menjalankan **satu analisis** yang dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus, sesuai kecukupan data. Pemrosesan asynchronous dan terlindung dari checkout. |
+| Payment | Sistem mencatat pembayaran manual (`CASH`/`QRIS`/`TRANSFER`); keputusan detail payment record **Locked** (`OD-001`). |
 
 ## 5. Keputusan yang masih terbuka
 
 | ID | Keputusan yang dibutuhkan | Default usulan saat ini |
 |---|---|---|
-| OD-001 | Batas final payment record manual | **Locked**: `CASH`, `QRIS`, dan `TRANSFER`; tanpa payment gateway, hanya mencatat tipe pembayaran; tidak memindahkan dana |
+| OD-001 | Batas final payment record manual | **Locked**: `CASH`, `QRIS`, dan `TRANSFER`; sistem hanya mencatat tipe pembayaran dan tidak memindahkan dana |
 | OD-002 | Harga Product global atau dapat dioverride per Outlet | **Locked**: harga master global + boleh override per Outlet (`product_outlet_price`); tanpa override, harga master dipakai |
 | OD-003 | Riwayat Kasir hanya transaksi sendiri atau seluruh Outlet | **Locked**: Kasir hanya melihat transaksi yang dilakukan oleh dirinya sendiri |
-| OD-004 | Diskon, pajak, dan service charge | **Locked**: pajak fiks 11% (`tax = (subtotal - discount) x 11%`); diskon berupa persen yang diisi Kasir (tanpa voucher); service charge berupa persen yang ditetapkan Owner saat membentuk Merchant (5–15%); tanpa tip. `total = subtotal - discount + service_charge + tax` |
+| OD-004 | Diskon, pajak, dan service charge | **Locked**: di luar MVP. Tidak ada field, kalkulasi, atau konfigurasi diskon, pajak, maupun service charge; `total = subtotal`. |
 | OD-005 | Refund/void transaksi final | **Locked**: tidak ada refund/void pada MVP |
 | OD-006 | Freshness dashboard | **Locked**: maksimal lima menit untuk ≥95% pembaruan |
 | OD-007 | BI insight minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV |
 | OD-008 | Kewajiban memakai provider/model AI eksternal | Tidak wajib |
 | OD-009 | Target concurrency resmi | Menggunakan proposed baseline SRS sampai divalidasi |
+| OD-010 | Checkout oleh Owner/Admin | **Locked**: hanya Kasir pada Outlet tugasnya; Owner dan Admin tidak memiliki permission checkout |
 
 Keputusan terbuka tidak boleh diasumsikan sebagai keputusan final dalam implementasi atau proposal. Gunakan default hanya untuk melanjutkan analisis dan tandai dampaknya.
 

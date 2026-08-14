@@ -52,11 +52,6 @@ export interface TransactionPort {
 
   getById(transactionId: string): Promise<TransactionWithItems | null>;
 
-  // FUTURE / di luar scope MVP (ASM-007): refund/void transaksi final
-  // tidak diimplementasikan di Iterasi 1. Jika kelak ditambahkan harus
-  // membuat reversal/audit record tanpa mengubah transaksi final (FR-TRX-008).
-  cancel?(transactionId: string): Promise<Transaction>;
-
   listByOutlet(
     outletId: string,
     range?: TransactionRange,
