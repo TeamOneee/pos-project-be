@@ -36,6 +36,7 @@ export class AuthController {
   @UseGuards(LoginThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
+  @Post('login')
   login(@Body() dto: LoginDto): Promise<AuthTokensDto> {
     return this.authService.login(dto);
   }
@@ -44,6 +45,7 @@ export class AuthController {
   @Public()
   @SkipThrottle()
   @HttpCode(HttpStatus.OK)
+  @Post('refresh')
   refresh(@Body() dto: RefreshDto): Promise<{
     access_token: string;
     refresh_token: string;
@@ -54,6 +56,7 @@ export class AuthController {
 
   // FR-AUTH-008: logout mencabut refresh token
   @HttpCode(HttpStatus.NO_CONTENT)
+  @Post('logout')
   logout(
     @CurrentUser() _actor: AuthUser,
     @Body() dto: LogoutDto,
