@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { JwtModule } from '@nestjs/jwt';
+import { PlatformModule } from '@app/platform';
 import { AuthService } from './application/auth.service';
 import { PasswordService } from './application/password.service';
 import { StaffService } from './application/staff.service';
@@ -13,7 +14,7 @@ import { StaffController } from './web/staff.controller';
 
 // Autentikasi & manajemen staff (06 §3.1). Hanya bergantung pada `platform`.
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [PlatformModule, JwtModule.register({})],
   controllers: [AuthController, StaffController],
   providers: [
     AuthService,
