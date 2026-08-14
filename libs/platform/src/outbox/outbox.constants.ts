@@ -1,0 +1,14 @@
+export const OUTBOX_STATUS_PENDING = 'PENDING';
+export const OUTBOX_STATUS_PROCESSING = 'PROCESSING';
+export const OUTBOX_STATUS_PROCESSED = 'PROCESSED';
+export const OUTBOX_STATUS_FAILED = 'FAILED';
+
+export const OUTBOX_BATCH_SIZE = 50;
+export const OUTBOX_MAX_ATTEMPTS = 5;
+export const OUTBOX_BACKOFF_MS = [
+  5_000,
+  30_000,
+  2 * 60_000,
+  10 * 60_000,
+  30 * 60_000,
+];
