@@ -799,7 +799,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | Mekanisme | Detail |
 |---|---|
 | Interface publik | `CategoryService`, `ProductService`, `OutletPriceService`, `ProductReadPort` (06 §3.3) |
-| Port yang dikonsumsi modul lain | `ProductReadPort.getActiveByIds(...)` dipakai `inventory` (katalog kasir) dan `sales` (validasi harga efektif checkout) |
+| Port yang dikonsumsi modul lain | `ProductReadPort.getProductsForSaleValidation(...)` dipakai `inventory` (katalog kasir) dan `sales` (validasi status Product/Category serta harga efektif checkout) |
 
 ### 3.4 Data Models
 

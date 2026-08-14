@@ -218,7 +218,7 @@ Format sub-section tiap modul:
 | `jest` + `ts-jest` | TBD | Testing | Unit test perhitungan total (`total = subtotal`), idempotency, race stok | test |
 
 **Dependency ke modul lain:**
-- `catalog` — **langsung via interface publik** (`ProductReadPort.getActiveByIds` untuk harga efektif checkout). **Good practice.**
+- `catalog` — **langsung via interface publik** (`ProductReadPort.getProductsForSaleValidation` untuk validasi Product dan harga efektif checkout). **Good practice.**
 - `inventory` — **langsung via interface publik** (`StockReservationPort.reserveForSale` — atomic decrement dalam transaksi yang sama). **Good practice.**
 - `tenant` — **langsung via interface publik** (`TenantAuthorizationService` — cek outlet milik merchant). **Good practice.**
 - `identity` — **langsung via interface publik** (data konteks kasir untuk receipt). **Good practice.**
