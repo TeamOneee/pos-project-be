@@ -39,6 +39,12 @@ export abstract class ProductReadPort {
    * Output mengikuti urutan ID unik; ID yang tidak ditemukan tidak dikembalikan.
    * Pemanggil tetap wajib memeriksa kelengkapan hasil, isActive, dan
    * isCategoryActive. Port ini tidak mengelola atau memeriksa stok.
+   * ProductReadPort
+   * ├── validasi Outlet aktif dalam Merchant
+   * ├── validasi Product berada di Merchant
+   * ├── status Product
+   * ├── status Category
+   * └── harga efektif Outlet
    */
   abstract getProductsForSaleValidation(
     request: ProductReadRequest,
