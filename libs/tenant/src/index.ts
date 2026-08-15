@@ -2,6 +2,7 @@ export * from './tenant.module';
 export * from './application/merchant.service';
 export * from './application/outlet.service';
 export * from './application/tenant-authorization.service';
+export * from './application/ports/tenant-reporting-read.port';
 export * from './web/dto/merchant.dto';
 export * from './web/dto/outlet.dto';
 export * from './web/dto/update-merchant.dto';
