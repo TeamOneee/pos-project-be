@@ -384,6 +384,15 @@ model ReportingProjection {
   @@map("reporting_projection")
 }
 
+model ReportingEventReceipt {
+  transactionId String   @id @map("transaction_id")
+  merchantId    String   @map("merchant_id")
+  processedAt   DateTime @default(now()) @map("processed_at")
+
+  @@index([merchantId, processedAt])
+  @@map("reporting_event_receipt")
+}
+
 // ============================================================
 // INSIGHT (BI)
 // ============================================================
