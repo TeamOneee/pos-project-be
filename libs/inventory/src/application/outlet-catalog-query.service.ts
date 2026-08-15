@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { AuthenticatedUser, ForbiddenError, PrismaWriteService, ValidationError } from '@app/platform';
+import {
+  AuthenticatedUser,
+  ForbiddenError,
+  PrismaWriteService,
+  ValidationError,
+} from '@app/platform';
 import { ProductReadPort } from '@app/catalog';
 import { OutletCatalogQueryDto } from '../web/dto/outlet-catalog-query.dto';
 import { PageResponseDto } from '../web/dto/pagination.dto';
@@ -31,12 +36,11 @@ export class OutletCatalogQueryService {
       return PageResponseDto.of([], 0, query.page ?? 0, query.size ?? 20);
     }
 
-    const products =
-      await this.productReadPort.getProductsForSaleValidation({
-        merchantId: actor.merchantId,
-        outletId: query.outlet_id,
-        productIds,
-      });
+    const products = await this.productReadPort.getProductsForSaleValidation({
+      merchantId: actor.merchantId,
+      outletId: query.outlet_id,
+      productIds,
+    });
     const quantityByProduct = new Map(
       rows.map((r) => [r.productId, r.quantity]),
     );

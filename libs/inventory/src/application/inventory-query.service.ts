@@ -57,6 +57,11 @@ export class InventoryQueryService {
 
     const total = items.length;
     const content = items.slice(query.offset, query.offset + query.limit);
-    return PageResponseDto.of(content, total, query.page ?? 0, query.size ?? 20);
+    return PageResponseDto.of(
+      content,
+      total,
+      query.page ?? 0,
+      query.size ?? 20,
+    );
   }
 }

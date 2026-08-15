@@ -1,4 +1,10 @@
-import { IsInt, IsNotEmpty, IsString, IsUUID, NotEquals } from 'class-validator';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  NotEquals,
+} from 'class-validator';
 
 export class AdjustStockDto {
   @IsUUID()

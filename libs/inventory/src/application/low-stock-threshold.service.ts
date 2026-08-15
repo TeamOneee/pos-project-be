@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { AuthenticatedUser, NotFoundError, PrismaWriteService } from '@app/platform';
+import {
+  AuthenticatedUser,
+  NotFoundError,
+  PrismaWriteService,
+} from '@app/platform';
 import { TenantAuthorizationService } from '@app/tenant';
 import { LowStockThresholdDto } from '../web/dto/inventory-response.dto';
 
