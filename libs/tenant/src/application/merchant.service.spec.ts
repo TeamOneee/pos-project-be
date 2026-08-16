@@ -15,7 +15,6 @@ const makeMerchant = (overrides: Partial<Merchant> = {}): Merchant => ({
   ownerUserId: 'owner-1',
   name: 'Warung Budi',
   timezone: 'Asia/Jakarta',
-  currency: 'IDR',
   status: 'ACTIVE',
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
   updatedAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -42,9 +41,10 @@ describe('MerchantService', () => {
     it('mengembalikan profil merchant dari klaim JWT', async () => {
       merchantRepository.findById.mockResolvedValue(makeMerchant());
       const result = await service.getProfile(actor);
-      expect(result).toMatchObject({
+      expect(result).toEqual({
         id: 'merchant-1',
         name: 'Warung Budi',
+        timezone: 'Asia/Jakarta',
         status: 'ACTIVE',
       });
       expect(merchantRepository.findById).toHaveBeenCalledWith('merchant-1');

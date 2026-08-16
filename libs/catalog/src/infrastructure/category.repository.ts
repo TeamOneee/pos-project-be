@@ -39,7 +39,6 @@ export class CategoryRepository {
   ): Promise<Category[]> {
     return this.prisma.category.findMany({
       where: { merchantId, isActive: filter.isActive },
-      orderBy: { createdAt: 'desc' },
       skip,
       take,
     });

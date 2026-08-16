@@ -31,6 +31,10 @@ export class UserRepository {
     return this.prisma.user.findUnique({ where: { id: userId } });
   }
 
+  findByIdInMerchant(userId: string, merchantId: string): Promise<User | null> {
+    return this.prisma.user.findFirst({ where: { id: userId, merchantId } });
+  }
+
   findStaffById(userId: string, merchantId: string): Promise<User | null> {
     return this.prisma.user.findFirst({
       where: { id: userId, merchantId, role: { in: ['ADMIN', 'CASHIER'] } },
