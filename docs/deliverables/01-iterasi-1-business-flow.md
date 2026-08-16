@@ -71,7 +71,7 @@ Masalah inti studi kasus muncul ketika kedua kebutuhan tersebut memakai sumber d
 Ini tidak berarti laporan dan AI tidak penting. Artinya, waktu keberhasilannya berbeda:
 
 - checkout harus benar dan responsif **sekarang**;
-- dashboard harus cukup baru untuk mengambil keputusan, misalnya tertinggal beberapa menit;
+- dashboard harus cukup baru untuk mengambil keputusan dan boleh memakai cached aggregate maksimal 30 menit;
 - insight BI (AI Insight yang diwujudkan sebagai Business Intelligence) dipicu secara manual oleh Owner dan diproses **belakangan** di luar jalur checkout.
 
 ---
@@ -114,7 +114,7 @@ Ini tidak berarti laporan dan AI tidak penting. Artinya, waktu keberhasilannya b
 ## 4. Top-down flow bisnis
 
 ```mermaid
-flowchart TD; A["Owner membuat merchant dan mengelola outlet"] --> B["Owner membuat akun Admin atau menetapkan Kasir ke satu outlet"]; B --> C["Admin menyiapkan kategori, katalog, harga, dan stok per outlet"]; C --> D["Kasir melayani pelanggan"]; D --> E["Transaksi dan pembayaran dikonfirmasi"]; E --> F["Stok per outlet dan riwayat penjualan diperbarui"]; F --> G["Data penjualan diringkas untuk dashboard"]; G --> H["Owner melihat kondisi bisnis"]; H --> I["Owner memicu analisis AI secara manual"]; I --> J["AI menganalisis pola secara terpisah"]; J --> K["Owner melihat rekomendasi"]; K --> L["Owner mengambil keputusan bisnis"]; L --> C; E -. "harus cepat dan langsung benar" .-> M["Jalur operasional prioritas"]; G -. "boleh tertinggal beberapa menit" .-> N["Jalur informasi"]; J -. "boleh selesai belakangan" .-> P["Jalur insight"];
+flowchart TD; A["Owner membuat merchant dan mengelola outlet"] --> B["Owner membuat akun Admin atau menetapkan Kasir ke satu outlet"]; B --> C["Admin menyiapkan kategori, katalog, harga, dan stok per outlet"]; C --> D["Kasir melayani pelanggan"]; D --> E["Transaksi dan pembayaran dikonfirmasi"]; E --> F["Stok per outlet dan riwayat penjualan diperbarui"]; F --> G["Data penjualan diringkas saat cache dashboard perlu dibangun"]; G --> H["Owner melihat kondisi bisnis"]; H --> I["Owner memicu analisis AI secara manual"]; I --> J["AI menganalisis pola secara terpisah"]; J --> K["Owner melihat rekomendasi"]; K --> L["Owner mengambil keputusan bisnis"]; L --> C; E -. "harus cepat dan langsung benar" .-> M["Jalur operasional prioritas"]; G -. "cached aggregate maksimal 30 menit" .-> N["Jalur informasi"]; J -. "boleh selesai belakangan" .-> P["Jalur insight"];
 ```
 
 Flow di atas membentuk sebuah **business loop**, yaitu siklus berulang:
@@ -156,6 +156,8 @@ flowchart TD
 5. Hanya Owner yang dapat mengubah `User.role` dan `User.outlet_id`, menonaktifkan, mengaktifkan kembali, atau mereset password staf tanpa menghapus riwayat transaksi.
 
 Seluruh pengguna—Owner, Admin, dan Kasir—menggunakan email sebagai identitas login. Role menggunakan nilai tetap `OWNER`, `ADMIN`, atau `CASHIER`, bukan teks bebas. Password yang tersimpan tidak boleh dapat dibaca kembali dalam bentuk asli.
+
+Setelah login berhasil, sistem menerbitkan satu JWT access token yang berlaku 900 detik. MVP tidak menyediakan refresh token atau pencabutan token server-side. Logout berarti aplikasi menghapus token dari client; token yang pernah disalin masih dapat digunakan sampai expiry selama akun tetap aktif. Untuk membatasi risikonya, setiap request terproteksi tetap memeriksa signature dan expiry token serta status akun saat ini, sehingga akun yang dinonaktifkan langsung ditolak.
 
 ---
 
@@ -309,7 +311,7 @@ AI disebut sebagai aktor dalam studi kasus karena memiliki pola penggunaan siste
 | Kasir | Membuat transaksi dan mencatat pembayaran pada outlet tugasnya; mengurangi stok sebagai akibat checkout | Produk, harga, stok, status transaksi outlet | Ya | Pelayanan dan pendapatan langsung terdampak. |
 | Admin | Category, produk, harga, dan stok per Outlet pada Merchant | Katalog, inventory, dan riwayat StockMovement seluruh Merchant | Sebagian besar ya, tetapi bukan seketat checkout | Operasi toko dapat terganggu, tetapi transaksi yang sedang berlangsung harus tetap diprioritaskan. |
 | Owner | Merchant, outlet, akun staf, `User.role`/`User.outlet_id`, dan keputusan pengelolaan | Ringkasan lintas outlet, laporan, detail transaksi, insight | Tidak selalu; beberapa menit keterlambatan dapat diterima | Keputusan tertunda, tetapi kasir tetap harus dapat menjual. |
-| Reporting | Membuat ringkasan turunan | Banyak transaksi historis | Tidak | Dashboard tertunda; checkout tidak boleh terdampak. |
+| Reporting | Membaca cached aggregate atau membangunnya saat cache miss | Banyak transaksi historis | Tidak | Dashboard dapat stale/gagal; checkout tidak boleh terdampak. |
 | AI | Membuat insight turunan | Riwayat atau ringkasan transaksi | Tidak | Insight diberi status belum tersedia/terlambat; checkout dan dashboard dasar tetap berjalan. |
 
 Aturan Iterasi 1 yang telah disepakati: satu Owner memiliki tepat satu Merchant; satu Merchant dapat memiliki banyak Outlet. Owner adalah satu-satunya pihak yang membuat, mengaktifkan ulang, menonaktifkan, dan mengatur staf. Role dan Outlet staf disimpan langsung pada User. Setiap staf hanya memiliki satu role; Admin bekerja pada scope Merchant, sedangkan Kasir memiliki tepat satu Outlet.
@@ -428,15 +430,15 @@ Detail transaksi perlu menyimpan “snapshot”, yaitu salinan nilai penting ket
 
 ### 10.3 Satu checkout menghasilkan paling banyak satu transaksi final
 
-Permintaan yang sama harus dapat dikenali. Ini disebut **idempotency**: pengulangan permintaan yang sama tidak menciptakan hasil baru berkali-kali. Istilah teknisnya dapat ditentukan nanti; kebutuhan bisnisnya adalah pelanggan tidak ditagih dua kali.
+Permintaan checkout yang sama harus dapat dikenali. Client membuat satu `checkout_request_id` UUID untuk satu niat pembayaran dan mempertahankannya saat retry; server menghitung `request_hash` dari payload checkout yang dinormalisasi. Keduanya disimpan langsung pada `Transaction`, bukan pada tabel idempotency terpisah. ID sama dengan hash sama mengembalikan transaksi yang sudah ada, sedangkan ID sama dengan payload berbeda ditolak. Pelanggan berikutnya tetap memakai ID baru meskipun isi belanjanya identik.
 
 ### 10.4 Stok per Outlet adalah fakta operasional
 
-MVP menyimpan stok numerik untuk setiap kombinasi **Product + Outlet**. Admin bekerja pada scope Merchant, tetapi setiap adjustment wajib memilih Outlet secara eksplisit. Checkout hanya boleh berhasil bila produk aktif dan stok Outlet mencukupi; pembuatan transaksi, payment record, stock movement, dan pengurangan stok harus menjadi satu keputusan atomik agar dua Kasir tidak menjual stok terakhir yang sama.
+MVP menyimpan stok numerik untuk setiap kombinasi **Product + Outlet**. Admin bekerja pada scope Merchant, tetapi setiap adjustment wajib memilih Outlet secara eksplisit. Checkout hanya boleh berhasil bila produk aktif dan stok Outlet mencukupi; pembuatan Transaction beserta atribut pembayaran `CONFIRMED`, line snapshot, stock movement, dan pengurangan stok harus menjadi satu keputusan atomik agar dua Kasir tidak menjual stok terakhir yang sama.
 
 ### 10.5 Reporting dan AI membaca hasil, bukan mengendalikan checkout
 
-Checkout tidak menunggu dashboard atau AI. Bila proses ringkasan atau AI gagal, transaksi tetap berhasil dan pekerjaan pendukung dapat dicoba ulang.
+Checkout tidak menunggu dashboard atau AI. Bila shared cache gagal, dashboard mencoba query agregasi bounded; bila query juga gagal, cache lama dapat ditampilkan sebagai `STALE`. Kegagalan reporting atau AI tidak mengubah transaksi yang sudah berhasil.
 
 ### 10.6 Setiap data selalu memiliki pemilik merchant
 
@@ -463,9 +465,9 @@ Pendekatan yang disarankan adalah **satu produk yang terasa utuh bagi pengguna, 
 
 ### Lapisan 3 — Understand the business: ubah transaksi menjadi informasi
 
-- Bentuk ringkasan yang memang dibutuhkan dashboard.
-- Perbarui setelah transaksi aman, bukan di tengah checkout.
-- Tampilkan freshness, yaitu seberapa baru data yang sedang dilihat.
+- Saat Owner membuka dashboard, baca cached aggregate bersama yang masih berumur maksimal 30 menit.
+- Jika cache belum ada atau kedaluwarsa, agregasikan Transaction `COMPLETED` di jalur dashboard, lalu simpan hasilnya kembali; checkout tidak menunggu dan tidak memperbarui cache.
+- Tampilkan waktu agregasi dan status freshness agar Owner mengetahui seberapa baru data yang sedang dilihat.
 - Biarkan owner menelusuri angka penting bila diperlukan.
 
 ### Lapisan 4 — Advise, do not command: AI memberi saran
@@ -513,7 +515,7 @@ Benchmark ini hanya dipakai untuk menguji kewajaran flow, bukan menyalin seluruh
 
 - Shopify menjelaskan flow dasarnya sebagai membuat keranjang, mengubah item bila perlu, lalu menerima pembayaran dengan metode yang tersedia. Ini mendukung bentuk flow kasir kita: **pilih item → review keranjang → bayar → selesai**.
 - Shopify memisahkan role dan permission staf, termasuk akses lokasi. Ini menguatkan bahwa role harus digabung dengan batas merchant/lokasi, bukan sekadar label “kasir”.
-- Laporan retail Shopify dapat tertinggal sekitar 1–5 menit. Ini merupakan bukti praktik bahwa dashboard operasional tidak harus memperbarui transaksi dalam milidetik agar tetap berguna.
+- Laporan retail Shopify dapat tertinggal sekitar 1–5 menit. Ini merupakan bukti praktik bahwa dashboard operasional tidak harus memperbarui transaksi dalam milidetik agar tetap berguna; MVP kita memilih toleransi yang lebih longgar, yaitu cached aggregate maksimal 30 menit, demi kesederhanaan dan biaya.
 - Shopify mempertahankan nilai asli dari saat order pada laporan tertentu. Ini selaras dengan kebutuhan snapshot harga/nama produk pada transaksi.
 
 Sumber: [Selling in person with Shopify POS](https://help.shopify.com/en/manual/sell-in-person/shopify-pos), [Point of Sale staff management](https://help.shopify.com/en/manual/sell-in-person/shopify-pos/staff-management), dan [Retail sales reports](https://help.shopify.com/en/manual/reports-and-analytics/shopify-reports/report-types/default-reports/retail-sales-reports).
@@ -547,7 +549,7 @@ Ini belum FRD final. Tujuannya memberi batas agar pandangan bisnis tidak melebar
 
 ### Wajib untuk MVP
 
-- registrasi Owner, login/logout seluruh pengguna menggunakan email, serta lifecycle akun staf yang dikelola langsung oleh Owner;
+- registrasi Owner, login seluruh pengguna menggunakan email, JWT access token tunggal berumur 900 detik, logout client-side, serta lifecycle akun staf yang dikelola langsung oleh Owner;
 - satu Owner untuk satu Merchant, serta CRUD banyak Outlet oleh Owner;
 - role minimum: Owner, Admin, Kasir; setiap staf satu role; Admin scope Merchant dan Kasir tepat satu Outlet;
 - isolasi data per merchant;
@@ -610,6 +612,7 @@ Memisahkan ketiganya mencegah tim menganggap tebakan sebagai requirement.
 - Owner adalah otoritas tertinggi merchant; Admin mengelola operasi; Kasir bertransaksi.
 - Satu Owner memiliki satu Merchant; satu Merchant dapat memiliki banyak Outlet.
 - Owner mengelola penuh lifecycle akun Admin/Kasir; role dan Outlet disimpan langsung pada User. Semua pengguna login dengan email dan memiliki tepat satu role enum `OWNER`, `ADMIN`, atau `CASHIER`; Admin bekerja pada Merchant dan Kasir memiliki tepat satu Outlet.
+- Authentication MVP menggunakan satu JWT access token berumur 900 detik tanpa refresh token atau revocation server-side. Logout menghapus token dari client; request terproteksi selalu memvalidasi signature, expiry, dan status akun saat ini.
 - Setiap Product wajib memiliki satu Category aktif saat dipilih; Category dinonaktifkan, bukan dihapus fisik, tanpa memutus relasi Product dan riwayat yang sudah ada. Product dengan Category nonaktif tidak tampil di katalog Kasir dan tidak dapat di-checkout.
 - Adjustment manual untuk penambahan atau pengurangan stok wajib memiliki alasan.
 - Riwayat transaksi tersedia sesuai batas akses setiap role.
@@ -624,11 +627,14 @@ Memisahkan ketiganya mencegah tim menganggap tebakan sebagai requirement.
 - **Locked:** Category dan Product master dikelola pada Merchant; setiap Product wajib memiliki Category dan stok dikelola per kombinasi Product + Outlet.
 - **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet; hanya Kasir yang dapat melakukan checkout pada Outlet tugasnya. Owner melihat seluruh transaksi lintas Outlet; Kasir hanya transaksi dirinya sendiri; Admin tidak melihat transaksi. Keputusan ini menutup `OD-010`.
 - **Locked:** Owner membuat dan mengelola langsung akun Admin/Kasir; registrasi publik hanya untuk Owner dan semua akun login menggunakan email.
+- **Locked (`OD-011`):** JWT access token tunggal dengan expiry 900 detik; tidak ada refresh token/revocation server-side dan logout dilakukan dengan menghapus token dari client.
 - **Locked (`OD-002`):** harga master global + harga override per Outlet; tanpa override, harga master dipakai.
 - **Locked (`OD-003`):** Kasir hanya melihat riwayat transaksi yang dilakukannya sendiri.
 - **Locked (`OD-004`):** diskon, pajak, dan service charge di luar MVP; total transaksi sama dengan subtotal.
 - **Locked (`OD-005`):** refund/void di luar scope MVP.
-- **Locked (`OD-006`):** freshness dashboard ≤ 5 menit untuk ≥95% pembaruan.
+- **Locked (`OD-001`):** pembayaran manual disimpan sebagai `payment_method`, `payment_status = CONFIRMED`, dan `paid_at` langsung pada `Transaction`; tidak ada tabel Payment terpisah.
+- **Locked (`OD-012`):** idempotency checkout memakai `Transaction.checkout_request_id` dan `Transaction.request_hash`; tidak ada tabel `IdempotencyRecord` terpisah.
+- **Locked (`OD-006`):** dashboard Owner menggunakan shared cache dengan cached aggregate berumur maksimal 30 menit pada kondisi normal; cache miss membangun ulang agregat dari Transaction `COMPLETED` dan checkout tidak menginvalidasi cache.
 - **Proposed:** AI dapat diwujudkan sebagai insight berbasis aturan/analitik sederhana lebih dahulu, lalu model AI menjadi peningkatan.
 
 ---
@@ -639,7 +645,7 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 
 ### Checkout dan pembayaran
 
-1. **Resolved untuk proposed baseline —** Kapan transaksi dianggap final: ketika Kasir menekan bayar, ketika pembayaran dikonfirmasi, atau ketika bukti transaksi dibuat? Jawaban saat ini: setelah pembayaran dikonfirmasi Kasir dan commit transaksi, payment record, serta stok berhasil sebagai satu kesatuan; pembuatan bukti mengikuti hasil final tersebut.
+1. **Resolved (`OD-001` locked) —** Kapan transaksi dianggap final? Setelah Kasir mengonfirmasi pembayaran dan satu commit atomik menyimpan Transaction `COMPLETED` beserta `payment_method`, `payment_status = CONFIRMED`, `paid_at`, line snapshot, StockMovement, dan perubahan stok. Tidak ada Payment terpisah; receipt mengikuti Transaction final tersebut.
 2. **Resolved (`OD-004` locked) —** Apakah diskon, pajak, atau service charge wajib pada MVP? Jawaban: tidak; ketiganya di luar MVP dan total transaksi sama dengan subtotal.
 3. **Resolved (`OD-005` locked) —** Apakah void, cancel, refund, atau koreksi transaksi masuk MVP? Jawaban: tidak masuk MVP.
 
@@ -656,7 +662,7 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 ### Dashboard dan AI
 
 8. **Resolved —** Lima angka atau informasi apa yang paling penting bagi Owner saat demo? Scope Must saat ini mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, dan perbandingan Outlet.
-9. **Resolved (`OD-006` locked) —** Berapa keterlambatan dashboard yang masih dapat diterima? Jawaban: maksimal lima menit untuk ≥95% pembaruan.
+9. **Resolved (`OD-006` locked) —** Berapa keterlambatan dashboard yang masih dapat diterima? Jawaban: cached aggregate dapat digunakan maksimal 30 menit pada kondisi normal dan waktu pembaruannya harus terlihat.
 10. **Resolved (`OD-007` locked) —** Insight BI MVP mencakup tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV; satu analisis dapat menghasilkan beberapa tipe sekaligus.
 11. **Open —** Apakah istilah “AI” mensyaratkan penggunaan model eksternal, atau kualitas insight dan proses asinkron lebih penting?
 

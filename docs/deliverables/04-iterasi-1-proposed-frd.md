@@ -81,9 +81,9 @@ Prinsip prioritas:
 | Owner | Tepat satu Merchant, lintas seluruh Outlet | Mengelola profil Merchant, Outlet, lifecycle staf, melihat seluruh transaksi, dashboard bisnis, analytics, dan BI insight; katalog/stok hanya dibaca (read-only) |
 | Admin | Satu Merchant, lintas seluruh Outlet | Mengelola Category, Product master, harga, inventory per Outlet, dan dashboard operasional |
 | Kasir | Tepat satu Outlet aktif | Menemukan Product, menyusun Cart, checkout, melihat receipt, dan melihat transaction history sesuai batas akses |
-| Reporting | Satu Merchant dan Outlet bila relevan | Mengubah Transaction final menjadi projection dashboard |
+| Reporting | Satu Merchant dan Outlet bila relevan | Menyajikan cached aggregate dashboard dari Transaction final melalui shared cache dengan freshness TTL 30 menit |
 | BI insight | Satu Merchant | Menghasilkan beberapa tipe insight analitik (bukan satu tipe) untuk Owner setelah dipicu manual |
-| Operator sistem | Platform | Memantau kesehatan aplikasi, database, worker, checkout, dan backlog tanpa memperoleh akses bisnis berlebihan |
+| Operator sistem | Platform | Memantau kesehatan aplikasi, database, shared cache, worker AI, checkout, dan backlog tanpa memperoleh akses bisnis berlebihan |
 
 Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum dimodelkan sebagai entitas pada Iterasi 1.
 
@@ -92,7 +92,7 @@ Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum di
 | Feature ID | Fitur | Aktor utama | Prioritas | Use case utama |
 |---|---|---|---|---|
 | `FEAT-ONB` | Registrasi Owner dan pembentukan Merchant | Owner | Must | `UC-FRD-01` |
-| `FEAT-AUTH` | Login, logout, status akun, dan session | Semua pengguna | Must | `UC-FRD-02` |
+| `FEAT-AUTH` | Login, JWT access token, logout client-side, dan status akun | Semua pengguna | Must | `UC-FRD-02` |
 | `FEAT-OUT` | Pengelolaan Outlet | Owner | Must | `UC-FRD-03` |
 | `FEAT-STF` | Pengelolaan lifecycle staf | Owner | Must | `UC-FRD-04` |
 | `FEAT-CAT` | Pengelolaan Category | Admin | Must | `UC-FRD-05` |
@@ -100,7 +100,7 @@ Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum di
 | `FEAT-INV-READ` | Melihat stok dan stok rendah seluruh Outlet | Owner (read-only), Admin | Must | `UC-FRD-07` |
 | `FEAT-INV-ADJ` | Menyesuaikan stok serta threshold override per Outlet | Admin | Must | `UC-FRD-07` |
 | `FEAT-CART` | Membuat dan mengubah Cart | Kasir | Must | `UC-FRD-08` |
-| `FEAT-CHK` | Checkout, payment record, dan perlindungan duplikasi | Kasir | Must | `UC-FRD-09`, `UC-FRD-10` |
+| `FEAT-CHK` | Checkout, atribut pembayaran pada Transaction, dan perlindungan duplikasi | Kasir | Must | `UC-FRD-09`, `UC-FRD-10` |
 | `FEAT-REC` | Receipt dan pencarian status transaksi | Kasir, Owner | Must | `UC-FRD-09`, `UC-FRD-10` |
 | `FEAT-TRX` | Transaction history dan detail | Kasir, Owner | Must | `UC-FRD-11` |
 | `FEAT-DASH-OWN` | Dashboard bisnis Owner | Owner | Must | `UC-FRD-12` |
@@ -157,13 +157,13 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | User Story ID | User story | Prioritas | Acceptance summary | Referensi |
 |---|---|---|---|---|
 | `US-ONB-001` | Sebagai calon Owner, saya ingin mendaftarkan akun dan membentuk Merchant agar dapat mulai menggunakan platform. | Must | Email unik; Owner dan Merchant terbentuk konsisten; satu Owner tidak dapat membuat Merchant kedua. | `UR-OWN-001`, `FR-AUTH-001–004`, `FR-TEN-001–003` |
-| `US-AUTH-001` | Sebagai pengguna, saya ingin login menggunakan email dan password agar dapat mengakses fungsi sesuai role. | Must | Credential valid menghasilkan session; credential salah atau akun nonaktif ditolak tanpa membocorkan detail. | `UR-OWN-002`, `UR-CAS-001`, `FR-AUTH-005–010` |
-| `US-AUTH-002` | Sebagai pengguna, saya ingin logout agar session saya tidak dapat digunakan kembali sesuai model session. | Must | Session/token terkait dicabut atau tidak berlaku lagi. | `UR-SEC-003`, `FR-AUTH-008–009` |
+| `US-AUTH-001` | Sebagai pengguna, saya ingin login menggunakan email dan password agar dapat mengakses fungsi sesuai role. | Must | Credential valid menghasilkan satu JWT access token yang berlaku 900 detik; credential salah atau akun nonaktif ditolak tanpa membocorkan detail. | `UR-OWN-002`, `UR-CAS-001`, `FR-AUTH-005–010` |
+| `US-AUTH-002` | Sebagai pengguna, saya ingin logout agar token di perangkat yang sedang saya gunakan dihapus. | Must | Client menghapus JWT saat logout; tidak ada refresh token/revocation server-side dan token yang telah disalin tetap berlaku sampai expiry selama akun aktif. | `UR-SEC-003`, `FR-AUTH-008–009` |
 | `US-OUT-001` | Sebagai Owner, saya ingin membuat dan mengubah Outlet agar struktur operasional Merchant tercatat. | Must | Outlet hanya dibuat pada Merchant Owner dan memiliki nama/status yang valid. | `UR-OWN-003A`, `FR-TEN-004` |
 | `US-OUT-002` | Sebagai Owner, saya ingin menonaktifkan Outlet tanpa menghapus histori agar Outlet berhenti menerima checkout baru tetapi transaksi lama tetap ada. | Must | Outlet nonaktif ditolak untuk checkout baru; histori tetap dapat ditelusuri. | `UR-OWN-003A`, `FR-TEN-004,008–010` |
 | `US-STF-001` | Sebagai Owner, saya ingin membuat akun Admin atau Kasir menggunakan email dan password awal agar staf dapat langsung bekerja. | Must | Role hanya `ADMIN`/`CASHIER`; email unik; password disimpan sebagai hash. | `UR-OWN-003–003B`, `FR-AUTH-011–013` |
 | `US-STF-002` | Sebagai Owner, saya ingin menetapkan role dan Outlet staf agar batas aksesnya benar. | Must | Admin tidak memiliki Outlet; Kasir wajib memiliki tepat satu Outlet aktif dalam Merchant yang sama. | `UR-OWN-003`, `FR-AUTH-014`, `FR-TEN-005–006` |
-| `US-STF-003` | Sebagai Owner, saya ingin menonaktifkan, mengaktifkan kembali, atau mereset password staf tanpa menghapus keterkaitannya pada Transaction, Payment, atau StockMovement historis. | Must | Hanya Owner dapat melakukan aksi; session lama akun nonaktif tidak dapat dipakai untuk aksi baru. | `UR-OWN-003–003B`, `FR-TEN-007–008`, `BR-015` |
+| `US-STF-003` | Sebagai Owner, saya ingin menonaktifkan, mengaktifkan kembali, atau mereset password staf tanpa menghapus keterkaitannya pada Transaction atau StockMovement historis. | Must | Hanya Owner dapat melakukan aksi; JWT lama akun nonaktif ditolak pada request berikutnya. | `UR-OWN-003–003B`, `FR-TEN-007–008`, `BR-015` |
 
 ### 6.2 Category, Product, dan inventory
 
@@ -189,9 +189,9 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | `US-CART-001` | Sebagai Kasir, saya ingin membuat Cart dan menambahkan Product agar dapat menyusun pembelian pelanggan. | Must | Hanya Product aktif; kuantitas positif; Cart terkait dengan konteks Outlet Kasir. | `UR-CAS-002–004`, `FR-CART-001–002` |
 | `US-CART-002` | Sebagai Kasir, saya ingin mengubah kuantitas, menghapus item, atau membatalkan Cart agar kesalahan dapat diperbaiki sebelum pembayaran. | Must | Tidak ada Transaction final ketika Cart diubah/dibatalkan. | `UR-CAS-004`, `FR-CART-003,010` |
 | `US-CART-003` | Sebagai Kasir, saya ingin melihat item, subtotal, dan total agar dapat mengonfirmasi jumlah pembayaran kepada pelanggan. | Must | UI menampilkan perhitungan; server tetap menghitung ulang total final. | `UR-CAS-005`, `FR-CART-004–006` |
-| `US-CHK-001` | Sebagai Kasir, saya ingin memilih metode pembayaran dan checkout agar penjualan tercatat tepat satu kali. | Must | Transaction, line snapshot, payment record, stock movement, dan pengurangan stok commit atomik. | `UR-CAS-006–008`, `FR-CHK-001–011`, `FR-PAY-001–005` |
+| `US-CHK-001` | Sebagai Kasir, saya ingin memilih metode pembayaran dan checkout agar penjualan tercatat tepat satu kali. | Must | Transaction beserta atribut pembayaran `CONFIRMED`, line snapshot, stock movement, dan pengurangan stok commit atomik; tidak ada tabel Payment terpisah. | `UR-CAS-006–008`, `FR-CHK-001–011`, `FR-PAY-001–005` |
 | `US-CHK-002` | Sebagai Kasir, saya ingin menerima alasan yang jelas ketika harga, status Product, stok, atau akses berubah agar Cart dapat diperbaiki dengan aman. | Must | Checkout ditolak tanpa hasil parsial dan mengembalikan kode error yang dapat ditindaklanjuti. | `UR-CAS-010`, `FR-CART-007–010`, `FR-CHK-005–007` |
-| `US-CHK-003` | Sebagai Kasir, saya ingin memeriksa status checkout yang responsnya terputus agar tidak membuat transaksi ganda. | Must | Key dan payload sama mengembalikan transaksi yang sama; payload berbeda ditolak. | `UR-CAS-007–009`, `FR-CHK-001–004,012–016` |
+| `US-CHK-003` | Sebagai Kasir, saya ingin memeriksa status checkout yang responsnya terputus agar tidak membuat transaksi ganda. | Must | `checkout_request_id` dan request hash yang sama mengembalikan Transaction yang sama; ID sama dengan payload/scope berbeda ditolak; ID baru tetap membolehkan pembelian identik pelanggan berikutnya. | `UR-CAS-007–009`, `FR-CHK-001–004,012–016` |
 | `US-REC-001` | Sebagai Kasir, saya ingin menerima nomor dan receipt setelah checkout berhasil agar pelanggan memperoleh bukti transaksi. | Must | Receipt memakai snapshot dan dapat dilihat ulang tanpa membaca harga katalog terbaru. | `UR-CAS-011`, `FR-PAY-006–008` |
 ### 6.4 Transaction history, dashboard, reporting, dan AI
 
@@ -201,7 +201,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | `US-TRX-002` | Sebagai Kasir, saya ingin melihat riwayat transaksi yang saya lakukan sendiri agar dapat membantu pemeriksaan. | Must | Hanya transaksi dengan `cashier_user_id = saya` (`OD-003` locked). | `UR-CAS-014`, `FR-TRX-004,006` |
 | `US-DASH-001` | Sebagai Owner, saya ingin memilih periode dan melihat omzet, jumlah transaksi, serta AOV agar memahami kondisi bisnis. | Must | Hanya Transaction `COMPLETED`; definisi metrik konsisten; scope Merchant/Outlet benar. | `UR-OWN-004`, `UR-REP-001–003`, `FR-REP-001–003` |
 | `US-DASH-002` | Sebagai Owner, saya ingin melihat tren penjualan/AOV, pola waktu, Product terlaris/tidak laku, dan perbandingan Outlet agar mengetahui perubahan yang perlu ditindaklanjuti. | Must | Hasil sesuai periode, bucket waktu, timezone Merchant, dan transaksi sumber. | `UR-OWN-005–005A`, `UR-REP-003A`, `FR-REP-003A–003C` |
-| `US-DASH-003` | Sebagai Owner, saya ingin melihat waktu pembaruan dan status stale agar memahami seberapa baru data dashboard. | Must | `data_updated_at`, timezone, empty state, dan degraded state terlihat. | `UR-OWN-006,009`, `FR-REP-004–007` |
+| `US-DASH-003` | Sebagai Owner, saya ingin melihat waktu pembaruan dan status stale agar memahami seberapa baru data dashboard. | Must | Cached aggregate normal berumur maksimal 30 menit; `data_updated_at`, timezone, empty state, dan degraded state terlihat. | `UR-OWN-006,009`, `FR-REP-004–007` |
 | `US-DASH-004` | Sebagai Admin, saya ingin melihat dashboard operasional agar dapat menjaga seluruh Outlet siap berjualan. | Must | Hanya ringkasan inventory, stok rendah, dan kondisi katalog dalam Merchant; tidak menampilkan omzet, AOV, transaksi, analytics bisnis, atau insight BI. | `UR-ADM-001,007`, `FR-REP-003,009` |
 | `US-AI-001` | Sebagai Owner, saya ingin memicu analisis BI/AI secara manual agar memperoleh insight ketika dibutuhkan. | Must | Hanya Owner; maksimal satu analisis per Merchant per hari; job diproses di luar checkout dan dapat menghasilkan beberapa tipe insight sekaligus. | `UR-AI-002,010`, `FR-AI-001,012`, `BR-020` |
 | `US-AI-002` | Sebagai Owner, saya ingin melihat status, periode, evidence, dan hasil insight agar dapat menilai dasar rekomendasinya. | Must | Status terlihat; output menyimpan periode, evidence summary, tipe, versi data, dan waktu. | `UR-OWN-008–009`, `UR-AI-003–006`, `FR-AI-002–008` |
@@ -212,7 +212,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | User Story ID | User story | Prioritas | Acceptance summary | Referensi |
 |---|---|---|---|---|
 | `US-OPS-001` | Sebagai operator, saya ingin menelusuri checkout menggunakan correlation ID atau Transaction ID agar insiden dapat diselidiki. | Must | Log tidak membocorkan secret; alur dapat dicari lintas modul. | `UR-OPS-001–002`, `FR-OPS-001–004` |
-| `US-OPS-002` | Sebagai Merchant, saya ingin checkout tetap responsif ketika reporting/AI aktif agar penjualan tidak terganggu. | Must | Mixed workload memenuhi target; worker mempunyai concurrency limit/backpressure. | `UR-BIZ-003,005,008`, `NFR-SCALE-002–003` |
+| `US-OPS-002` | Sebagai Merchant, saya ingin checkout tetap responsif ketika reporting/AI aktif agar penjualan tidak terganggu. | Must | Mixed workload memenuhi target; cache miss/agregasi dibatasi dan worker AI mempunyai concurrency limit/backpressure. | `UR-BIZ-003,005,008`, `NFR-SCALE-002–003` |
 
 ---
 
@@ -238,8 +238,8 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Aktor | Owner, Admin, Kasir |
 | Prasyarat | User dan Merchant aktif; Outlet Kasir juga aktif |
 | Pemicu | Pengguna mengirim email dan password atau memilih logout |
-| Alur utama | Normalisasi email → validasi credential/status → buat session dengan expiry → pengguna mengakses fitur sesuai role → logout mencabut session sesuai model yang dipilih |
-| Alternatif | Credential salah; akun/Merchant/Outlet nonaktif; rate limit tercapai; session kedaluwarsa |
+| Alur utama | Normalisasi email → validasi credential/status → terbitkan satu JWT access token dengan expiry 900 detik → setiap request memvalidasi signature, expiry, role/scope, dan status akun → logout menghapus token dari client |
+| Alternatif | Credential salah; akun/Merchant/Outlet nonaktif; rate limit tercapai; JWT tidak ada/tidak valid/kedaluwarsa |
 | Hasil | Akses hanya diberikan kepada identitas dan scope yang sah |
 | Referensi | `US-AUTH-001–002`, `FR-AUTH-005–010`, `AT-014` |
 
@@ -322,10 +322,10 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Aktor | Kasir |
 | Prasyarat | Kasir dan Outlet aktif; Cart tidak kosong; metode pembayaran dipilih |
 | Pemicu | Kasir mengonfirmasi bahwa pembayaran telah diterima |
-| Alur utama | Client mengirim idempotency key → server memvalidasi User/Merchant/Outlet/Product/harga/stok/payment → server menghitung total → Transaction, line snapshot, Payment, StockMovement, dan saldo stok commit atomik → event reporting dicatat → receipt dikembalikan |
+| Alur utama | Client mengirim `checkout_request_id` → server menghitung `request_hash` dan memvalidasi User/Merchant/Outlet/Product/harga/stok/metode pembayaran → server menghitung total → Transaction beserta atribut pembayaran `CONFIRMED`, line snapshot, StockMovement, dan saldo stok commit atomik → receipt dikembalikan tanpa agregasi atau invalidasi cache dashboard |
 | Alternatif | Ditangani oleh `UC-FRD-10` |
-| Hasil | Tepat satu Transaction `COMPLETED`, satu Payment `CONFIRMED`, satu pengurangan stok, dan receipt yang konsisten |
-| Referensi | `US-CHK-001`, `US-REC-001`, `FR-CHK-001–018`, `FR-PAY-001–008`, `AT-003–006,009–010` |
+| Hasil | Tepat satu Transaction `COMPLETED` dengan `payment_status = CONFIRMED`, satu pengurangan stok, dan receipt yang konsisten |
+| Referensi | `US-CHK-001`, `US-REC-001`, `FR-CHK-001–018`, `FR-PAY-001–008`, `AT-003–006,009–010,029` |
 
 ### UC-FRD-10 — Checkout ditolak atau hasil belum diketahui
 
@@ -334,10 +334,10 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Aktor | Kasir |
 | Prasyarat | Kasir telah menyusun Cart atau pernah mengirim checkout |
 | Pemicu | Validasi bisnis gagal, dependency gagal, atau response terputus |
-| Alur utama | Sistem mengembalikan kode yang dapat ditindaklanjuti → Cart tetap dapat diperbaiki → bila response tidak diketahui, UI mempertahankan idempotency key dan melakukan status lookup → hasil lama dikembalikan atau retry aman diizinkan |
-| Alternatif | Harga berubah: tampilkan total baru; Product nonaktif: hapus/ganti; stok kurang: kurangi/hapus; key dengan payload berbeda: conflict; masih processing: polling terbatas |
-| Hasil | Tidak ada Transaction/payment/stok parsial dan tidak terjadi transaksi ganda |
-| Referensi | `US-CHK-002–003`, `FR-CART-007–010`, `FR-CHK-003–016`, `AT-005–010` |
+| Alur utama | Sistem mengembalikan kode yang dapat ditindaklanjuti → Cart tetap dapat diperbaiki → bila response tidak diketahui, UI mempertahankan `checkout_request_id` dan melakukan lookup → Transaction lama dikembalikan atau payload yang sama di-retry memakai ID yang sama |
+| Alternatif | Harga berubah: tampilkan total baru; Product nonaktif: hapus/ganti; stok kurang: kurangi/hapus; request ID sama dengan hash/scope berbeda: conflict; Transaction belum ditemukan: retry aman dengan ID dan payload yang sama |
+| Hasil | Tidak ada Transaction/atribut pembayaran/stok parsial dan tidak terjadi transaksi ganda |
+| Referensi | `US-CHK-002–003`, `FR-CART-007–010`, `FR-CHK-003–016`, `AT-005–010,029` |
 
 ### UC-FRD-11 — Melihat transaction history
 
@@ -356,12 +356,12 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Elemen | Detail |
 |---|---|
 | Aktor | Owner |
-| Prasyarat | Owner login; projection tersedia atau mempunyai status |
+| Prasyarat | Owner login; source of truth transaksi tersedia; shared cache boleh kosong |
 | Pemicu | Owner membuka dashboard dan memilih periode/scope Outlet |
-| Alur utama | Validasi Merchant → baca projection → tampilkan omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, Product terlaris/tidak laku, perbandingan Outlet, timezone, dan waktu pembaruan |
-| Alternatif | Periode kosong; projection stale; reporting gagal; Outlet tidak sah |
+| Alur utama | Validasi Merchant dan normalisasi cache key → cache hit membaca cached aggregate `FRESH`; cache miss mengagregasi Transaction `COMPLETED` dan menyimpan hasil dengan freshness TTL 30 menit → tampilkan omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, Product terlaris/tidak laku, perbandingan Outlet, timezone, dan waktu pembaruan |
+| Alternatif | Periode kosong; cache gagal lalu query sumber berhasil; query sumber gagal dan cache lama ditampilkan `STALE`; cache dan query sumber tidak tersedia; Outlet tidak sah |
 | Hasil | Owner memahami kondisi bisnis tanpa query berat di jalur checkout |
-| Referensi | `US-DASH-001–003`, `FR-REP-001–010`, `AT-011,017` |
+| Referensi | `US-DASH-001–003`, `FR-REP-001–010`, `AT-011,017,024–028` |
 
 ### UC-FRD-13 — Admin melihat dashboard operasional
 
@@ -399,9 +399,10 @@ flowchart TD
     D --> E["Admin mengisi stok per Product dan Outlet"]
     E --> F["Kasir mencari Product dan menyusun Cart"]
     F --> G["Kasir mengonfirmasi pembayaran dan checkout"]
-    G --> H["Transaction, Payment, dan stok tersimpan konsisten"]
-    H --> I["Reporting memperbarui dashboard secara asynchronous"]
-    I --> J["Owner membaca dashboard dan dapat memicu AI"]
+    G --> H["Transaction dengan pembayaran CONFIRMED dan stok tersimpan konsisten"]
+    H --> I["Owner membuka dashboard"]
+    I --> J["Shared cache menyajikan aggregate atau membangunnya saat miss"]
+    J --> K["Owner membaca dashboard dan dapat memicu AI"]
 ```
 
 ### 8.2 Apa yang terjadi ketika penjualan diproses
@@ -412,22 +413,23 @@ sequenceDiagram
     participant UI as POS Web
     participant API as Core Application
     participant DB as Operational Database
-    participant W as Reporting Worker
+    participant C as Shared Reporting Cache
 
     K->>UI: Review Cart dan konfirmasi pembayaran
-    UI->>API: Submit checkout dan idempotency key
-    API->>API: Validasi User, Merchant, Outlet, Product, harga, stok, payment
-    API->>DB: Atomic commit Transaction, lines, Payment, StockMovement, dan saldo
+    UI->>API: Submit checkout_request_id dan payload
+    API->>API: Hitung request_hash; validasi User, scope, Product, harga, stok, metode
+    API->>DB: Atomic commit Transaction + payment fields, lines, StockMovement, dan saldo
     alt Commit berhasil
         DB-->>API: Transaction COMPLETED
         API-->>UI: Receipt dan nomor transaksi
-        API-->>W: Pekerjaan reporting setelah commit
         UI-->>K: Tampilkan berhasil
     else Validasi atau commit gagal
         DB-->>API: Reject atau rollback
         API-->>UI: Error yang dapat ditindaklanjuti
         UI-->>K: Perbaiki Cart atau cek status
     end
+
+    Note over API,C: Checkout tidak mengagregasi atau menginvalidasi cache dashboard
 ```
 
 ### 8.3 Workflow perubahan inventory
@@ -445,15 +447,18 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A["Transaction COMPLETED"] --> B["Event atau pekerjaan reporting"]
-    B --> C["ReportingProjection diperbarui"]
-    C --> D["Owner melihat dashboard dan freshness"]
-    D --> E["Owner memicu AI secara manual"]
-    E --> F["Job AI diproses asynchronous"]
-    F -->|Berhasil| G["Insight READY dengan evidence"]
-    F -->|Gagal| H["Retry terbatas lalu FAILED"]
-    G --> I["Owner mengambil keputusan"]
-    H --> D
+    A["Owner membuka dashboard"] --> B{"Cached aggregate masih valid?"}
+    B -->|Ya| C["Baca shared cache"]
+    B -->|Tidak| D["Agregasi Transaction COMPLETED"]
+    D --> E["Simpan aggregate dengan freshness TTL 30 menit"]
+    E --> C
+    C --> F["Tampilkan dashboard, data_updated_at, dan freshness"]
+    F --> G["Owner memicu AI secara manual"]
+    G --> H["Job AI diproses asynchronous"]
+    H -->|Berhasil| I["Insight READY dengan evidence"]
+    H -->|Gagal| J["Retry terbatas lalu FAILED"]
+    I --> K["Owner mengambil keputusan"]
+    J --> F
 ```
 
 ---
@@ -480,7 +485,7 @@ Semua pengujian harus mencatat environment, ukuran data, concurrency, durasi, da
 | `NFR-PERF-002` | Penolakan validasi checkout | p95 ≤ 400 ms | Proposed Baseline |
 | `NFR-PERF-003` | Product search/list Kasir | p95 ≤ 300 ms pada dataset baseline | Proposed Baseline |
 | `NFR-PERF-004` | Transaction status lookup | p95 ≤ 300 ms | Proposed Baseline |
-| `NFR-PERF-005` | Dashboard read dari projection | p95 ≤ 2 detik | Proposed Baseline |
+| `NFR-PERF-005` | Dashboard Owner | cache hit p95 ≤300 ms; cache miss dengan agregasi p95 ≤2 detik pada dataset baseline | Proposed Baseline |
 | `NFR-PERF-006` | CRUD Admin biasa | p95 ≤ 700 ms | Proposed Baseline |
 | `NFR-PERF-007` | Feedback visual setelah checkout ditekan | ≤ 100 ms | Acceptance MVP |
 | `NFR-PERF-008` | Query analitik berat dalam checkout | 0 query berat synchronous | Acceptance MVP |
@@ -491,9 +496,9 @@ Semua pengujian harus mencatat environment, ukuran data, concurrency, durasi, da
 |---|---|---|
 | Availability POS | 99,9% per bulan untuk target produksi, di luar maintenance yang disetujui | `NFR-REL-001` |
 | Isolasi kegagalan | Reporting/AI gagal tidak membuat checkout unavailable | `NFR-REL-002` |
-| Atomicity | Tidak ada Transaction, Payment, atau stok parsial | `NFR-REL-003` |
-| Background jobs | Retry terbatas dan deduplication; tidak ada retry tanpa batas | `NFR-REL-004` |
-| Dashboard freshness | ≤5 menit untuk ≥95% Transaction pada kondisi normal | `NFR-REL-005`, Proposed Baseline |
+| Atomicity | Tidak ada Transaction, atribut pembayaran, line, atau stok parsial | `NFR-REL-003` |
+| AI jobs/cache concurrency | Job AI memakai retry terbatas dan deduplication; cache miss key yang sama dilindungi dari stampede | `NFR-REL-004` |
+| Dashboard freshness | Cached aggregate normal berumur ≤30 menit; data lebih lama hanya sebagai fallback `STALE` | `NFR-REL-005`, Locked |
 | AI job lifecycle | Setiap request yang diterima berakhir terpantau pada `READY` atau `FAILED` | `NFR-REL-006` |
 | Durability | Transaction `COMPLETED` tetap tersimpan setelah process restart | `NFR-REL-007` |
 | Dependency timeout | Call eksternal mempunyai timeout dan tidak menahan resource tanpa batas | `NFR-REL-008` |
@@ -503,8 +508,8 @@ Target recovery produksi:
 - RPO database ≤15 menit, ideal mendekati nol sesuai biaya;
 - RTO jalur POS ≤60 menit;
 - backup diuji melalui restore minimal sekali sebelum final demo/release candidate;
-- ReportingProjection dan Insight dapat dibangun ulang dari source of truth;
-- prosedur recovery mencakup database unavailable, migration gagal, backlog worker, dan deployment gagal.
+- reporting cache dapat dihapus/expire dan dibangun ulang dari Transaction `COMPLETED`; Insight dapat dibangun ulang dari source of truth;
+- prosedur recovery mencakup database unavailable, shared cache unavailable, migration gagal, backlog job AI, dan deployment gagal.
 
 ### 9.4 Scalability considerations
 
@@ -524,9 +529,9 @@ Dataset dan load Proposed Baseline:
 Aturan scale:
 
 1. checkout tetap memenuhi target pada dataset dan beban baseline;
-2. ketika reporting dan AI aktif, p95 checkout tidak memburuk lebih dari 20% dan tetap ≤500 ms;
-3. worker menerapkan backpressure/concurrency limit agar tidak menghabiskan koneksi checkout;
-4. application dan worker dapat dinaikkan kapasitasnya secara independen secara logis;
+2. ketika cache miss/agregasi reporting dan AI aktif, p95 checkout tidak memburuk lebih dari 20% dan tetap ≤500 ms;
+3. concurrency agregasi/cache miss dan worker AI dibatasi agar tidak menghabiskan koneksi checkout; request miss pada key yang sama menggunakan single-flight atau proteksi setara;
+4. application dan worker AI dapat dinaikkan kapasitasnya secara independen secara logis; seluruh instance application memakai shared cache yang sama;
 5. list, report, dan batch selalu bounded/paginated;
 6. **future consideration, bukan acceptance gate Iterasi 1:** pertumbuhan menuju 10× baseline dilakukan berdasarkan telemetry dan bottleneck nyata, bukan dengan over-provisioning sejak awal;
 7. desain tidak mewajibkan microservices atau Kubernetes untuk mengklaim scalable.
@@ -536,11 +541,11 @@ Aturan scale:
 | Area | Requirement minimum |
 |---|---|
 | Password | Hash adaptif yang diakui seperti Argon2id atau bcrypt; password asli tidak disimpan atau ditampilkan kembali |
-| Authentication | Email ternormalisasi, session/token expiry, logout, penolakan akun nonaktif, dan login rate limit |
+| Authentication | Email ternormalisasi, JWT access token tunggal berumur 900 detik, logout client-side, pemeriksaan status akun pada setiap request, dan login rate limit |
 | Authorization/RBAC | Diperiksa di server untuk setiap operasi berdasarkan role, Merchant, Outlet, dan status User |
 | Tenant isolation | ID valid milik Merchant lain tetap tidak boleh mengembalikan datanya |
 | Transport | Seluruh traffic production menggunakan TLS |
-| Session | Cookie `Secure`, `HttpOnly`, dan `SameSite` yang sesuai bila cookie digunakan |
+| Token handling | JWT hanya dikirim melalui TLS, tidak ditempatkan pada URL/log, disimpan dengan strategi client yang meminimalkan pencurian, dan dihapus dari client saat logout |
 | Input/data access | Validasi input, output encoding, serta parameterized query atau abstraction aman |
 | Secret | Berasal dari environment/secret manager dan tidak di-commit |
 | Payment privacy | Tidak menyimpan nomor kartu, PIN, OTP, credential e-wallet, atau QR payload sensitif |
@@ -566,11 +571,11 @@ Aturan scale:
 Sistem minimum harus menyediakan:
 
 - structured log dengan timestamp, level, module, correlation ID, safe Merchant/actor reference, action, result, dan error category;
-- metric checkout request rate, success/error rate, p95/p99 latency, database error/pool pressure, dan backlog age;
-- alert untuk lonjakan checkout error, latency melewati target, database unavailable, dan backlog melewati freshness threshold;
-- health indicator aplikasi, database, dan background worker;
-- cara replay reporting/AI secara aman tanpa menggandakan hasil;
-- failed/dead-letter state untuk job yang kehabisan retry.
+- metric checkout request rate, success/error rate, p95/p99 latency, database error/pool pressure, cache hit/miss/error/age, latency agregasi, dan AI job backlog age;
+- alert untuk lonjakan checkout error, latency melewati target, database unavailable, cache failure/age melewati threshold, agregasi lambat, dan backlog AI berlebihan;
+- health indicator aplikasi, database, shared cache, dan background worker AI;
+- cara expire/rebuild reporting cache serta menjalankan ulang job AI secara aman tanpa menggandakan hasil;
+- failed state untuk job AI yang kehabisan retry.
 
 ### 9.8 Usability, accessibility, dan compatibility
 
@@ -614,8 +619,9 @@ Sistem Iterasi 1 secara eksplisit tidak diwajibkan untuk membangun:
 19. BI ad-hoc query builder;
 20. AI yang mengubah harga, stok, status Product, Outlet, atau akses User secara otomatis;
 21. AI periodik otomatis sebagai trigger utama;
-22. microservices, message broker, read replica, cache, Kubernetes, atau teknologi tertentu sebagai tujuan tersendiri;
+22. microservices, message broker, read replica, provider/produk cache tertentu, Kubernetes, atau teknologi tertentu sebagai tujuan tersendiri; shared cache tetap merupakan kebutuhan desain reporting MVP;
 23. SLA produksi berbayar pada deployment demo gratis.
+24. refresh token, endpoint refresh/logout, dan revocation list JWT server-side.
 
 Out-of-Scope tidak boleh diimplementasikan diam-diam dengan mengorbankan requirement Must. Eksperimen teknis diperbolehkan hanya bila tidak mengubah scope, menghambat demo, atau menjadi dependency flow utama.
 
@@ -623,16 +629,18 @@ Out-of-Scope tidak boleh diimplementasikan diam-diam dengan mengorbankan require
 
 | ID | Keputusan yang belum final | Default proposed | Dampak utama |
 |---|---|---|---|
-| `OD-001` | Batas payment record manual | **Locked**: `CASH`, `QRIS`, dan `TRANSFER`; sistem hanya mencatat tipenya | Checkout state, security, reconciliation |
+| `OD-001` | Batas payment manual | **Locked**: atribut `payment_method` (`CASH`/`QRIS`/`TRANSFER`), `payment_status = CONFIRMED`, dan `paid_at` disimpan langsung pada Transaction; tidak ada tabel Payment | Transaction, checkout state, receipt, dan security |
 | `OD-002` | Harga Product global atau override per Outlet | **Locked**: harga master global + override per Outlet | Data model dan Admin UX |
 | `OD-003` | Riwayat Kasir: transaksi sendiri atau seluruh Outlet | **Locked**: hanya transaksi yang dilakukan dirinya sendiri | Authorization dan UX history |
 | `OD-004` | Diskon, pajak, dan service charge | **Locked**: di luar MVP; `total = subtotal` | Model transaksi, snapshot, report |
 | `OD-005` | Refund/void | **Locked**: tidak ada pada MVP | Reversal, permission, dan perhitungan omzet setelah reversal |
-| `OD-006` | Freshness dashboard final | **Locked**: ≤5 menit untuk ≥95% update | Mekanisme reporting dan biaya |
+| `OD-006` | Freshness dashboard final | **Locked**: cached aggregate dashboard Owner berumur maksimal 30 menit pada kondisi normal | TTL, query agregasi, cache, dan biaya |
 | `OD-007` | Insight minimum demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV | Dataset dan acceptance test BI |
 | `OD-008` | Provider/model AI eksternal wajib atau tidak | Tidak wajib | Biaya, privacy, reliability |
 | `OD-009` | Target concurrency resmi | Proposed Baseline bagian 9.4 | Load test dan kapasitas deployment |
 | `OD-010` | Checkout oleh Owner/Admin | **Locked**: hanya Kasir pada Outlet tugasnya | Permission model dan validasi checkout |
+| `OD-011` | Model authentication dan logout | **Locked**: JWT access token tunggal berumur 900 detik; tanpa refresh token/revocation server-side; logout menghapus token dari client | UX sesi, exposure window token, security, dan testing |
+| `OD-012` | Model idempotency checkout | **Locked**: `checkout_request_id` dan `request_hash` disimpan pada Transaction; kombinasi `merchant_id + checkout_request_id` unik, sedangkan `request_hash` tidak harus unik; tanpa tabel `IdempotencyRecord` | Checkout contract, duplicate handling, lookup timeout, dan data model |
 
 Item `Open` tidak boleh dianggap final oleh engineer, QA, atau stakeholder. Default hanya digunakan agar proposal dapat dilanjutkan dan harus tetap mudah diubah.
 
@@ -640,7 +648,7 @@ Item `Open` tidak boleh dianggap final oleh engineer, QA, atau stakeholder. Defa
 
 | Feature | User stories | [URS §7](./02-iterasi-1-proposed-urs.md#7-user-requirements) | [SRS §8](./03-iterasi-1-proposed-srs.md#8-functional-requirements) | Bukti minimum |
 |---|---|---|---|---|
-| Onboarding dan authentication | `US-ONB-001`, `US-AUTH-001–002` | `UR-OWN-001–002`, `UR-SEC-001–003` | `FR-AUTH-001–010`, `FR-TEN-001–003` | `AT-001,014` |
+| Onboarding dan authentication | `US-ONB-001`, `US-AUTH-001–002` | `UR-OWN-001–002`, `UR-SEC-001–003` | `FR-AUTH-001–010`, `FR-TEN-001–003` | `AT-001,014,022–023` |
 | Outlet | `US-OUT-001–002` | `UR-OWN-003A` | `FR-TEN-004,008–010` | Outlet acceptance + tenant test |
 | Staff lifecycle | `US-STF-001–003` | `UR-OWN-003–003B` | `FR-AUTH-011–014`, `FR-TEN-005–008` | `AT-016` + role/Outlet security test |
 | Category | `US-CAT-001–002` | `UR-ADM-001–002` | `FR-CAT-001,003,009`, `BR-019` | `AT-018` + Category lifecycle integration test |
@@ -648,10 +656,10 @@ Item `Open` tidak boleh dianggap final oleh engineer, QA, atau stakeholder. Defa
 | Inventory adjustment | `US-INV-001–002` | `UR-ADM-001,003,007` | `FR-INV-001–004,008` | Inventory integration/concurrency test |
 | Inventory threshold | `US-INV-003–005` | `UR-ADM-001,005B`, `UR-OWN-005B` | `FR-INV-002,007–007A`, `DR-011A` | `AT-019` |
 | Cart | `US-CART-001–003` | `UR-CAS-002–005` | `FR-CART-001–010` | Cart acceptance + price manipulation test |
-| Checkout/payment | `US-CHK-001–003` | `UR-CAS-006–010,012–013` | `FR-CHK-001–018`, `FR-PAY-001–005` | `AT-003–010` |
+| Checkout/payment | `US-CHK-001–003` | `UR-CAS-006–010,012–013` | `FR-CHK-001–018`, `FR-PAY-001–005`, `DR-014` | `AT-003–010,029` |
 | Receipt | `US-REC-001` | `UR-CAS-011` | `FR-PAY-006–008` | `AT-010,013` |
 | Transaction history | `US-TRX-001–002` | `UR-CAS-014`, `UR-OWN-007` | `FR-TRX-001–007` | History acceptance/security test |
-| Owner dashboard | `US-DASH-001–003` | `UR-OWN-004–006`, `UR-REP-001–007` | `FR-REP-001–010` | `AT-011,017` |
+| Owner dashboard | `US-DASH-001–003` | `UR-OWN-004–006`, `UR-REP-001–007` | `FR-REP-001–010` | `AT-011,017,024–028` |
 | Admin dashboard | `US-DASH-004` | `UR-ADM-001,007` | `FR-REP-003,009` | `AT-020` + Admin permission/dashboard test |
 | BI insight | `US-AI-001–003` | `UR-OWN-008–010`, `UR-AI-001–010` | `FR-AI-001–012` | `AT-012` + AI authorization/idempotency test |
 | Operasi | `US-OPS-001–002` | `UR-OPS-001–008` | `FR-OPS-001–006` | Fault, recovery, dan `AT-015` |
