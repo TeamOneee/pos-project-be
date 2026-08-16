@@ -270,7 +270,7 @@ Insight harus menyertakan periode data dan alasan singkat. AI adalah **pemberi s
 
 > **Notifikasi:** Fitur "AI Insight" pada produk ini **digunakan sebagai Business Intelligence (BI)**. AI bukan satu fitur insight tunggal, melainkan mesin yang menghasilkan kumpulan insight analitik (beberapa tipe) berbasis data merchant untuk mendukung keputusan Owner.
 
-Fitur BI (Business Intelligence) hanya dapat dipicu secara manual, dilihat, dan dikelola oleh Owner. Admin dan Kasir tidak memiliki akses ke insight BI. Satu analisis per Merchant per hari dapat menghasilkan atau memperbarui **beberapa tipe insight** sekaligus—tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV—sesuai data yang tersedia.
+Fitur BI (Business Intelligence) hanya dapat dipicu secara manual, dilihat, dan dikelola oleh Owner. Admin dan Kasir tidak memiliki akses ke insight BI. Satu analisis per Merchant per hari dapat menghasilkan atau memperbarui **beberapa tipe insight** sekaligus—tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV—sesuai data yang tersedia. Pada MVP, analisis selalu mencakup seluruh Merchant untuk 30 hari kalender lokal yang berakhir pada tanggal analisis; Owner tidak memilih periode atau Outlet saat memicu analisis.
 
 #### Ukuran sukses owner
 

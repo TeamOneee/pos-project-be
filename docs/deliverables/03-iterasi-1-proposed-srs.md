@@ -174,7 +174,7 @@ Diagram ini menunjukkan batas tanggung jawab, bukan keputusan bahwa setiap kotak
 | ASM-007 | Confirmed  | Refund/void transaksi tidak diimplementasi.                                                                                                                                           | Perlu state reversal, permission, dan perhitungan omzet setelah reversal. |
 | ASM-008 | Locked  | Pembayaran manual disimpan langsung pada Transaction sebagai `payment_method`, `payment_status = CONFIRMED`, dan `paid_at`; tidak ada entitas Payment terpisah. | Multi/split payment atau integrasi pembayaran eksternal memerlukan entitas dan state machine terpisah. |
 | ASM-009 | Locked  | Dashboard Owner memakai shared cache dengan cached aggregate berumur maksimal 30 menit pada kondisi normal; checkout tidak menginvalidasi cache. | TTL lebih singkat atau real-time memerlukan strategi update dan biaya berbeda. |
-| ASM-010 | Locked    | Insight hanya dimulai melalui trigger manual Owner, maksimal satu kali per hari per Merchant, dan diproses asynchronous. Satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data. | Trigger otomatis atau limit per tipe memerlukan perubahan flow dan kebijakan produk. |
+| ASM-010 | Locked    | Insight hanya dimulai melalui trigger manual Owner, maksimal satu kali per hari per Merchant, dan diproses asynchronous. Satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data. Scope MVP selalu seluruh Merchant dengan periode 30 hari kalender lokal yang berakhir pada `analysis_date`; periode diturunkan deterministik dari job, bukan dikirim client. | Trigger otomatis, pemilihan Outlet, atau periode bebas memerlukan perubahan flow dan data model job. |
 | ASM-011 | Confirmed    | Aplikasi web modern dengan koneksi online.                                                                                                                                           | Offline-first membutuhkan desain sinkronisasi yang berbeda dan berada di luar kasus terpilih. |
 | ASM-012 | Locked | Idempotency checkout disimpan pada Transaction melalui `checkout_request_id` dan `request_hash`; kombinasi `merchant_id + checkout_request_id` unik dan tidak ada `IdempotencyRecord` terpisah. | Status processing persisten, expiry key terpisah, atau workflow pembayaran lebih kompleks memerlukan record idempotency khusus. |
 
@@ -265,7 +265,7 @@ Flow Must Iterasi 1 mengunci: `CASHIER` dapat checkout hanya pada `User.outlet_i
 |---|---|---|---|
 | FR-INV-001 | Sistem harus menyimpan satu saldo stok nonnegatif untuk setiap kombinasi Product + Outlet. | Must | Schema + integration test |
 | FR-INV-002 | Owner dan Admin harus dapat melihat stok serta daftar stok rendah seluruh Outlet dalam Merchant dan memfilter satu Outlet secara opsional; setiap stock adjustment tetap menunjuk tepat satu Outlet aktif secara eksplisit. Outlet nonaktif hanya dapat dibaca sebagai histori. | Must | Acceptance + security test |
-| FR-INV-003 | Owner atau Admin harus dapat melakukan stock adjustment manual pada Outlet aktif dengan alasan; sistem harus mencatat nilai sebelum/sesudah, delta, Outlet, Product, actor, waktu, dan referensi bila ada. | Must | Integration test |
+| FR-INV-003 | Owner atau Admin harus dapat melakukan stock adjustment manual pada Outlet aktif dengan alasan; sistem harus mencatat nilai before/after yang berasal dari perubahan saldo atomik, delta, Outlet, Product, actor, waktu, dan referensi bila ada. | Must | Integration test |
 | FR-INV-004 | Sistem harus menolak stock adjustment manual yang menghasilkan saldo stok negatif. | Must | Unit + integration test |
 | FR-INV-005 | Checkout final harus memvalidasi serta mengurangi stok Product pada Outlet checkout secara aman terhadap checkout bersamaan. | Must | Concurrency test |
 | FR-INV-006 | Jika satu item tidak memiliki stok cukup, seluruh checkout harus gagal tanpa mengurangi stok item lain. | Must | Integration test |
@@ -363,12 +363,12 @@ Metrik MVP dihitung hanya dari transaksi `COMPLETED`. Pada MVP, `transaction.tot
 | FR-REP-003A | Dashboard Owner harus menampilkan tren penjualan dan tren AOV secara kronologis untuk periode yang dipilih menggunakan bucket waktu yang konsisten dan terlihat oleh pengguna. | Must | Acceptance + calculation test |
 | FR-REP-003B | Dashboard Owner harus menampilkan produk terlaris serta produk paling sedikit atau tidak terjual pada scope Merchant atau Outlet yang dipilih. | Must | Acceptance + calculation test |
 | FR-REP-003C | Dashboard Owner harus menampilkan pola waktu penjualan berdasarkan jam transaksi dalam zona waktu Merchant agar jam ramai dan sepi dapat dikenali. | Must | Acceptance + timezone calculation test |
-| FR-REP-004 | Dashboard harus menampilkan `data_updated_at`, zona waktu tampilan, dan status freshness berdasarkan umur cache. | Must | UI test |
+| FR-REP-004 | Setiap payload dashboard bisnis Owner harus menampilkan metadata yang sama: `data_updated_at`, zona waktu tampilan, dan status freshness berdasarkan umur cache. | Must | UI test |
 | FR-REP-005 | Dashboard harus menampilkan empty state yang benar bila periode tidak memiliki transaksi. | Must | UI test |
 | FR-REP-006 | Cached aggregate berumur ≤30 menit berstatus `FRESH`. Cache yang lebih lama hanya boleh dipertahankan secara bounded dan disajikan sebagai fallback `STALE` ketika refresh/query gagal, selalu dengan waktu pembaruan yang terlihat; data lama tidak boleh dianggap cache hit normal. | Must | Failure + UI test |
 | FR-REP-007 | Bila shared cache tidak tersedia, sistem harus mencoba query sumber secara bounded. Bila refresh/query sumber gagal tetapi cache lama masih dapat dibaca, sistem boleh mengembalikannya sebagai `STALE`; kegagalan ini tidak boleh mengubah transaksi sumber atau checkout. | Must | Fault injection test |
 | FR-REP-008 | Request bersamaan untuk cache key yang sama dan kedaluwarsa harus dibatasi dengan single-flight atau proteksi setara agar tidak memicu banyak agregasi identik. | Must | Concurrency test |
-| FR-REP-009 | Query dan cache key harus dibatasi oleh merchant, Outlet nullable, periode ternormalisasi, bucket, limit, timezone, serta versi schema cache yang relevan. Periode, bucket, dan limit harus memakai nilai yang didokumentasikan serta bounded; hasil lintas scope tidak boleh saling digunakan. | Must | Security + cache-isolation test |
+| FR-REP-009 | Query dan cache key harus dibatasi oleh Merchant, Outlet nullable, periode ternormalisasi, bucket, limit, timezone, serta versi schema cache yang relevan. Periode maksimum 366 hari; `limit` maksimum 100; bucket yang diizinkan `HOUR` atau `DAY`. Hasil lintas scope tidak boleh saling digunakan. | Must | Security + cache-isolation test |
 | FR-REP-010 | Owner sebaiknya dapat drill-down dari metrik ke daftar transaksi relevan. | Should | Acceptance test |
 
 ### 8.10 BI insight generation
@@ -378,12 +378,12 @@ Metrik MVP dihitung hanya dari transaksi `COMPLETED`. Pada MVP, `transaction.tot
 | ID | Requirement | Prioritas | Verifikasi |
 |---|---|---|---|
 | FR-AI-001 | Sistem harus menjalankan insight generation melalui `AiAnalysisJob`, bukan bagian dari response checkout. | Must | Architecture + timing test |
-| FR-AI-002 | Input insight harus berisi merchant, outlet bila relevan, rentang periode, versi data, dan metrik sumber yang relevan. `AiAnalysisJob` memperoleh dataset melalui `ReportingReadPort`, yang dapat memakai cached aggregate atau membangunnya pada cache miss tanpa membaca persistence Sales secara langsung. | Must | Integration + architecture test |
+| FR-AI-002 | Input insight harus berisi Merchant, rentang periode, versi data, dan metrik sumber yang relevan. Pada MVP, Worker menurunkan rentang periode 30 hari kalender lokal yang berakhir pada `AiAnalysisJob.analysis_date`; scope selalu seluruh Merchant. Dengan input yang diturunkan dari job yang sama, retry memakai periode dan scope yang sama tanpa atribut periode/Outlet tambahan pada `AiAnalysisJob`. Job memperoleh dataset melalui `ReportingReadPort`, yang dapat memakai cached aggregate atau membangunnya pada cache miss tanpa membaca persistence Sales secara langsung. | Must | Integration + architecture test |
 | FR-AI-003 | Sistem harus memvalidasi tenant pada input dan output insight. | Must | Security test |
-| FR-AI-004 | Insight yang dipublikasikan harus menyimpan judul, penjelasan, periode data, waktu dibuat, tipe, dan status. | Must | Schema + UI test |
+| FR-AI-004 | Insight yang dipublikasikan harus menyimpan judul, `content`, periode data, waktu dibuat, tipe, dan status. | Must | Schema + UI test |
 | FR-AI-005 | Setiap insight harus menyertakan evidence summary berbasis metrik, bukan hanya teks generatif. | Must | Acceptance test |
-| FR-AI-006 | `AiAnalysisJob` gagal harus masuk status `FAILED`/`RETRY_SCHEDULED` dan mengikuti retry terbatas. | Must | Fault injection test |
-| FR-AI-007 | Sistem harus menemukan atau membuat satu `AiAnalysisJob` harian berdasarkan `merchant_id + tanggal lokal Merchant`. Tipe insight, rentang analisis, dan versi data tidak boleh membentuk job baru pada hari yang sama. Trigger ulang harus menggunakan job yang sama; satu job dapat menghasilkan atau memperbarui beberapa tipe insight. | Must | Integration test |
+| FR-AI-006 | `AiAnalysisJob` gagal harus masuk status `FAILED`/`RETRY_SCHEDULED` dan mengikuti retry terbatas. Pengambilan job due harus atomik: `PENDING` dengan `next_retry_at` kosong dan `RETRY_SCHEDULED` yang sudah due hanya dapat diklaim satu Worker lalu berubah ke `PROCESSING`. | Must | Fault injection + concurrency test |
+| FR-AI-007 | Sistem harus menemukan atau membuat satu `AiAnalysisJob` harian berdasarkan `merchant_id + tanggal lokal Merchant`. Tipe insight, rentang analisis, dan versi data tidak boleh membentuk job baru pada hari yang sama. Trigger ulang menggunakan job yang sama; periode 30 hari Merchant-wide selalu diturunkan dari `analysis_date`. Satu job dapat menghasilkan atau memperbarui beberapa tipe insight. | Must | Integration test |
 | FR-AI-008 | Owner harus dapat melihat `READY`, `PROCESSING`, `STALE`, atau `FAILED` tanpa memengaruhi dashboard dasar. | Must | UI test |
 | FR-AI-009 | Sistem tidak boleh memberikan kemampuan pada insight untuk langsung memanggil perubahan harga, stok, role, outlet, atau checkout. | Must | Security/design inspection |
 | FR-AI-010 | MVP harus mendukung **beberapa tipe insight BI** yang deterministik dan dapat diverifikasi dari data demo: tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu penjualan, dan tren AOV. | Must | Acceptance test |
@@ -580,7 +580,7 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir harus memiliki `
 | StockMovement | Jejak perubahan stok | merchant/product/outlet, type (`ADJUSTMENT` atau `SALE`), delta, before/after, reason bila adjustment, transaction reference untuk `SALE`, actor, timestamp |
 | Transaction | Header penjualan sekaligus catatan pembayaran/idempotency | ID, merchant ID, outlet ID, receipt no., operator checkout, status, subtotal, total, `payment_method`, `payment_status = CONFIRMED`, `paid_at`, `checkout_request_id`, `request_hash`, timestamps |
 | TransactionItem | Snapshot item terjual | transaction, product reference, name snapshot, unit price snapshot, quantity, subtotal snapshot |
-| Insight | Output analitik | merchant, outlet bila relevan, type, period, evidence, content, state, data version, generated at |
+| AiInsight | Output analitik | merchant, type, period, evidence summary, content, state, data version, generated at |
 | AiAnalysisJob | Status satu analisis BI harian Merchant | merchant, tanggal analisis lokal, state, attempts, next retry, error category |
 
 Reporting cache bukan entitas bisnis atau tabel permanen. Cache menyimpan serialized aggregate beserta `data_updated_at` menggunakan key yang memuat Merchant dan dimensi query; cache dapat dihapus/expire dan dibangun ulang dari Transaction `COMPLETED`.
@@ -604,6 +604,7 @@ Reporting cache bukan entitas bisnis atau tabel permanen. Cache menyimpan serial
 | DR-012 | Harga efektif per Outlet ditentukan oleh `ProductOutletPrice` bila ada, fallback ke `Product.price`. `ProductOutletPrice` wajib mengacu Product dan Outlet dalam Merchant yang sama. |
 | DR-013 | `Transaction.total = subtotal`; total tersebut menjadi jumlah pembayaran manual yang dikonfirmasi. Tidak ada field diskon, pajak, service charge, tip, adjustment harga transaksi, atau payment amount terpisah pada MVP. |
 | DR-014 | Kombinasi `Transaction.merchant_id + Transaction.checkout_request_id` harus unik. `checkout_request_id` dan `request_hash` wajib, tidak dapat berubah setelah commit, serta dipertahankan bersama histori Transaction. |
+| DR-015 | `AiAnalysisJob` unik per `merchant_id + analysis_date`. Periode analisis 30 hari Merchant-wide diturunkan dari `analysis_date` dan timezone Merchant, sehingga job tidak menyimpan `period_start`, `period_end`, atau `outlet_id`. `AiInsight` unik per `merchant_id + type` agar hasil terbaru setiap tipe dapat di-upsert tanpa menyimpan histori. |
 
 ### 12.3 Retention Proposed Baseline
 
@@ -903,6 +904,7 @@ Jika resource berada di bawah tekanan, sistem harus menurunkan layanan dalam uru
 | AT-028 | Cache lama tersedia tetapi usianya melebihi 30 menit dan query sumber gagal | Owner membuka dashboard | Cache lama dikembalikan dengan status `STALE` dan `data_updated_at`; Transaction sumber serta checkout tidak berubah |
 | AT-029 | Stok cukup dan dua pelanggan berbeda membeli Cart serta metode pembayaran yang identik | Kasir submit masing-masing niat pembayaran menggunakan `checkout_request_id` berbeda | Dua Transaction sah dibuat meskipun nilai `request_hash` dapat sama; uniqueness ditentukan oleh `merchant_id + checkout_request_id`, dan stok berkurang sesuai kedua penjualan |
 | AT-030 | Owner aktif pada Merchant dengan beberapa Outlet aktif | Owner mengelola Category/Product/inventory, lalu memilih Outlet B untuk menyusun Cart dan checkout | Semua aksi Admin berhasil dalam scope Merchant; checkout berhasil hanya pada Outlet B yang dipilih; Transaction menyimpan Owner sebagai operator; Admin tetap ditolak dari checkout dan fungsi Owner-eksklusif |
+| AT-031 | Satu `AiAnalysisJob` `PENDING` atau `RETRY_SCHEDULED` yang sudah due | Dua instance Worker melakukan polling bersamaan | Tepat satu Worker mengubah job menjadi `PROCESSING` dan menghasilkan/upsert insight; Worker lain tidak memproses job yang sama. Periode hasil selalu 30 hari Merchant-wide yang diturunkan dari `analysis_date`. |
 
 ### 17.3 Test evidence
 
@@ -931,7 +933,7 @@ Matriks ringkas ini menghubungkan kebutuhan pengguna dengan kelompok requirement
 | UR-BIZ-007 | FR-CHK-009, FR-PAY-007, BR-006–007 | AT-013 |
 | UR-OWN-001–003B | FR-AUTH, FR-TEN | AT-001 + owner/staff lifecycle tests |
 | UR-OWN-004–007, termasuk UR-OWN-005A–005B | FR-CAT, FR-INV, FR-CART, FR-CHK, FR-REP, FR-TRX | Dashboard E2E + AT-017,019,030 |
-| UR-OWN-008–010 | FR-AI-001–012 | AT-012 + insight acceptance |
+| UR-OWN-008–010 | FR-AI-001–012 | AT-012, AT-031 + insight acceptance |
 | UR-ADM-001–006, termasuk UR-ADM-005A–005B | FR-CAT, FR-INV, FR-TEN | UC-03 + AT-003–009,013,019–020 |
 | UR-ADM-007–008 | FR-TEN; NFR-SCALE-002 | Permission + AT-015 |
 | UR-CAS-001–006 | FR-AUTH, FR-CART, FR-PAY | Checkout E2E |
@@ -952,7 +954,7 @@ Matriks ringkas ini menghubungkan kebutuhan pengguna dengan kelompok requirement
 | Stok per Outlet, threshold, dan konkurensi (`UR-ADM-003,005B,007`, `UR-CAS-003,010`) | `FR-INV-001–008`, termasuk `FR-INV-007A`, `BR-011A,014`, Inventory + StockMovement | `AT-003–004,008–009,019` |
 | Riwayat transaksi wajib (`UR-CAS-014`) | `FR-TRX-001–007`, `DR-003–008` | Transaction-history acceptance/security test; Kasir hanya transaksi sendiri (`OD-003` locked) |
 | Dashboard lengkap (`UR-OWN-004–006`, `UR-OWN-005A`, `UR-REP-001–007`, termasuk `UR-REP-003A`) | `FR-REP-001–010`, definisi metrik, reporting cache-aside | `AT-011,017,024–028` + calculation/cache test |
-| AI manual Owner-only maks. 1x/hari (`UR-AI-001–010`) | `FR-AI-001–012`, `BR-016–017,020`, Insight + AiAnalysisJob | `AT-012` + authorization/idempotency/limit test |
+| AI manual Owner-only maks. 1x/hari (`UR-AI-001–010`) | `FR-AI-001–012`, `BR-016–017,020`, Insight + AiAnalysisJob | `AT-012`, `AT-031` + authorization/idempotency/limit test |
 | Isolasi 500+ Merchant (`UR-BIZ-003–006`, `UR-OPS-004–006`) | `FR-TEN-009–010`, `NFR-SEC-004–005`, `NFR-SCALE-001–005` | `AT-002,015` |
 
 ---
