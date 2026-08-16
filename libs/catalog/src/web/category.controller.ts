@@ -16,6 +16,7 @@ import {
   PageRequestDto,
   PageResponseDto,
   Roles,
+  SuccessMessage,
 } from '@app/platform';
 import { CategoryResult } from '../application/catalog.models';
 import { CategoryService } from '../application/category.service';
@@ -33,6 +34,7 @@ export class CategoryController {
   @Post()
   @Roles('ADMIN')
   @HttpCode(HttpStatus.CREATED)
+  @SuccessMessage('Kategori berhasil dibuat.')
   async create(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateCategoryDto,
@@ -44,6 +46,7 @@ export class CategoryController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Daftar kategori berhasil dimuat.')
   async list(
     @CurrentUser() actor: AuthUser,
     @Query() query: CategoryListQueryDto,
@@ -61,6 +64,7 @@ export class CategoryController {
   @Patch(':category_id')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Kategori berhasil diperbarui.')
   async update(
     @CurrentUser() actor: AuthUser,
     @Param('category_id', ParseUUIDPipe) categoryId: string,

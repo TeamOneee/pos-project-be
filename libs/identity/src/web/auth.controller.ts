@@ -7,7 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
-import { Public } from '@app/platform';
+import { Public, SuccessMessage } from '@app/platform';
 import { AuthService } from '../application/auth.service';
 import { AuthTokensDto } from './dto/auth-tokens.dto';
 import { LoginDto } from './dto/login.dto';
@@ -24,6 +24,7 @@ export class AuthController {
   @Post('register')
   @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
+  @SuccessMessage('Registrasi berhasil.')
   register(@Body() dto: RegisterDto): Promise<RegisterResponseDto> {
     return this.authService.register(dto);
   }
@@ -33,6 +34,7 @@ export class AuthController {
   @UseGuards(LoginThrottlerGuard)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Login berhasil.')
   @Post('login')
   login(@Body() dto: LoginDto): Promise<AuthTokensDto> {
     return this.authService.login(dto);

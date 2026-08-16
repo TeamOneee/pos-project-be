@@ -18,6 +18,7 @@ import {
   PageRequestDto,
   PageResponseDto,
   Roles,
+  SuccessMessage,
 } from '@app/platform';
 import { OutletPriceService } from '../application/outlet-price.service';
 import { ProductService } from '../application/product.service';
@@ -41,6 +42,7 @@ export class ProductController {
   @Post()
   @Roles('ADMIN')
   @HttpCode(HttpStatus.CREATED)
+  @SuccessMessage('Produk berhasil dibuat.')
   async create(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateProductDto,
@@ -59,6 +61,7 @@ export class ProductController {
   @Get()
   @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Daftar produk berhasil dimuat.')
   async list(
     @CurrentUser() actor: AuthUser,
     @Query() query: ProductListQueryDto,
@@ -80,6 +83,7 @@ export class ProductController {
   @Patch(':product_id')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Produk berhasil diperbarui.')
   async update(
     @CurrentUser() actor: AuthUser,
     @Param('product_id', ParseUUIDPipe) productId: string,
@@ -99,6 +103,7 @@ export class ProductController {
   @Put(':product_id/outlet-prices/:outlet_id')
   @Roles('ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Harga outlet berhasil diperbarui.')
   async upsertOutletPrice(
     @CurrentUser() actor: AuthUser,
     @Param('product_id', ParseUUIDPipe) productId: string,

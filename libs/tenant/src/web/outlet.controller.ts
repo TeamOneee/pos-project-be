@@ -15,6 +15,7 @@ import {
   PageRequestDto,
   PageResponseDto,
   Roles,
+  SuccessMessage,
 } from '@app/platform';
 import { AuthUser } from '@app/platform';
 import { OutletService } from '../application/outlet.service';
@@ -31,6 +32,7 @@ export class OutletController {
   @Post()
   @Roles('OWNER')
   @HttpCode(HttpStatus.CREATED)
+  @SuccessMessage('Outlet berhasil dibuat.')
   create(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateOutletDto,
@@ -41,6 +43,7 @@ export class OutletController {
   @Get()
   @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Daftar outlet berhasil dimuat.')
   list(
     @CurrentUser() actor: AuthUser,
     @Query() query: OutletListQueryDto,
@@ -52,6 +55,7 @@ export class OutletController {
   @Patch(':id')
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Outlet berhasil diperbarui.')
   update(
     @CurrentUser() actor: AuthUser,
     @Param('id', ParseUUIDPipe) outletId: string,
