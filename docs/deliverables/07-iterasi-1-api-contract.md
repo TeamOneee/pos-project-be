@@ -5,7 +5,7 @@
 
 > Dokumen ini adalah **kontrak API lengkap** untuk seluruh modul yang dinyatakan di `05-iterasi-1-build-plan-nestjs.md` §5 dan mengikuti boundary modul pada `06-iterasi-1-module-library.md`. Bila ada konflik dengan dokumen `01`–`04`, **SRS menang**. Bila ada perbedaan detail dengan `05`, bagian yang lebih detail (dokumen ini) berlaku sebagai acuan implementasi HTTP layer.
 >
-> Konvensi penulisan: seluruh nama field **`snake_case`**, seluruh ID memakai **UUID (string)** kecuali disebutkan lain. Setiap response (sukses maupun error) dibungkus **response/error envelope** sesuai konvensi global `05` §5 (detail di §0).
+> Konvensi penulisan: seluruh nama field **`snake_case`**, seluruh ID memakai **UUID (string)** kecuali disebutkan lain. Response sukses maupun error memakai **response/error envelope** sesuai konvensi global `05` §5, kecuali `204 No Content` pada DELETE yang dinyatakan eksplisit (detail di §0).
 
 ---
 
@@ -50,7 +50,7 @@
 ```
 
 | Correlation ID | Setiap response (sukses maupun error) menyertakan header `X-Correlation-Id`. Client boleh kirim `X-Correlation-Id` sendiri untuk propagate trace; kalau tidak dikirim, server generate baru (NFR-OBS-005). Header ini adalah satu-satunya tempat correlation id — **body JSON tidak memuatnya**. |
-| Format sukses | Semua response 2xx dibungkus **response envelope**: `success=true`, `statusCode` (angka HTTP nyata), `message` (deskripsi sukses per endpoint), dan payload di `data`: |
+| Format sukses | Semua response 2xx, **kecuali `204 No Content` pada DELETE yang dinyatakan eksplisit**, dibungkus **response envelope**: `success=true`, `statusCode` (angka HTTP nyata), `message` (deskripsi sukses per endpoint), dan payload di `data`. Response `204` tidak memiliki body: |
 
 ```json
 {
@@ -82,7 +82,7 @@
 }
 ```
 
-> Aturan envelope: `errors` hanya muncul bila ada detail per field (khususnya validasi `class-validator`); untuk error tanpa field (401/403/404/409/429/503/500) `errors` dihilangkan. `statusCode` selalu konsisten dengan HTTP status nyata; `path` adalah path endpoint yang diminta; `timestamp` adalah waktu server (ISO-8601, UTC). `success` selalu `true` untuk 2xx dan `false` untuk non-2xx.
+> Aturan envelope: `errors` hanya muncul bila ada detail per field (khususnya validasi `class-validator`); untuk error tanpa field (401/403/404/409/429/503/500) `errors` dihilangkan. `statusCode` selalu konsisten dengan HTTP status nyata; `path` adalah path endpoint yang diminta; `timestamp` adalah waktu server (ISO-8601, UTC). `success` selalu `true` untuk 2xx yang memiliki body dan `false` untuk non-2xx. `204` adalah pengecualian tanpa body.
 
 ### 0.1 Katalog kondisi error global (dipakai di seluruh dokumen ini)
 
@@ -403,12 +403,12 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ id, name, timezone, currency, status }` |
+| 200 | Berhasil | `{ id, name, timezone, status }` |
 
 ```json
 {
   "success": true, "statusCode": 200, "message": "Profil merchant dimuat",
-  "data": { "id": "uuid", "name": "Warung Budi", "timezone": "Asia/Jakarta", "currency": "IDR", "status": "ACTIVE" }
+  "data": { "id": "uuid", "name": "Warung Budi", "timezone": "Asia/Jakarta", "status": "ACTIVE" }
 }
 ```
 
@@ -533,7 +533,6 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | `owner_user_id` | uuid | tidak | **FOREIGN KEY** → `user.user_id` (unique) |
 | `name` | string | tidak | Nama merchant |
 | `timezone` | string | tidak | Default `Asia/Jakarta` (batas hari laporan, BR-018) |
-| `currency` | string | tidak | Default `IDR` |
 | `status` | enum | tidak | `ACTIVE` / `INACTIVE` |
 | `created_at` | datetime | tidak | Waktu dibuat |
 | `updated_at` | datetime | tidak | Waktu diubah |
@@ -625,7 +624,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `Page<CategoryDto>` — `{ id, name, is_active, created_at, updated_at }` |
+| 200 | Berhasil | `Page<CategoryDto>` — `{ id, name, is_active }` |
 
 **Catatan ℹ:** OWNER dan ADMIN melihat semua kategori (termasuk nonaktif); CASHIER hanya kategori aktif.
 
@@ -749,7 +748,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | 403 | Bukan ADMIN/OWNER | `FORBIDDEN` |
 | 404 | Produk tidak ditemukan | `NOT_FOUND` |
 
-**Warning ⚠:** Perubahan harga/status **tidak mengubah transaksi lama** (snapshot disimpan di `transaction_line`, US-PROD-002).
+**Warning ⚠:** Perubahan harga/status **tidak mengubah transaksi lama** (snapshot disimpan di `transaction_item`, US-PROD-002).
 
 #### `PUT /products/:product_id/outlet-prices/:outlet_id`
 
@@ -818,8 +817,6 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | `merchant_id` | uuid | tidak | **FOREIGN KEY** → `merchant.merchant_id` |
 | `name` | string | tidak | Nama kategori (unique per merchant) |
 | `is_active` | boolean | tidak | Soft-deactivation (BR-019) |
-| `created_at` | datetime | tidak | Waktu dibuat |
-| `updated_at` | datetime | tidak | Waktu diubah |
 
 #### `ProductDto`
 
@@ -857,7 +854,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 3. Upsert row `product_outlet_price` (unique `outlet_id + product_id`).
 4. Return `200` `{ product_id, outlet_id, price, updated_at }`.
 
-**Warning ⚠:** Checkout berikutnya langsung memakai harga override baru (FR-CAT-010). Harga pada transaksi yang **sudah** terjadi tidak berubah (snapshot `unit_price_snapshot` di `transaction_line`).
+**Warning ⚠:** Checkout berikutnya langsung memakai harga override baru (FR-CAT-010). Harga pada transaksi yang **sudah** terjadi tidak berubah (snapshot `unit_price_snapshot` di `transaction_item`).
 
 ---
 
@@ -1008,13 +1005,13 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
 | Properti | Nilai |
 |---|---|
 | Authentication | Bearer token |
-| Required Roles | `CASHIER` |
+| Required Roles | `CASHIER`, `OWNER` |
 
 **Parameter query:**
 
 | Parameter | Type | Wajib | Deskripsi |
 |---|---|---|---|
-| `outlet_id` | uuid | wajib | Outlet tugas kasir |
+| `outlet_id` | uuid | wajib | Kasir: wajib sama dengan Outlet tugas pada JWT. Owner: Outlet aktif pilihan dalam Merchant yang tervalidasi. |
 | `search` | string | opsional | Pencarian nama Product |
 | `category_id` | uuid | opsional | Filter Category aktif dalam Merchant |
 | `page`, `size` | int | opsional | Paginasi; frontend boleh memfilter lagi atas halaman/katalog yang sudah dimuat untuk respons tap instan |
@@ -1024,7 +1021,7 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
 | 200 | Berhasil | `[{ id, name, price, category_id, stock_quantity }]` — hanya Product aktif dengan Category aktif yang punya inventory row di Outlet; `price` = harga efektif Outlet |
-| 403 | `outlet_id` bukan outlet tugas kasir (dicek dari JWT) | `FORBIDDEN` |
+| 403 | Kasir memakai Outlet selain tugasnya, Owner memilih Outlet tidak aktif/di luar Merchant, atau role lain | `FORBIDDEN` |
 | 400 | `outlet_id` tidak dikirim | `VALIDATION_ERROR` |
 
 ```json
@@ -1036,7 +1033,7 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
 }
 ```
 
-**Catatan ℹ:** Path berada di domain Catalog, tetapi route dipegang `InventoryModule` karena membaca tabel `inventory` (06 §3.4). Ini bukan pelanggaran boundary — hanya penempatan implementasi.
+**Catatan ℹ:** Kasir dipaksa memakai Outlet tugasnya; Owner boleh memilih satu Outlet aktif dalam Merchant saat membuka POS. Path berada di domain Catalog, tetapi route dipegang `InventoryModule` karena membaca tabel `inventory` (06 §3.4). Ini bukan pelanggaran boundary — hanya penempatan implementasi.
 
 ### 4.3 Endpoint internal (service-to-service)
 
@@ -1373,12 +1370,12 @@ Contoh error:
 | `status` | enum | tidak | `COMPLETED` |
 | `subtotal` | decimal string | tidak | Jumlah `unit_price × quantity` |
 | `total` | decimal string | tidak | Sama dengan `subtotal` pada MVP (DR-013) |
-| `items` | array | tidak | `TransactionLineDto[]` (snapshot nama + harga) |
+| `items` | array | tidak | `TransactionItemDto[]` (snapshot nama + harga) |
 | `payment` | `PaymentInfo` | tidak | Metode + status + `paid_at` |
 | `operator` | object | tidak | `{ user_id, role, name }` |
 | `created_at` | datetime | tidak | Waktu transaksi |
 
-#### `TransactionLineDto`
+#### `TransactionItemDto`
 
 | Field | Type | Nullable | Keterangan |
 |---|---|---|---|
@@ -1420,7 +1417,7 @@ Sama dengan `CheckoutResult`, ditambah:
 
 1. CASHIER/OWNER kirim `POST /checkout` dengan `checkout_request_id`, `items`, dan `payment_method`.
 2. `@Roles(CASHIER, OWNER)`; validasi scope: Kasir → `outlet_id` wajib = klaim JWT; Owner → `outlet_id` outlet aktif dalam Merchant (OD-010). Admin ditolak.
-3. Hitung `request_hash = sha256(canonical_json(merchant_id, outlet_id, items, payment_method))` (FR-CHK-002).
+3. Normalisasi item (gabungkan Product sama lalu urutkan `product_id`) dan hitung `request_hash = sha256(canonical_json(merchant_id, outlet_id, operator_user_id, items, payment_method))` (FR-CHK-002).
 4. Buka transaksi DB (`ReadCommitted`).
 5. **Idempotency guard** (BR-008/009, DR-014, FR-CHK-003/004):
    - Transaction dengan `merchant_id + checkout_request_id` sama sudah ada & `request_hash` sama → kembalikan receipt yang tersimpan (replay, tanpa checkout baru).
@@ -1429,7 +1426,7 @@ Sama dengan `CheckoutResult`, ditambah:
 6. Validasi produk aktif + harga efektif outlet via `ProductReadPort`; `expected_unit_price` beda → `409 PRICE_CHANGED`.
 7. Hitung `total = subtotal` (OD-004, DR-013).
 8. **Kurangi stok** via `StockReservationPort` — conditional atomic update per line; ada baris gagal → `409 INSUFFICIENT_STOCK`; tulis `stock_movement` `type=SALE` dengan `transaction_id`.
-9. Insert `transaction` (`operator_user_id`, atribut pembayaran `payment_method`/`payment_status=CONFIRMED`/`paid_at`) + `transaction_line` (snapshot). Tidak ada tabel Payment terpisah (OD-001).
+9. Insert `transaction` (`operator_user_id`, atribut pembayaran `payment_method`/`payment_status=CONFIRMED`/`paid_at`) + `transaction_item` (snapshot). Tidak ada tabel Payment terpisah (OD-001).
 10. Commit → return `200 CheckoutResult`. Tidak ada outbox/event (FR-CHK-014/015).
 11. Gagal di langkah mana pun → rollback penuh; tidak ada stok/transaksi parsial.
 
@@ -1451,12 +1448,14 @@ Sama dengan `CheckoutResult`, ditambah:
 | Scope | Dashboard bisnis Owner membaca hasil **agregasi cache-aside** (Redis) dari `Transaction` `COMPLETED` via read replica; dashboard operasional Admin dan low-stock membaca current state melalui read port Catalog/Inventory. Tidak ada route dashboard yang query tabel `transaction` secara langsung dari jalur request — agregasi hanya berjalan saat cache miss di `ReportingCacheService`. |
 | State machine | **Freshness:** `FRESH` / `STALE` (flag di body, bukan HTTP error) — bukan state machine entitas |
 | Aturan bisnis utama | |
-| | 1. **Role:** endpoint bisnis (`summary`, sales-trend, aov-trend, time-pattern, top-products, outlet-comparison) hanya `OWNER`. `operations` hanya `ADMIN`. `low-stock` dapat dibaca `OWNER` sebagai inventory read-only dan `ADMIN` sebagai fungsi operasional. ADMIN **tidak** melihat omzet, AOV, transaksi, analytics bisnis, atau insight BI. |
+| | 1. **Role:** endpoint bisnis (`summary`, sales-trend, aov-trend, time-pattern, top-products, outlet-comparison) hanya `OWNER`. `operations` dapat dibaca `ADMIN` dan `OWNER`; `low-stock` dapat dibaca `OWNER` sebagai inventory read-only dan `ADMIN` sebagai fungsi operasional. ADMIN **tidak** melihat omzet, AOV, transaksi, analytics bisnis, atau insight BI. |
 | | 2. Rentang tanggal & scope outlet dibatasi merchant/periode sesuai role (FR-REP-009). |
 | | 3. Data bisnis Owner dibangun **on-demand** lewat cache-aside: cache hit (umur ≤30 menit) mengembalikan agregat; cache miss mengagregasi `Transaction` `COMPLETED` via read replica (bounded + single-flight), lalu menyimpan hasil bersama `data_updated_at`. Checkout **tidak** membangun/menginvalidasi cache (FR-REP-002); tanpa outbox maupun projection persisten (DG-005). |
 | | 4. Bucketing waktu mengikuti `merchant.timezone` (BR-018). |
 
 ### 6.2 Endpoint
+
+**Konvensi query dan metadata dashboard:** seluruh endpoint dashboard menggunakan `merchant.timezone`. Untuk endpoint bisnis Owner, `date_from` dan `date_to` wajib, rentang inklusif maksimum 366 hari, dan `bucket`—bila tersedia—hanya `HOUR` atau `DAY`. `limit`—bila tersedia—bernilai 1–100 (default 10). Semua respons dashboard menyertakan `DashboardMeta`: `data_updated_at`, `freshness_status`, dan `timezone`. Endpoint bisnis Owner menambahkan `period_start` dan `period_end`; endpoint current-state (`operations`, `low-stock`) tidak memiliki periode. `freshness_status` bernilai `FRESH` untuk pembacaan current-state yang berhasil dan `FRESH`/`STALE` untuk hasil cache-aside.
 
 #### `GET /dashboard/summary`
 
@@ -1469,14 +1468,14 @@ Sama dengan `CheckoutResult`, ditambah:
 
 | Parameter | Type | Wajib | Deskripsi |
 |---|---|---|---|
-| `date_from`, `date_to` | datetime | wajib | Rentang |
+| `date_from`, `date_to` | datetime | wajib | Rentang inklusif maksimum 366 hari |
 | `outlet_id` | uuid | opsional | Filter Outlet dalam Merchant Owner; tanpa filter menampilkan agregat seluruh Merchant |
 
 **Response** (FR-REP-001–004):
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ omzet, transaction_count, average_transaction_value, data_updated_at, freshness_status, period_start, period_end }` |
+| 200 | Berhasil | `{ omzet, transaction_count, average_transaction_value, data_updated_at, freshness_status, timezone, period_start, period_end }` |
 | 400 | Rentang invalid / `date_from > date_to` | `VALIDATION_ERROR` |
 | 403 | Role tidak berhak | `FORBIDDEN` |
 
@@ -1485,7 +1484,7 @@ Sama dengan `CheckoutResult`, ditambah:
   "success": true, "statusCode": 200, "message": "Ringkasan dashboard",
   "data": {
     "omzet": "4500000.00", "transaction_count": 128, "average_transaction_value": "35156.25",
-    "data_updated_at": "2026-08-13T09:55:00+07:00", "freshness_status": "FRESH",
+    "data_updated_at": "2026-08-13T09:55:00+07:00", "freshness_status": "FRESH", "timezone": "Asia/Jakarta",
     "period_start": "2026-08-01T00:00:00+07:00", "period_end": "2026-08-13T23:59:59+07:00"
   }
 }
@@ -1498,14 +1497,14 @@ Sama dengan `CheckoutResult`, ditambah:
 | Properti | Nilai |
 |---|---|
 | Authentication | Bearer token |
-| Required Roles | `ADMIN` |
+| Required Roles | `ADMIN`, `OWNER` |
 
 **Parameter query:** `outlet_id` opsional sebagai filter Outlet dalam Merchant.
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ inventory_item_count, low_stock_item_count, out_of_stock_item_count, active_product_count, inactive_product_count, inactive_category_count, outlet_id, data_updated_at }` |
-| 403 | Bukan ADMIN | `FORBIDDEN` |
+| 200 | Berhasil | `{ inventory_item_count, low_stock_item_count, out_of_stock_item_count, active_product_count, inactive_product_count, inactive_category_count, outlet_id, data_updated_at, freshness_status, timezone }` |
+| 403 | Bukan ADMIN/OWNER | `FORBIDDEN` |
 
 Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics bisnis, atau insight BI.
 
@@ -1520,7 +1519,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 | Parameter | Type | Wajib | Deskripsi |
 |---|---|---|---|
-| `date_from`, `date_to` | datetime | wajib | Rentang |
+| `date_from`, `date_to` | datetime | wajib | Rentang inklusif maksimum 366 hari |
 | `bucket` | enum | opsional | `HOUR` / `DAY` (default `DAY`) |
 | `outlet_id` | uuid | opsional | Filter outlet |
 
@@ -1528,7 +1527,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ bucket, data_updated_at, points: [{ bucket_start, omzet, transaction_count }] }` |
+| 200 | Berhasil | `{ bucket, points: [{ bucket_start, omzet, transaction_count }], data_updated_at, freshness_status, timezone, period_start, period_end }` |
 | 400 | Validasi | `VALIDATION_ERROR` |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 
@@ -1539,13 +1538,13 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | Authentication | Bearer token |
 | Required Roles | `OWNER` |
 
-**Parameter query:** `date_from`, `date_to` (wajib), `bucket` (opsional, default `DAY`), `outlet_id` (opsional).
+**Parameter query:** `date_from`, `date_to` wajib dengan rentang inklusif maksimum 366 hari; `bucket` opsional `HOUR`/`DAY` (default `DAY`); `outlet_id` opsional.
 
 **Response** (FR-REP-003A):
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ bucket, points: [{ bucket_start, average_transaction_value }] }` |
+| 200 | Berhasil | `{ bucket, points: [{ bucket_start, average_transaction_value }], data_updated_at, freshness_status, timezone, period_start, period_end }` |
 | 400 | Validasi | `VALIDATION_ERROR` |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 
@@ -1556,13 +1555,13 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | Authentication | Bearer token |
 | Required Roles | `OWNER` |
 
-**Parameter query:** `date_from`, `date_to` (wajib), `outlet_id` (opsional).
+**Parameter query:** `date_from`, `date_to` wajib dengan rentang inklusif maksimum 366 hari; `outlet_id` opsional.
 
 **Response** (FR-REP-003C):
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ timezone, points: [{ hour_of_day, omzet, transaction_count }] }` |
+| 200 | Berhasil | `{ points: [{ hour_of_day, omzet, transaction_count }], data_updated_at, freshness_status, timezone, period_start, period_end }` |
 | 400 | Validasi | `VALIDATION_ERROR` |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 
@@ -1577,15 +1576,15 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 | Parameter | Type | Wajib | Deskripsi |
 |---|---|---|---|
-| `date_from`, `date_to` | datetime | wajib | Rentang |
-| `limit` | int | opsional | Default 10 |
+| `date_from`, `date_to` | datetime | wajib | Rentang inklusif maksimum 366 hari |
+| `limit` | int | opsional | 1–100; default 10 |
 | `outlet_id` | uuid | opsional | Filter outlet |
 
 **Response** (FR-REP-003B):
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ top_selling: [{ product_id, name, units_sold, omzet }], least_selling: [...] }` |
+| 200 | Berhasil | `{ top_selling: [{ product_id, name, units_sold, omzet }], least_selling: [...], data_updated_at, freshness_status, timezone, period_start, period_end }` |
 | 400 | Validasi | `VALIDATION_ERROR` |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 
@@ -1596,13 +1595,13 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | Authentication | Bearer token |
 | Required Roles | `OWNER` |
 
-**Parameter query:** `date_from`, `date_to` (wajib).
+**Parameter query:** `date_from`, `date_to` wajib dengan rentang inklusif maksimum 366 hari.
 
 **Response** (FR-REP-003):
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `[{ outlet_id, outlet_name, omzet, transaction_count }]` |
+| 200 | Berhasil | `{ items: [{ outlet_id, outlet_name, omzet, transaction_count }], data_updated_at, freshness_status, timezone, period_start, period_end }` |
 | 400 | Validasi | `VALIDATION_ERROR` |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 
@@ -1623,7 +1622,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `[{ product_id, name, outlet_id, outlet_name, quantity, base_low_stock_threshold, low_stock_threshold_override, effective_low_stock_threshold }]` |
+| 200 | Berhasil | `{ items: [{ product_id, name, outlet_id, outlet_name, quantity, base_low_stock_threshold, low_stock_threshold_override, effective_low_stock_threshold }], data_updated_at, freshness_status, timezone }` |
 | 403 | Role tidak berhak | `FORBIDDEN` |
 
 ### 6.3 Endpoint internal (service-to-service)
@@ -1637,6 +1636,16 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 ### 6.4 Data Models
 
+#### `DashboardMeta`
+
+| Field | Type | Nullable | Keterangan |
+|---|---|---|---|
+| `data_updated_at` | datetime | tidak | Waktu aggregate cache dibangun atau current-state dibaca. |
+| `freshness_status` | enum | tidak | `FRESH` / `STALE`; current-state yang berhasil dibaca langsung berstatus `FRESH`. |
+| `timezone` | string | tidak | Zona waktu Merchant yang dipakai untuk menafsirkan waktu dan periode. |
+| `period_start` | datetime | ya | Wajib pada dashboard bisnis Owner; kosong untuk endpoint current-state. |
+| `period_end` | datetime | ya | Wajib pada dashboard bisnis Owner; kosong untuk endpoint current-state. |
+
 #### `DashboardSummary`
 
 | Field | Type | Nullable | Keterangan |
@@ -1644,10 +1653,11 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | `omzet` | decimal string | tidak | Total nilai transaksi `COMPLETED` pada periode |
 | `transaction_count` | int | tidak | Jumlah transaksi |
 | `average_transaction_value` | decimal string | tidak | Rata-rata nilai transaksi |
-| `data_updated_at` | datetime | tidak | Waktu agregasi terakhir dihitung (saat cache dibangun) |
-| `freshness_status` | enum | tidak | `FRESH` / `STALE` |
-| `period_start` | datetime | tidak | Awal periode (timezone merchant) |
-| `period_end` | datetime | tidak | Akhir periode |
+| `data_updated_at` | datetime | tidak | Bagian dari `DashboardMeta` |
+| `freshness_status` | enum | tidak | Bagian dari `DashboardMeta` |
+| `timezone` | string | tidak | Bagian dari `DashboardMeta` |
+| `period_start` | datetime | tidak | Bagian dari `DashboardMeta`; awal periode (timezone merchant) |
+| `period_end` | datetime | tidak | Bagian dari `DashboardMeta`; akhir periode |
 
 #### `TrendPoint`
 
@@ -1740,17 +1750,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | Authentication | Bearer token |
 | Required Roles | `OWNER` |
 
-**Request body** (FR-AI-001–003, FR-AI-012):
-
-| Field | Type | Required | Deskripsi |
-|---|---|---|---|
-| `date_from` | date | wajib | Awal rentang |
-| `date_to` | date | wajib | Akhir rentang |
-| `outlet_id` | uuid | opsional | Filter outlet (`null` = seluruh merchant) |
-
-```json
-{ "date_from": "2026-08-01", "date_to": "2026-08-13", "outlet_id": null }
-```
+**Request body:** tidak ada. Trigger selalu menganalisis seluruh Merchant pada 30 hari kalender lokal yang berakhir pada tanggal lokal trigger.
 
 **Response:**
 
@@ -1758,14 +1758,13 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 |---|---|---|
 | 202 | Trigger pertama pada tanggal lokal Merchant; job dibuat secara async | `{ job_id, status: "PENDING" }` |
 | 200 | Trigger ulang pada tanggal lokal Merchant yang sama; tidak membuat job baru | `{ job_id, status }` dari `AiAnalysisJob` yang sudah ada |
-| 400 | Rentang invalid | `VALIDATION_ERROR` |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 
 ```json
 { "success": true, "statusCode": 202, "message": "Analisis insight dijadwalkan", "data": { "job_id": "uuid", "status": "PENDING" } }
 ```
 
-**Catatan ℹ:** Eksekusi dijalankan `apps/worker` (polling `AiAnalysisJob` via `@nestjs/schedule`); client menunggu hasil via `GET /insights`. Dedupe key adalah `merchant_id + tanggal lokal Merchant` berdasarkan `merchant.timezone` (unique `(merchant_id, analysis_date)`, FR-AI-007). Request pertama menetapkan rentang dan scope analisis untuk hari tersebut; trigger berikutnya pada hari yang sama mengembalikan job yang sama tanpa mengganti inputnya. Tipe insight, rentang analisis, dan versi data tidak menjadi bagian dedupe key.
+**Catatan ℹ:** Eksekusi dijalankan `apps/worker` (polling `AiAnalysisJob` via `@nestjs/schedule`); client menunggu hasil via `GET /insights`. Dedupe key adalah `merchant_id + tanggal lokal Merchant` berdasarkan `merchant.timezone` (unique `(merchant_id, analysis_date)`, FR-AI-007). Worker selalu menurunkan periode Merchant-wide 30 hari lokal dari `analysis_date`; trigger berikutnya pada hari yang sama mengembalikan job yang sama. Tipe insight dan versi data tidak menjadi bagian dedupe key.
 
 #### `GET /insights`
 
@@ -1789,8 +1788,8 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
       {
         "id": "uuid", "type": "SALES_TREND", "status": "READY",
         "title": "Penjualan naik 18% dibanding periode sebelumnya",
-        "explanation": "Omzet periode ini Rp4.500.000 dibanding Rp3.813.000 periode sebelumnya.",
-        "evidence": { "current_omzet": "4500000.00", "previous_omzet": "3813000.00", "delta_percent": 18.0 },
+        "content": "Omzet periode ini Rp4.500.000 dibanding Rp3.813.000 periode sebelumnya.",
+        "evidence_summary": { "current_omzet": "4500000.00", "previous_omzet": "3813000.00", "delta_percent": 18.0 },
         "period_start": "2026-08-01T00:00:00+07:00", "period_end": "2026-08-13T23:59:59+07:00",
         "generated_at": "2026-08-13T10:02:00+07:00"
       }
@@ -1799,7 +1798,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 }
 ```
 
-**Catatan ℹ:** Kalau `status` bukan `READY` (`PENDING`/`PROCESSING`/`FAILED`/`STALE`), field `explanation`/`evidence` boleh `null`; client menampilkan status sesuai FR-AI-008. Insight job gagal **tidak** membuat dashboard error (flag di body, `INSIGHT_UNAVAILABLE`).
+**Catatan ℹ:** Kalau `status` bukan `READY` (`PENDING`/`PROCESSING`/`FAILED`/`STALE`), field `content`/`evidence_summary` boleh `null`; client menampilkan status sesuai FR-AI-008. Insight job gagal **tidak** membuat dashboard error (flag di body, `INSIGHT_UNAVAILABLE`).
 
 ### 7.3 Endpoint internal (service-to-service)
 
@@ -1812,31 +1811,21 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 ### 7.4 Data Models
 
-#### `TriggerInsightRequest`
-
-| Field | Type | Nullable | Keterangan |
-|---|---|---|---|
-| `date_from` | date | tidak | Rentang awal |
-| `date_to` | date | tidak | Rentang akhir |
-| `outlet_id` | uuid | ya | `null` = seluruh merchant |
-
 #### `InsightResult`
 
 | Field | Type | Nullable | Keterangan |
 |---|---|---|---|
 | `id` | uuid | tidak | **PRIMARY KEY** |
 | `merchant_id` | uuid | tidak | **FOREIGN KEY** → `merchant.merchant_id` |
-| `outlet_id` | uuid | ya | **FOREIGN KEY** → `outlet.outlet_id` |
 | `type` | enum | tidak | Tipe BI |
 | `period_start` | datetime | tidak | Rentang |
 | `period_end` | datetime | tidak | Rentang |
 | `data_version` | string | tidak | Versi data agregasi reporting yang dipakai |
 | `title` | string | tidak | Judul insight |
-| `explanation` | string | ya | Penjelasan (null bila belum `READY`) |
-| `evidence` | json | ya | Data terstruktur (FR-AI-004/005) |
+| `content` | text | ya | Penjelasan (null bila belum `READY`) |
+| `evidence_summary` | json | ya | Data terstruktur (FR-AI-004/005) |
 | `status` | enum | tidak | `PENDING`/`PROCESSING`/`READY`/`FAILED`/`RETRY_SCHEDULED`/`STALE` |
 | `generated_at` | datetime | ya | Waktu selesai generate |
-| `created_at` | datetime | tidak | Waktu dibuat |
 
 ### 7.5 Keterkaitan dengan Modul Lain
 
@@ -1845,12 +1834,12 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 ### 7.6 Diagram Alur — Generate Insight
 
-1. OWNER kirim `POST /insights/trigger`; validasi rentang dan kuota 1x/hari/Merchant.
-2. Bentuk dedupe key dari `merchant_id + tanggal lokal Merchant` berdasarkan `merchant.timezone`; tipe insight, rentang analisis, dan versi data tidak termasuk dalam key.
+1. OWNER kirim `POST /insights/trigger` tanpa body; validasi kuota 1x/hari/Merchant.
+2. Bentuk dedupe key dari `merchant_id + tanggal lokal Merchant` berdasarkan `merchant.timezone`; tipe insight dan versi data tidak termasuk dalam key. Periode 30 hari Merchant-wide diturunkan dari `analysis_date` saat Worker menjalankan job.
 3. Jika key belum ada, buat satu `AiAnalysisJob` (`status=PENDING`) dan return `202`; jika sudah ada, return `200` dengan `job_id` serta status job yang sama tanpa membuat job baru.
-4. Worker (`AiAnalysisJobService.@Cron`) ambil job due → `status=PROCESSING`.
-5. Baca dataset via `ReportingReadPort` (cache-aside atau agregasi bounded saat miss, rentang + scope Outlet).
-6. `AiProviderPort.generate(...)` — default rule-based: hitung delta %, ranking, pola; `evidence` terstruktur untuk setiap tipe yang datanya mencukupi.
+4. Worker (`AiAnalysisJobService.@Cron`) mengklaim satu job due secara atomik (`PENDING` tanpa retry time atau `RETRY_SCHEDULED` yang sudah due) lalu mengubahnya menjadi `PROCESSING`; Worker lain melewati job yang sudah diklaim.
+5. Baca dataset Merchant-wide via `ReportingReadPort` (cache-aside atau agregasi bounded saat miss, periode 30 hari hasil turunan).
+6. `AiProviderPort.generate(...)` — default rule-based: hitung delta %, ranking, pola; `evidence_summary` terstruktur untuk setiap tipe yang datanya mencukupi.
 7. Upsert hasil per tipe → `status=READY`, `generated_at`, `data_version`.
 8. Gagal → `RETRY_SCHEDULED` dengan backoff; melewati batas → `FAILED`; data lama boleh ditandai `STALE`.
 
