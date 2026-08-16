@@ -664,9 +664,7 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 8. **Resolved —** Lima angka atau informasi apa yang paling penting bagi Owner saat demo? Scope Must saat ini mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, dan perbandingan Outlet.
 9. **Resolved (`OD-006` locked) —** Berapa keterlambatan dashboard yang masih dapat diterima? Jawaban: cached aggregate dapat digunakan maksimal 30 menit pada kondisi normal dan waktu pembaruannya harus terlihat.
 10. **Resolved (`OD-007` locked) —** Insight BI MVP mencakup tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV; satu analisis dapat menghasilkan beberapa tipe sekaligus.
-11. **Open —** Apakah istilah “AI” mensyaratkan penggunaan model eksternal, atau kualitas insight dan proses asinkron lebih penting?
-
-Jawaban atas pertanyaan ini akan mengubah FRD, flow detail, ERD, dan pengujian. Karena itu kita tidak boleh menguncinya diam-diam lewat implementasi.
+11. **Resolved (`OD-008` locked) —** Insight menggunakan LLM melalui provider yang berada di belakang `AiProviderPort`. LLM hanya menerima dataset insight dan tidak pernah berada pada jalur checkout.
 
 ---
 
