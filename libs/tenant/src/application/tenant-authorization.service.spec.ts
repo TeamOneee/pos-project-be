@@ -1,5 +1,5 @@
 import { Outlet } from '@prisma/client';
-import { AuthUser, PrismaWriteService } from '@app/platform';
+import { AuthUser } from '@app/platform';
 import { TenantAuthorizationService } from './tenant-authorization.service';
 import { OutletRepository } from '../infrastructure/outlet.repository';
 
@@ -40,15 +40,15 @@ describe('TenantAuthorizationService', () => {
   const outletRepository = {
     findByIdInMerchant: jest.fn(),
   };
-  const prisma = {
-    user: { findFirst: jest.fn() },
+  const userReadPort = {
+    userBelongsToMerchant: jest.fn(),
   };
 
   beforeEach(() => {
     jest.clearAllMocks();
     service = new TenantAuthorizationService(
       outletRepository as unknown as OutletRepository,
-      prisma as unknown as PrismaWriteService,
+      userReadPort,
     );
   });
 
@@ -96,18 +96,18 @@ describe('TenantAuthorizationService', () => {
 
   describe('assertUserBelongsToMerchant (FR-TEN-010)', () => {
     it('pass saat user milik merchant', async () => {
-      prisma.user.findFirst.mockResolvedValue({ id: 'user-1' });
+      userReadPort.userBelongsToMerchant.mockResolvedValue(true);
       await expect(
         service.assertUserBelongsToMerchant('user-1', 'merchant-1'),
       ).resolves.toBeUndefined();
-      expect(prisma.user.findFirst).toHaveBeenCalledWith({
-        where: { id: 'user-1', merchantId: 'merchant-1' },
-        select: { id: true },
-      });
+      expect(userReadPort.userBelongsToMerchant).toHaveBeenCalledWith(
+        'user-1',
+        'merchant-1',
+      );
     });
 
     it('NOT_FOUND saat user bukan milik merchant', async () => {
-      prisma.user.findFirst.mockResolvedValue(null);
+      userReadPort.userBelongsToMerchant.mockResolvedValue(false);
       const err = await service
         .assertUserBelongsToMerchant('user-99', 'merchant-1')
         .catch((e: unknown) => e);
