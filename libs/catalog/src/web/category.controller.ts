@@ -27,12 +27,13 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Controller('categories')
-// menyediakan api category dengan mutasi khusus admin.
+// menyediakan api category dengan mutasi untuk owner dan admin.
+// cashier hanya dapat membaca category aktif dari merchant sendiri.
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.CREATED)
   @SuccessMessage('Kategori berhasil dibuat.')
   async create(
@@ -62,7 +63,7 @@ export class CategoryController {
   }
 
   @Patch(':category_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
   @SuccessMessage('Kategori berhasil diperbarui.')
   async update(
