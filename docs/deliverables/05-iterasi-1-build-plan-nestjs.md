@@ -171,8 +171,9 @@ model Merchant {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
+  owner             User              @relation("MerchantOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "merchant_owner_user_id_fkey")
   outlets           Outlet[]
-  users             User[]
+  users             User[]            @relation("MerchantUsers")
   categories        Category[]
   products          Product[]
   inventories       Inventory[]
@@ -217,7 +218,8 @@ model User {
   createdAt    DateTime      @default(now()) @map("created_at")
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  merchant       Merchant         @relation(fields: [merchantId], references: [id])
+  merchant       Merchant         @relation("MerchantUsers", fields: [merchantId], references: [id], map: "user_merchant_id_fkey")
+  ownedMerchant  Merchant?        @relation("MerchantOwner")
   outlet         Outlet?          @relation(fields: [outletId], references: [id], onDelete: SetNull)
   transactions   Transaction[]    @relation("OperatorTransactions")
   stockMovements StockMovement[]  @relation("ActorStockMovements")
@@ -409,6 +411,8 @@ model AiAnalysisJob {                            // FR-AI-006/007; ERD 05b `ai_a
 }
 ```
 
+**Integrity hardening:** migration `20260816223000_harden_database_integrity` menegakkan threshold nonnegatif, `payment_status = CONFIRMED`, serta relasi Merchant-safe untuk Product–Category dan stok/harga per Outlet. CHECK quantity nonnegatif serta kombinasi role–Outlet User telah ada pada migration awal dan tetap berlaku. `transaction_number_seq` tetap dikelola Sales dan tidak diubah migration ini.
+
 **Datasource kedua (read replica)** tidak didefinisikan lewat Prisma schema kedua (Prisma 1 schema = 1 datasource per client), melainkan lewat **2 instance `PrismaClient`** yang di-construct manual di `libs/platform/prisma`:
 
 ```ts
@@ -426,7 +430,7 @@ export class PrismaReadService extends PrismaClient {
 ```
 `SalesModule` menyediakan `SalesReportingReadPort`; implementasinya membaca fakta `Transaction` `COMPLETED` dari read replica secara bounded. `ReportingModule` mengagregasi fakta tersebut saat cache miss dan tidak mengakses persistence Sales secara langsung. `InsightModule` memperoleh dataset hanya melalui `ReportingReadPort`, lalu worker menulis `AiAnalysisJob` dan `AiInsight` melalui `PrismaWriteService`. Ini menjaga setiap consumer hanya mengenal kontrak publik modul lain.
 
-**Pembuatan Owner + Merchant:** `Merchant.owner_user_id` adalah kolom `@unique` yang mengarah ke `User` (FK tidak dimodelkan di schema.prisma), sedangkan `User.merchant_id` adalah FK ke Merchant. Registrasi membuat kedua UUID lebih dahulu lalu menyimpan keduanya dalam satu transaksi; FK `DEFERRABLE INITIALLY DEFERRED` sudah diterapkan melalui raw SQL migration `20260816204625_add_owner_fk_deferred`, sehingga database menjamin Owner ada.
+**Pembuatan Owner + Merchant:** `Merchant.owner` dan `User.ownedMerchant` dimodelkan sebagai relasi Prisma satu-ke-satu, sementara `User.merchant` tetap relasi keanggotaan Merchant. Registrasi membuat kedua UUID lebih dahulu lalu menyimpan keduanya dalam satu transaksi; FK Owner tetap `DEFERRABLE INITIALLY DEFERRED` agar relasi silang dapat tervalidasi saat commit, bukan sebelum User Owner dibuat.
 
 **Catatan penyesuaian dari versi lama:**
 - Tidak ada model `Payment`, `IdempotencyRecord`, `OutboxEvent`, `JobRecord`, `ReportingProjection`, maupun `RefreshToken` — seluruhnya kontradiktif dengan keputusan `Locked` Iterasi 1.
