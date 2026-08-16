@@ -20,8 +20,6 @@ export interface CategoryResult {
   merchantId: string;
   name: string;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 // membawa input pembuatan product dari web ke application.

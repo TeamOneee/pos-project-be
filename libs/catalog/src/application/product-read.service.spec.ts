@@ -12,8 +12,6 @@ const category = (isActive = true): Category => ({
   merchantId: 'merchant-1',
   name: 'Makanan',
   isActive,
-  createdAt: new Date(),
-  updatedAt: new Date(),
 });
 const product = (
   id: string,
@@ -37,7 +35,6 @@ const override = (): ProductOutletPrice => ({
   outletId: 'outlet-1',
   productId: 'product-1',
   price: new Prisma.Decimal('12000'),
-  createdAt: new Date(),
   updatedAt: new Date(),
 });
 

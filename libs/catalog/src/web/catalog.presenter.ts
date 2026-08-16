@@ -14,8 +14,6 @@ export function toCategoryDto(result: CategoryResult): CategoryDto {
     merchant_id: result.merchantId,
     name: result.name,
     is_active: result.isActive,
-    created_at: result.createdAt,
-    updated_at: result.updatedAt,
   };
 }
 
