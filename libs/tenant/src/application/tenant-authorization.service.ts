@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Outlet } from '@prisma/client';
 import { ApiError } from '@app/platform';
+import { AuthUser } from '@app/platform';
 import { PrismaWriteService } from '@app/platform';
 import { OutletRepository } from '../infrastructure/outlet.repository';
 
@@ -43,5 +44,26 @@ export class TenantAuthorizationService {
     if (!user) {
       throw ApiError.notFound('User tidak ditemukan.'); // FR-TEN-010: disamarkan
     }
+  }
+
+  // 06 §5.5: rule role saat memilih outlet operasional.
+  // OWNER -> outlet aktif milik merchant (requireActive);
+  // CASHIER -> wajib outlet tugasnya dari klaim JWT (OD-010);
+  // ADMIN -> ditolak (OD-010).
+  async assertOutletOwnedByActor(
+    actor: AuthUser,
+    outletId: string,
+  ): Promise<void> {
+    if (actor.role === 'ADMIN') {
+      throw ApiError.forbidden('Akses ditolak.'); // OD-010
+    }
+    if (actor.role === 'CASHIER') {
+      if (actor.outletId !== outletId) {
+        throw ApiError.forbidden('Akses ditolak.'); // OD-010: bukan outlet tugas
+      }
+    }
+    await this.assertOutletOwnedByMerchant(outletId, actor.merchantId, {
+      requireActive: true, // FR-TEN-004: outlet nonaktif read-only
+    });
   }
 }
