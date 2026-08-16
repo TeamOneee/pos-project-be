@@ -20,24 +20,22 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@app/platform": ["libs/platform/src/index.ts"],
+      "@app/platform": ["libs/platform/src/index"],
       "@app/platform/*": ["libs/platform/src/*"],
-      "@app/identity": ["libs/identity/src/index.ts"],
+      "@app/identity": ["libs/identity/src/index"],
       "@app/identity/*": ["libs/identity/src/*"],
-      "@app/tenant": ["libs/tenant/src/index.ts"],
+      "@app/tenant": ["libs/tenant/src/index"],
       "@app/tenant/*": ["libs/tenant/src/*"],
-      "@app/catalog": ["libs/catalog/src/index.ts"],
+      "@app/catalog": ["libs/catalog/src/index"],
       "@app/catalog/*": ["libs/catalog/src/*"],
-      "@app/inventory": ["libs/inventory/src/index.ts"],
+      "@app/inventory": ["libs/inventory/src/index"],
       "@app/inventory/*": ["libs/inventory/src/*"],
-      "@app/sales": ["libs/sales/src/index.ts"],
+      "@app/sales": ["libs/sales/src/index"],
       "@app/sales/*": ["libs/sales/src/*"],
-      "@app/reporting": ["libs/reporting/src/index.ts"],
+      "@app/reporting": ["libs/reporting/src/index"],
       "@app/reporting/*": ["libs/reporting/src/*"],
-      "@app/insight": ["libs/insight/src/index.ts"],
-      "@app/insight/*": ["libs/insight/src/*"],
-      "@app/audit": ["libs/audit/src/index.ts"],
-      "@app/audit/*": ["libs/audit/src/*"]
+      "@app/insight": ["libs/insight/src/index"],
+      "@app/insight/*": ["libs/insight/src/*"]
     }
   }
 }
