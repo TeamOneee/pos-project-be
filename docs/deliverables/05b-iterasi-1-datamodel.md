@@ -178,6 +178,8 @@ erDiagram
 
 ## Siklus AI insight
 
-Satu `AiAnalysisJob` dibuat untuk satu analisis harian Merchant. Job yang selesai dapat menghasilkan nol atau lebih tipe insight. Untuk setiap tipe yang memiliki data cukup, sistem memperbarui row `AiInsight` terbaru milik Merchant tersebut; sistem tidak membuat histori insight per tipe.
+Satu `AiAnalysisJob` dibuat untuk satu analisis harian Merchant. `AiAnalysisJob` adalah sumber status proses (`PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, `FAILED`, atau `READY`). Job yang selesai dapat menghasilkan nol atau lebih tipe insight. Untuk setiap tipe yang memiliki data cukup, sistem membuat atau memperbarui row `AiInsight` terbaru milik Merchant tersebut; sistem tidak membuat histori insight per tipe.
+
+`AiInsight` hanya menyimpan hasil yang lengkap dan dapat ditampilkan (`READY`, atau `STALE` bila hasil terakhir masih dapat dipakai tetapi analisis terbaru gagal). Karena itu `title`, `content`, `evidence_summary`, dan `generated_at` bukan atribut nullable. Status proses yang belum menghasilkan insight selalu dibaca dari `AiAnalysisJob`.
 
 `AiInsight.type` adalah tipe yang ditentukan pengembang untuk MVP: tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu penjualan, dan tren AOV. Job memperbarui hasil insight terbaru tanpa menyimpan relasi permanen ke riwayat job.

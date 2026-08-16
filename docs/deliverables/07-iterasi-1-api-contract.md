@@ -1020,16 +1020,19 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `[{ id, name, price, category_id, stock_quantity }]` — hanya Product aktif dengan Category aktif yang punya inventory row di Outlet; `price` = harga efektif Outlet |
+| 200 | Berhasil | `Page<CatalogProductDto>` — hanya Product aktif dengan Category aktif yang punya inventory row di Outlet; `price` = harga efektif Outlet |
 | 403 | Kasir memakai Outlet selain tugasnya, Owner memilih Outlet tidak aktif/di luar Merchant, atau role lain | `FORBIDDEN` |
 | 400 | `outlet_id` tidak dikirim | `VALIDATION_ERROR` |
 
 ```json
 {
   "success": true, "statusCode": 200, "message": "Katalog kasir dimuat",
-  "data": [
-    { "id": "uuid", "name": "Es Teh Manis", "price": "8500.00", "category_id": "uuid", "stock_quantity": 12 }
-  ]
+  "data": {
+    "items": [
+      { "id": "uuid", "name": "Es Teh Manis", "price": "8500.00", "category_id": "uuid", "stock_quantity": 12 }
+    ],
+    "page": 1, "size": 20, "total_elements": 1, "total_pages": 1
+  }
 }
 ```
 
@@ -1178,7 +1181,7 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
   "success": true, "statusCode": 200, "message": "Checkout berhasil",
   "data": {
     "transaction_id": "uuid",
-    "receipt_number": "INV-2026-000123",
+    "transaction_number": "INV-2026-000123",
     "status": "COMPLETED",
     "outlet_id": "uuid",
     "operator": { "user_id": "uuid", "role": "CASHIER", "name": "Sari" },
@@ -1253,7 +1256,7 @@ Contoh error:
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `Page<TransactionSummaryDto>` — `{ transaction_id, receipt_number, outlet_id, operator_name, total, status, created_at }` |
+| 200 | Berhasil | `Page<TransactionSummaryDto>` — `{ transaction_id, transaction_number, outlet_id, operator_name, total, status, created_at }` |
 | 403 | ADMIN / role tidak berhak | `FORBIDDEN` |
 
 **Catatan ℹ:** Untuk CASHIER, filter `operator_user_id = actor.user_id` **dipaksa di service** (OD-003 locked), bukan diandalkan dari query — Kasir tidak bisa melihat transaksi operator lain.
@@ -1290,7 +1293,7 @@ Contoh error:
 
 | Parameter | Type | Wajib | Deskripsi |
 |---|---|---|---|
-| `receipt_number` | string | wajib | Exact match (unik per merchant) |
+| `transaction_number` | string | wajib | Exact match (unik per merchant) |
 
 **Response** (FR-TRX-005):
 
@@ -1366,7 +1369,7 @@ Contoh error:
 | `merchant_id` | uuid | tidak | **FOREIGN KEY** → `merchant.merchant_id` |
 | `outlet_id` | uuid | tidak | **FOREIGN KEY** → `outlet.outlet_id` |
 | `operator_user_id` | uuid | tidak | **FOREIGN KEY** → `user.user_id`; operator Kasir atau Owner (ERD 05b) |
-| `receipt_number` | string | tidak | Unique per merchant (DR-003) |
+| `transaction_number` | string | tidak | Unique per merchant (DR-003) |
 | `status` | enum | tidak | `COMPLETED` |
 | `subtotal` | decimal string | tidak | Jumlah `unit_price × quantity` |
 | `total` | decimal string | tidak | Sama dengan `subtotal` pada MVP (DR-013) |
@@ -1390,7 +1393,7 @@ Contoh error:
 | Field | Type | Nullable | Keterangan |
 |---|---|---|---|
 | `transaction_id` | uuid | tidak | **PRIMARY KEY** |
-| `receipt_number` | string | tidak | Unique per merchant |
+| `transaction_number` | string | tidak | Unique per merchant |
 | `outlet_id` | uuid | tidak | **FOREIGN KEY** |
 | `operator_name` | string | tidak | Nama operator (Kasir/Owner) |
 | `total` | decimal string | tidak | Total transaksi |
@@ -1445,12 +1448,12 @@ Sama dengan `CheckoutResult`, ditambah:
 | Aspek | Nilai |
 |---|---|
 | Base URL | `/api/v1` |
-| Scope | Dashboard bisnis Owner membaca hasil **agregasi cache-aside** (Redis) dari `Transaction` `COMPLETED` via read replica; dashboard operasional Admin dan low-stock membaca current state melalui read port Catalog/Inventory. Tidak ada route dashboard yang query tabel `transaction` secara langsung dari jalur request — agregasi hanya berjalan saat cache miss di `ReportingCacheService`. |
+| Scope | Dashboard bisnis Owner membaca hasil **agregasi cache-aside** (Redis) dari fakta `Transaction` `COMPLETED` melalui `SalesReportingReadPort`; implementasi port membaca read replica. Dashboard operasional Admin dan low-stock membaca current state melalui read port Catalog/Inventory. Tidak ada route dashboard yang query tabel `transaction` secara langsung dari jalur request — agregasi hanya berjalan saat cache miss di `ReportingCacheService`. |
 | State machine | **Freshness:** `FRESH` / `STALE` (flag di body, bukan HTTP error) — bukan state machine entitas |
 | Aturan bisnis utama | |
 | | 1. **Role:** endpoint bisnis (`summary`, sales-trend, aov-trend, time-pattern, top-products, outlet-comparison) hanya `OWNER`. `operations` dapat dibaca `ADMIN` dan `OWNER`; `low-stock` dapat dibaca `OWNER` sebagai inventory read-only dan `ADMIN` sebagai fungsi operasional. ADMIN **tidak** melihat omzet, AOV, transaksi, analytics bisnis, atau insight BI. |
 | | 2. Rentang tanggal & scope outlet dibatasi merchant/periode sesuai role (FR-REP-009). |
-| | 3. Data bisnis Owner dibangun **on-demand** lewat cache-aside: cache hit (umur ≤30 menit) mengembalikan agregat; cache miss mengagregasi `Transaction` `COMPLETED` via read replica (bounded + single-flight), lalu menyimpan hasil bersama `data_updated_at`. Checkout **tidak** membangun/menginvalidasi cache (FR-REP-002); tanpa outbox maupun projection persisten (DG-005). |
+| | 3. Data bisnis Owner dibangun **on-demand** lewat cache-aside: cache hit (umur ≤30 menit) mengembalikan agregat; cache miss meminta fakta `Transaction` `COMPLETED` melalui `SalesReportingReadPort` (bounded + single-flight), lalu menyimpan hasil bersama `data_updated_at`. Implementasi port membaca read replica. Checkout **tidak** membangun/menginvalidasi cache (FR-REP-002); tanpa outbox maupun projection persisten (DG-005). |
 | | 4. Bucketing waktu mengikuti `merchant.timezone` (BR-018). |
 
 ### 6.2 Endpoint
@@ -1630,9 +1633,9 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | Mekanisme | Detail |
 |---|---|
 | Interface publik | `DashboardQueryService` (api), `ReportingCacheService`, `ReportingReadPort` (06 §3.6) |
-| Sumber data | `ReportingCacheService` cache-aside (Redis, TTL 30 menit) + agregasi `Transaction` `COMPLETED` via `PrismaReadService` (read replica) saat miss (bounded, single-flight, FR-REP-008/009) |
+| Sumber data | `ReportingCacheService` cache-aside (Redis, TTL 30 menit) + agregasi fakta `Transaction` `COMPLETED` via `SalesReportingReadPort` saat miss (bounded, single-flight, FR-REP-008/009). Implementasi port membaca read replica. |
 | Port yang dikonsumsi modul lain | `ReportingReadPort` dipakai modul `insight` (dataset cache-aside atau agregasi bounded saat miss, bukan tabel mentah) |
-| Dependency | Query bisnis hanya memakai `platform` (`PrismaReadService`, `ReportingCacheService`) dan tidak membaca tabel `sales`/`inventory`/`catalog` langsung. Route `operations`/`low-stock` memakai interface read-only Catalog/Inventory melalui application/API layer, bukan akses silang tabel. |
+| Dependency | Query bisnis memakai `SalesReportingReadPort` dan `ReportingCacheService`; Reporting tidak membaca tabel Sales, Inventory, atau Catalog secara langsung. Route `operations`/`low-stock` memakai interface read-only Catalog/Inventory melalui application/API layer, bukan akses silang tabel. |
 
 ### 6.4 Data Models
 
@@ -1707,7 +1710,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 ### 6.5 Keterkaitan dengan Modul Lain
 
-- **Sebagai Orchestrator:** tidak memanggil modul bisnis lain — hanya memakai primitif `platform` (`PrismaReadService`, `ReportingCacheService`) dan tidak mengonsumsi event apa pun.
+- **Sebagai Orchestrator:** memakai `SalesReportingReadPort` untuk fakta transaksi dan primitif `platform` (`ReportingCacheService`); tidak mengonsumsi event apa pun.
 - **Sebagai Provider:** `ReportingReadPort` dikonsumsi modul `insight` (dataset hasil agregasi, bukan tabel mentah).
 
 ### 6.6 Diagram Alur — Agregasi Cache-aside (dashboard)
@@ -1715,7 +1718,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 1. Request `GET /dashboard/*` masuk; `DashboardQueryService` menormalkan key (merchant, outlet nullable, periode, bucket, limit, timezone, versi schema cache — FR-REP-009).
 2. `ReportingCacheService` cek cache Redis (TTL 30 menit). Cache hit → return agregat + `data_updated_at` + `freshness_status`.
 3. Cache miss → single-flight per key (mencegah banyak agregasi identik, FR-REP-008).
-4. Agregasi `Transaction` `COMPLETED` secara bounded via `PrismaReadService` (read replica) sesuai scope & bucket (FR-REP-001).
+4. Ambil fakta `Transaction` `COMPLETED` secara bounded melalui `SalesReportingReadPort` sesuai scope & bucket; implementasi port membaca read replica (FR-REP-001).
 5. Simpan hasil ke cache bersama `data_updated_at`; hitung `freshness_status` dari umur data vs ambang (FR-OPS-003) → `FRESH`/`STALE`.
 6. Checkout **tidak** membangun/menginvalidasi cache; cache dapat dibangun ulang kapan saja dan bukan source of truth (FR-REP-002, DG-005).
 
@@ -1730,14 +1733,14 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | Aspek | Nilai |
 |---|---|
 | Base URL | `/api/v1` |
-| Scope | Fitur "AI Insight" sebagai **Business Intelligence (BI)** — menghasilkan beberapa tipe insight analitik (bukan satu tipe); AI (rule-based default / provider eksternal opsional) sebagai mesin pengerja-penjelas. |
-| State machine | **InsightStatus:** `PENDING` → `PROCESSING` → `READY` | `RETRY_SCHEDULED` → `FAILED` | `STALE`. |
+| Scope | Fitur "AI Insight" sebagai **Business Intelligence (BI)** — menghasilkan beberapa tipe insight analitik (bukan satu tipe) dengan LLM melalui `AiProviderPort` sebagai mesin pengerja-penjelas. |
+| State machine | **InsightStatus:** `READY` | `STALE` — hanya untuk hasil `AiInsight` yang sudah lengkap. |
 | | **AiAnalysisJob state:** `PENDING` → `PROCESSING` → `READY` | `RETRY_SCHEDULED` → `FAILED` (retry + backoff + batas attempt); satu job per `(merchant_id, analysis_date)` (FR-AI-006/007) — bukan `JobRecord` generik. |
 | Aturan bisnis utama | |
 | | 1. **OWNER only** untuk trigger dan baca (FR-AI-012). |
 | | 2. Maksimal **1 analisis per Merchant per hari** (`merchant_id + analysis_date` lokal Merchant); satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data (FR-AI-012). |
 | | 3. Tipe: `SALES_TREND`, `OUTLET_COMPARISON`, `TOP_PRODUCTS`, `TIME_PATTERN`, `AOV_TREND`. |
-| | 4. `GET /insights` mengembalikan **hasil terbaru per tipe** (tanpa histori per tipe, OD-007). |
+| | 4. `GET /insights` mengembalikan **status `AiAnalysisJob` terbaru** serta hasil terbaru per tipe (tanpa histori per tipe, OD-007). |
 | | 5. Output berbasis **evidence terstruktur** (data angka dari hasil agregasi reporting), bukan teks generatif bebas (FR-AI-004/005). |
 | | 6. Modul baca hanya dari `ReportingReadPort` (dataset cache-aside atau agregasi bounded saat miss), bukan tabel transaksi mentah (05 §3). |
 
@@ -1777,13 +1780,17 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 200 | Berhasil | `{ insights: [ InsightResult ] }` — hasil terbaru per tipe |
+| 200 | Berhasil atau analisis sedang berjalan | `{ analysis_job, insights: [ InsightResult ] }` — status proses dan hasil terbaru per tipe |
 | 404 | Merchant belum pernah memicu analisis | `NOT_FOUND` |
 
 ```json
 {
   "success": true, "statusCode": 200, "message": "Insight terbaru per tipe",
   "data": {
+    "analysis_job": {
+      "id": "uuid", "status": "READY", "analysis_date": "2026-08-13",
+      "updated_at": "2026-08-13T10:02:00+07:00"
+    },
     "insights": [
       {
         "id": "uuid", "type": "SALES_TREND", "status": "READY",
@@ -1798,7 +1805,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 }
 ```
 
-**Catatan ℹ:** Kalau `status` bukan `READY` (`PENDING`/`PROCESSING`/`FAILED`/`STALE`), field `content`/`evidence_summary` boleh `null`; client menampilkan status sesuai FR-AI-008. Insight job gagal **tidak** membuat dashboard error (flag di body, `INSIGHT_UNAVAILABLE`).
+**Catatan ℹ:** `analysis_job` adalah job Merchant terbaru berdasarkan `analysis_date` (lalu `updated_at` bila diperlukan). Setelah Owner memicu analisis, endpoint ini selalu mengembalikannya, bahkan bila belum ada hasil insight. `PENDING`, `PROCESSING`, `RETRY_SCHEDULED`, dan `FAILED` berasal dari job; `AiInsight` hanya berisi hasil lengkap berstatus `READY` atau `STALE`. Merchant yang belum pernah memicu analisis tetap menerima `404`. Insight job gagal tidak membuat dashboard error (flag di body, `INSIGHT_UNAVAILABLE`).
 
 ### 7.3 Endpoint internal (service-to-service)
 
@@ -1807,7 +1814,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | Interface publik | `InsightTriggerService`, `InsightGenerationJob`, `InsightQueryService`, `AiAnalysisJobService`, `AiProviderPort` (06 §3.7) |
 | Port yang dikonsumsi | `ReportingReadPort` (reporting), `PrismaWriteService` (platform — state `AiAnalysisJob`), primitif `platform` |
 | Job internal | `AiAnalysisJob` dijalankan `apps/worker` (retry/backoff pada state job, `@nestjs/schedule` polling) |
-| Adapter | `RuleBasedInsightAdapter` (default, dari hasil agregasi reporting via `ReportingReadPort`); `ExternalAiAdapter` opsional via `AiProviderPort` (DG-006, EXT-AI-003) |
+| Adapter | `LlmInsightAdapter` melalui `AiProviderPort` (DG-006, EXT-AI-003); dataset tetap berasal dari `ReportingReadPort`. |
 
 ### 7.4 Data Models
 
@@ -1822,15 +1829,15 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | `period_end` | datetime | tidak | Rentang |
 | `data_version` | string | tidak | Versi data agregasi reporting yang dipakai |
 | `title` | string | tidak | Judul insight |
-| `content` | text | ya | Penjelasan (null bila belum `READY`) |
-| `evidence_summary` | json | ya | Data terstruktur (FR-AI-004/005) |
-| `status` | enum | tidak | `PENDING`/`PROCESSING`/`READY`/`FAILED`/`RETRY_SCHEDULED`/`STALE` |
-| `generated_at` | datetime | ya | Waktu selesai generate |
+| `content` | text | tidak | Penjelasan hasil insight lengkap |
+| `evidence_summary` | json | tidak | Data terstruktur (FR-AI-004/005) |
+| `status` | enum | tidak | `READY` / `STALE`; status proses dibaca dari `AiAnalysisJob` |
+| `generated_at` | datetime | tidak | Waktu selesai generate |
 
 ### 7.5 Keterkaitan dengan Modul Lain
 
 - **Sebagai Orchestrator:** `insight` memakai `ReportingReadPort` (reporting), `PrismaWriteService` (platform — state `AiAnalysisJob`), dan memicu `AiProviderPort` (adapter).
-- **Sebagai Provider:** interface `InsightTriggerService`/`InsightQueryService` diekspos ke `apps/api`; `AiProviderPort` adalah titik plug provider eksternal.
+- **Sebagai Provider:** interface `InsightTriggerService`/`InsightQueryService` diekspos ke `apps/api`; `AiProviderPort` adalah batas implementasi LLM provider.
 
 ### 7.6 Diagram Alur — Generate Insight
 
@@ -1839,11 +1846,11 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 3. Jika key belum ada, buat satu `AiAnalysisJob` (`status=PENDING`) dan return `202`; jika sudah ada, return `200` dengan `job_id` serta status job yang sama tanpa membuat job baru.
 4. Worker (`AiAnalysisJobService.@Cron`) mengklaim satu job due secara atomik (`PENDING` tanpa retry time atau `RETRY_SCHEDULED` yang sudah due) lalu mengubahnya menjadi `PROCESSING`; Worker lain melewati job yang sudah diklaim.
 5. Baca dataset Merchant-wide via `ReportingReadPort` (cache-aside atau agregasi bounded saat miss, periode 30 hari hasil turunan).
-6. `AiProviderPort.generate(...)` — default rule-based: hitung delta %, ranking, pola; `evidence_summary` terstruktur untuk setiap tipe yang datanya mencukupi.
+6. `AiProviderPort.generate(...)` memanggil LLM dengan dataset reporting; hasil tiap tipe yang datanya mencukupi tetap menyertakan `evidence_summary` terstruktur.
 7. Upsert hasil per tipe → `status=READY`, `generated_at`, `data_version`.
 8. Gagal → `RETRY_SCHEDULED` dengan backoff; melewati batas → `FAILED`; data lama boleh ditandai `STALE`.
 
-**Warning ⚠:** Insight selalu dibaca dari hasil agregasi reporting (bisa `STALE`); jangan pernah query tabel transaksi langsung. Provider eksternal memakai timeout + circuit breaker (`cockatiel`) agar worker tidak tersumbat (EXT-AI-003).
+**Warning ⚠:** Insight selalu dibaca dari hasil agregasi reporting (bisa `STALE`); jangan pernah query tabel transaksi langsung. LLM provider memakai timeout + circuit breaker (`cockatiel`) agar worker tidak tersumbat (EXT-AI-003).
 
 ---
 
@@ -1888,7 +1895,7 @@ Tidak ada endpoint internal. Platform menyediakan primitif in-process yang dipak
 | Primitif | Dipakai oleh |
 |---|---|
 | `PrismaWriteService` / `PrismaReadService` | semua modul (write: primary, read: read replica) |
-| `ReportingCacheService` / single-flight | `reporting`, `insight` (cache-aside Redis) |
+| `ReportingCacheService` / single-flight | `reporting` (cache-aside Redis) |
 | `Money` helper | `catalog`, `inventory`, `sales`, `reporting` |
 | `PageRequestDto` / `PageResponseDto<T>` | semua modul dengan list |
 | `JwtAuthGuard`, `RolesGuard`, `@Roles()`, `@CurrentUser()`, `CorrelationIdMiddleware` | semua modul |
