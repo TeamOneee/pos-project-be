@@ -572,7 +572,7 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 6. Pembayaran MVP dicatat sebagai tunai atau cashless manual; sistem tidak memindahkan dana.
 7. Pembayaran dianggap dikonfirmasi ketika Kasir menyatakan dana telah diterima.
 8. Dashboard Owner memakai shared cache dengan cached aggregate berumur maksimal 30 menit pada kondisi normal (`OD-006` locked); cache miss mengagregasi Transaction `COMPLETED`, dan checkout tidak menginvalidasi cache.
-9. Insight hanya dipicu manual oleh Owner maksimal satu analisis per Merchant per hari dan diproses asynchronous; satu analisis dapat menghasilkan beberapa tipe insight sesuai data, dan analitik deterministik dapat digunakan sebelum integrasi model eksternal.
+9. Insight hanya dipicu manual oleh Owner maksimal satu analisis per Merchant per hari dan diproses asynchronous; satu analisis dapat menghasilkan beberapa tipe insight sesuai data melalui LLM. Status proses dibaca dari job analisis, sedangkan hasil insight hanya ditampilkan setelah lengkap.
 10. Waktu aplikasi ditampilkan dalam zona merchant; penyimpanan waktu internal dapat distandardisasi.
 
 ### 13.2 Dependency
@@ -589,7 +589,7 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 
 | Risiko | Dampak | Mitigasi requirement |
 |---|---|---|
-| Scope BI terlalu besar | Checkout dan fitur inti tidak selesai | BI dibatasi sebagai insight terpisah di luar jalur checkout, dengan beberapa tipe insight minimum yang deterministik |
+| Scope BI terlalu besar | Checkout dan fitur inti tidak selesai | BI dibatasi sebagai insight terpisah di luar jalur checkout, dengan beberapa tipe insight minimum berbasis data yang dapat diverifikasi |
 | Role tanpa tenant isolation | Kebocoran data lintas merchant | Semua akses diperiksa dengan role + merchant |
 | Cache miss dashboard membaca transaksi operasional secara berat | Checkout melambat atau dashboard lambat | Query agregasi dibatasi, cache digunakan bersama selama maksimal 30 menit, concurrency miss dikendalikan, dan mixed workload diuji |
 | Retry checkout membuat duplikasi | Kerugian uang dan catatan penjualan ganda | Identitas permintaan dan lookup status wajib |

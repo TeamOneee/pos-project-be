@@ -345,7 +345,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 |---|---|
 | Aktor | Owner, Kasir sesuai scope (Admin tidak memiliki akses) |
 | Prasyarat | User login dan mempunyai hak terhadap Transaction yang diminta |
-| Pemicu | Pengguna membuka riwayat atau mencari receipt number |
+| Pemicu | Pengguna membuka riwayat atau mencari transaction number |
 | Alur utama | Tentukan scope dari credential → terapkan filter tanggal dan Outlet sesuai role → kembalikan daftar berpaginasi → pengguna membuka detail/receipt snapshot |
 | Alternatif | Tidak ada hasil; Transaction beda Merchant/Outlet; receipt tidak ditemukan; Kasir hanya dapat mengakses transaksi miliknya (`OD-003` locked) |
 | Hasil | Histori dapat dibaca tanpa mengubah Transaction dan tanpa membaca harga katalog terbaru |
@@ -382,7 +382,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Aktor | Owner |
 | Prasyarat | Owner aktif pada Merchant; dashboard dasar tidak bergantung pada AI |
 | Pemicu | Owner menekan tombol analisis BI/AI |
-| Alur utama | Validasi Owner/Merchant → temukan atau buat `AiAnalysisJob` berdasarkan `merchant_id + tanggal lokal Merchant` → antrekan job → worker menurunkan periode 30 hari kalender lokal dari `analysis_date` dan menganalisis seluruh Merchant → tampilkan `PENDING/PROCESSING` → worker menghasilkan evidence dan `content` → simpan `READY` → Owner melihat hasil |
+| Alur utama | Validasi Owner/Merchant → temukan atau buat `AiAnalysisJob` berdasarkan `merchant_id + tanggal lokal Merchant` → antrekan job → Owner melihat status job `PENDING/PROCESSING` → worker menurunkan periode 30 hari kalender lokal dari `analysis_date`, menganalisis seluruh Merchant, dan meminta LLM membuat insight → worker menyimpan hasil lengkap `AiInsight` berstatus `READY` → Owner melihat hasil |
 | Alternatif | Request duplikat memakai `AiAnalysisJob` yang sama; kegagalan sementara dijadwalkan retry terbatas; kegagalan akhir menjadi `FAILED`; data lama menjadi `STALE` |
 | Hasil | Satu analisis menghasilkan atau memperbarui insight per tipe yang datanya tersedia (tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), dengan periode, evidence, versi, status, dan waktu; hasil terbaru per tipe tanpa histori dan tidak mengubah Product, stok, akses, atau Transaction |
 | Referensi | `US-AI-001–003`, `FR-AI-001–012`, `AT-012,031` |
@@ -636,7 +636,7 @@ Out-of-Scope tidak boleh diimplementasikan diam-diam dengan mengorbankan require
 | `OD-005` | Refund/void | **Locked**: tidak ada pada MVP | Reversal, permission, dan perhitungan omzet setelah reversal |
 | `OD-006` | Freshness dashboard final | **Locked**: cached aggregate dashboard Owner berumur maksimal 30 menit pada kondisi normal | TTL, query agregasi, cache, dan biaya |
 | `OD-007` | Insight minimum demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV | Dataset dan acceptance test BI |
-| `OD-008` | Provider/model AI eksternal wajib atau tidak | Tidak wajib | Biaya, privacy, reliability |
+| `OD-008` | Provider insight | **Locked**: LLM melalui `AiProviderPort` | Biaya, privacy, reliability |
 | `OD-009` | Target concurrency resmi | Proposed Baseline bagian 9.4 | Load test dan kapasitas deployment |
 | `OD-010` | Hierarki role dan checkout | **Locked**: Owner mewarisi seluruh permission Admin dan Kasir; Owner checkout pada Outlet aktif yang dipilih dalam Merchant, Kasir hanya pada Outlet tugasnya, Admin tidak checkout | Permission model dan validasi checkout |
 | `OD-011` | Model authentication dan logout | **Locked**: JWT access token tunggal berumur 900 detik; tanpa refresh token/revocation server-side; logout menghapus token dari client | UX sesi, exposure window token, security, dan testing |
