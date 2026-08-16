@@ -1,5 +1,5 @@
 import { Controller, Get, HttpCode, HttpStatus, Query } from '@nestjs/common';
-import { AuthUser, CurrentUser, Roles } from '@app/platform';
+import { AuthUser, CurrentUser, Roles, SuccessMessage } from '@app/platform';
 import { DashboardQueryService } from '../application/dashboard-query.service';
 import {
   DashboardOutletQueryDto,
@@ -37,6 +37,7 @@ export class DashboardController {
   @Get('summary')
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Ringkasan dashboard berhasil dimuat.')
   async summary(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardPeriodQueryDto,
@@ -50,6 +51,7 @@ export class DashboardController {
   @Get('sales-trend')
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Tren penjualan berhasil dimuat.')
   async salesTrend(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardTrendQueryDto,
@@ -66,6 +68,7 @@ export class DashboardController {
   @Get('aov-trend')
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Tren nilai transaksi rata-rata berhasil dimuat.')
   async aovTrend(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardTrendQueryDto,
@@ -82,6 +85,7 @@ export class DashboardController {
   @Get('time-pattern')
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Pola waktu penjualan berhasil dimuat.')
   async timePattern(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardPeriodQueryDto,
@@ -95,6 +99,7 @@ export class DashboardController {
   @Get('top-products')
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Peringkat produk berhasil dimuat.')
   async topProducts(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardProductQueryDto,
@@ -111,6 +116,7 @@ export class DashboardController {
   @Get('outlet-comparison')
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Perbandingan outlet berhasil dimuat.')
   async outletComparison(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardPeriodQueryDto,
@@ -126,6 +132,7 @@ export class DashboardController {
   @Get('operations')
   @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Dashboard operasional berhasil dimuat.')
   async operations(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardOutletQueryDto,
@@ -142,6 +149,7 @@ export class DashboardController {
   @Get('low-stock')
   @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Data stok rendah berhasil dimuat.')
   async lowStock(
     @CurrentUser() actor: AuthUser,
     @Query() query: DashboardOutletQueryDto,
