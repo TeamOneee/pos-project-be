@@ -3,6 +3,7 @@ export * from './application/auth.service';
 export * from './application/staff.service';
 export * from './application/password.service';
 export * from './application/token.service';
+export * from './application/ports/user-read.port';
 export * from './web/dto/auth-tokens.dto';
 export * from './web/dto/create-staff.dto';
 export * from './web/dto/login.dto';
