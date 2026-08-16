@@ -49,11 +49,7 @@ enum AiAnalysisJobState {
 }
 
 enum InsightStatus {
-  PENDING
-  PROCESSING
   READY
-  RETRY_SCHEDULED
-  FAILED
   STALE
 }
 
@@ -125,11 +121,12 @@ model User {
   updatedAt       DateTime      @updatedAt @map("updated_at")
 
   merchant       Merchant         @relation(fields: [merchantId], references: [id])
-  outlet         Outlet?          @relation(fields: [outletId], references: [id])
+  outlet         Outlet?          @relation(fields: [outletId], references: [id], onDelete: SetNull)
   transactions   Transaction[]    @relation("OperatorTransactions")
   stockMovements StockMovement[]  @relation("ActorStockMovements")
 
   @@index([merchantId, role])
+  @@index([merchantId, outletId])
   @@map("user")
 }
 
@@ -245,7 +242,7 @@ model StockMovement {
   merchant    Merchant     @relation(fields: [merchantId], references: [id])
   outlet      Outlet       @relation(fields: [outletId], references: [id])
   product     Product      @relation(fields: [productId], references: [id])
-  transaction Transaction? @relation(fields: [transactionId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
   actor       User         @relation("ActorStockMovements", fields: [actorUserId], references: [id])
 
   @@index([outletId, productId, createdAt])
@@ -334,16 +331,16 @@ model Insight {
   merchantId     String         @map("merchant_id")
   type           String // 'SALES_TREND' | 'OUTLET_COMPARISON' | 'TOP_PRODUCTS' | 'TIME_PATTERN' | 'AOV_TREND'
   title          String
-  content        String?        @db.Text // penjelasan insight (FR-AI-004)
-  evidenceSummary Json?         @map("evidence_summary") // ringkasan bukti berbasis metrik (FR-AI-005)
+  content        String         @db.Text // penjelasan insight (FR-AI-004)
+  evidenceSummary Json          @map("evidence_summary") // ringkasan bukti berbasis metrik (FR-AI-005)
   status         InsightStatus
   periodStart    DateTime       @map("period_start")
   periodEnd      DateTime       @map("period_end")
   dataVersion    String         @map("data_version")
-  generatedAt    DateTime?      @map("generated_at")
+  generatedAt    DateTime       @map("generated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id])
 
-  @@index([merchantId])
+  @@unique([merchantId, type])
   @@map("ai_insight")
 }
