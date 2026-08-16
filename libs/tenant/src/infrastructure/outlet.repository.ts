@@ -25,6 +25,22 @@ export class OutletRepository {
     });
   }
 
+  // 07 §2.2: konflik nama hanya dicek antar outlet aktif dalam merchant.
+  findActiveByNameInMerchant(
+    name: string,
+    merchantId: string,
+    excludeOutletId?: string,
+  ): Promise<Outlet | null> {
+    return this.prisma.outlet.findFirst({
+      where: {
+        merchantId,
+        name,
+        status: 'ACTIVE',
+        id: excludeOutletId ? { not: excludeOutletId } : undefined,
+      },
+    });
+  }
+
   create(data: CreateOutletData): Promise<Outlet> {
     return this.prisma.outlet.create({ data });
   }

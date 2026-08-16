@@ -83,20 +83,38 @@ export class OutletService {
       throw ApiError.validation('Minimal satu field harus diisi.');
     }
 
-    await this.tenantAuthorizationService.assertOutletOwnedByMerchant(
-      outletId,
-      actor.merchantId,
-    );
+    const current =
+      await this.tenantAuthorizationService.assertOutletOwnedByMerchant(
+        outletId,
+        actor.merchantId,
+      );
+
+    const name = dto.name?.trim() ?? current.name;
+    const status = dto.status ?? current.status;
+    // 07 §2.2: mengaktifkan outlet dengan nama yang bertabrakan outlet aktif lain = VALIDATION_ERROR.
+    if (status === 'ACTIVE' && current.status !== 'ACTIVE') {
+      const clash = await this.outletRepository.findActiveByNameInMerchant(
+        name,
+        actor.merchantId,
+        outletId,
+      );
+      if (clash) {
+        throw ApiError.validation(
+          'Nama outlet sudah dipakai outlet aktif lain.',
+          [{ field: 'name', reason: 'Konflik nama dengan outlet aktif.' }],
+        );
+      }
+    }
 
     const data: Prisma.OutletUncheckedUpdateInput = {};
     if (dto.name !== undefined) {
-      data.name = dto.name.trim();
+      data.name = name;
     }
     if (dto.address !== undefined) {
       data.address = dto.address?.trim() ?? null;
     }
     if (dto.status !== undefined) {
-      data.status = dto.status;
+      data.status = status;
     }
 
     const outlet = await this.outletRepository.update(outletId, data);

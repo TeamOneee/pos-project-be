@@ -26,6 +26,7 @@ describe('OutletService', () => {
   let service: OutletService;
   const outletRepository = {
     findByIdInMerchant: jest.fn(),
+    findActiveByNameInMerchant: jest.fn(),
     create: jest.fn((data: Record<string, unknown>) =>
       Promise.resolve(makeOutlet({ ...data })),
     ),
@@ -130,6 +131,39 @@ describe('OutletService', () => {
       expect(outletRepository.update).toHaveBeenCalledWith('outlet-1', {
         name: 'Outlet Baru',
         status: 'INACTIVE',
+      });
+    });
+
+    it('menolak aktivasi dengan nama bentrok outlet aktif lain (07 §2.2)', async () => {
+      tenantAuthorizationService.assertOutletOwnedByMerchant.mockResolvedValue(
+        makeOutlet({ status: 'INACTIVE' }),
+      );
+      outletRepository.findActiveByNameInMerchant.mockResolvedValue(
+        makeOutlet({ id: 'outlet-2', name: 'Outlet Margonda' }),
+      );
+      const err = await service
+        .update(actor, 'outlet-1', { status: 'ACTIVE' })
+        .catch((e: unknown) => e);
+      expect((err as { code: string }).code).toBe('VALIDATION_ERROR');
+      expect(outletRepository.findActiveByNameInMerchant).toHaveBeenCalledWith(
+        'Outlet Margonda',
+        'merchant-1',
+        'outlet-1',
+      );
+      expect(outletRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('mengizinkan aktivasi bila nama tidak bentrok', async () => {
+      tenantAuthorizationService.assertOutletOwnedByMerchant.mockResolvedValue(
+        makeOutlet({ status: 'INACTIVE' }),
+      );
+      outletRepository.findActiveByNameInMerchant.mockResolvedValue(null);
+      const result = await service.update(actor, 'outlet-1', {
+        status: 'ACTIVE',
+      });
+      expect(result).toMatchObject({ status: 'ACTIVE' });
+      expect(outletRepository.update).toHaveBeenCalledWith('outlet-1', {
+        status: 'ACTIVE',
       });
     });
   });
