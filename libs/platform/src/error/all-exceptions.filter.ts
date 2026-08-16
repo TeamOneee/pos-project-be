@@ -97,13 +97,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
       const status = exception.getStatus();
       const raw = exception.getResponse();
       const message =
-        typeof raw === 'string'
-          ? raw
-          : this.messageFromObject(raw);
+        typeof raw === 'string' ? raw : this.messageFromObject(raw);
       const errors =
-        typeof raw === 'string'
-          ? undefined
-          : this.errorsFromResponse(raw);
+        typeof raw === 'string' ? undefined : this.errorsFromResponse(raw);
       return {
         status,
         body: {
@@ -153,7 +149,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return 'Terjadi kesalahan.';
   }
 
-  private errorsFromResponse(response: object): ErrorBody['errors'] | undefined {
+  private errorsFromResponse(
+    response: object,
+  ): ErrorBody['errors'] | undefined {
     if (!('message' in response)) {
       return undefined;
     }

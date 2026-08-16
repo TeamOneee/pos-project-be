@@ -13,14 +13,14 @@ export interface ReportingCacheValue<T = unknown> {
 // Implementasi penuh menyusul saat modul reporting dikerjakan.
 @Injectable()
 export class ReportingCacheService {
-  async get<T>(_key: string): Promise<ReportingCacheValue<T> | undefined> {
-    return undefined;
+  get<T>(_key: string): Promise<ReportingCacheValue<T> | undefined> {
+    void _key;
+    return Promise.resolve(undefined);
   }
 
-  async set<T>(
-    _key: string,
-    _value: ReportingCacheValue<T>,
-  ): Promise<void> {
-    return undefined;
+  set<T>(_key: string, _value: ReportingCacheValue<T>): Promise<void> {
+    void _key;
+    void _value;
+    return Promise.resolve();
   }
 }
