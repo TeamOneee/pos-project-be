@@ -7,13 +7,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
-import { CurrentUser, Public } from '@app/platform';
-import { AuthUser } from '@app/platform';
+import { Public } from '@app/platform';
 import { AuthService } from '../application/auth.service';
 import { AuthTokensDto } from './dto/auth-tokens.dto';
 import { LoginDto } from './dto/login.dto';
-import { LogoutDto } from './dto/logout.dto';
-import { RefreshDto } from './dto/refresh.dto';
 import { RegisterDto } from './dto/register.dto';
 import { RegisterResponseDto } from './dto/register-response.dto';
 import { LoginThrottlerGuard } from './login-throttler.guard';
@@ -39,28 +36,5 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto): Promise<AuthTokensDto> {
     return this.authService.login(dto);
-  }
-
-  // FR-AUTH-007/008
-  @Public()
-  @SkipThrottle()
-  @HttpCode(HttpStatus.OK)
-  @Post('refresh')
-  refresh(@Body() dto: RefreshDto): Promise<{
-    access_token: string;
-    refresh_token: string;
-    expires_in: number;
-  }> {
-    return this.authService.refresh(dto);
-  }
-
-  // FR-AUTH-008: logout mencabut refresh token
-  @HttpCode(HttpStatus.NO_CONTENT)
-  @Post('logout')
-  logout(
-    @CurrentUser() _actor: AuthUser,
-    @Body() dto: LogoutDto,
-  ): Promise<void> {
-    return this.authService.logout(dto);
   }
 }

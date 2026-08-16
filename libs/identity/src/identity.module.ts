@@ -6,7 +6,6 @@ import { PasswordService } from './application/password.service';
 import { StaffService } from './application/staff.service';
 import { TokenService } from './application/token.service';
 import { OutletRepository } from './infrastructure/outlet.repository';
-import { RefreshTokenRepository } from './infrastructure/refresh-token.repository';
 import { UserRepository } from './infrastructure/user.repository';
 import { AuthController } from './web/auth.controller';
 import { LoginThrottlerGuard } from './web/login-throttler.guard';
@@ -22,7 +21,6 @@ import { StaffController } from './web/staff.controller';
     PasswordService,
     TokenService,
     UserRepository,
-    RefreshTokenRepository,
     OutletRepository,
     LoginThrottlerGuard,
   ],

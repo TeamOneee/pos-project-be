@@ -16,10 +16,9 @@ const makeStaff = (overrides: Partial<User> = {}): User => ({
   id: 'staff-1',
   merchantId: 'merchant-1',
   outletId: null,
-  emailNormalized: 'sari@warungku.id',
-  emailOriginal: 'Sari@Warungku.id',
+  name: 'Sari',
+  email: 'sari@warungku.id',
   passwordHash: 'argon2-hash',
-  fullName: 'Sari',
   role: 'ADMIN',
   status: 'ACTIVE',
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -73,6 +72,8 @@ describe('StaffService', () => {
         expect.objectContaining({
           merchantId: 'merchant-1',
           outletId: null,
+          name: 'Sari',
+          email: 'sari@warungku.id',
           role: 'ADMIN',
         }),
       );
