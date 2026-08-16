@@ -56,7 +56,7 @@
 {
   "success": true,
   "statusCode": 200,
-  "message": "Merchant berhasil diperbarui",
+  "message": "Merchant updated successfully",
   "data": {
     "merchant_id": "550e8400-e29b-41d4-a716-446655440000",
     "name": "IndoMart Retail Updated",
@@ -74,7 +74,7 @@
   "success": false,
   "statusCode": 400,
   "path": "/api/v1/products",
-  "message": "Nama produk wajib diisi",
+  "message": "Product name is required",
   "errors": [
     { "field": "name", "message": "Name should not be empty" }
   ],
@@ -83,6 +83,8 @@
 ```
 
 > Aturan envelope: `errors` hanya muncul bila ada detail per field (khususnya validasi `class-validator`); untuk error tanpa field (401/403/404/409/429/503/500) `errors` dihilangkan. `statusCode` selalu konsisten dengan HTTP status nyata; `path` adalah path endpoint yang diminta; `timestamp` adalah waktu server (ISO-8601, UTC). `success` selalu `true` untuk 2xx yang memiliki body dan `false` untuk non-2xx. `204` adalah pengecualian tanpa body.
+
+> Implementasi: `SuccessResponseInterceptor` global di `platform` membungkus DTO sukses setelah controller selesai. Setiap endpoint mendeklarasikan `@SuccessMessage()` agar `message` spesifik terhadap operasi; controller tidak boleh membuat envelope sendiri.
 
 ### 0.1 Katalog kondisi error global (dipakai di seluruh dokumen ini)
 

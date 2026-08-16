@@ -448,6 +448,7 @@ Konvensi global (berlaku semua endpoint):
 - Semua response dibungkus **response/error envelope** (detail di `07` §0), kecuali operasi `DELETE` yang berhasil dan secara eksplisit memakai `204 No Content` tanpa body:
   - sukses (2xx): `{ "success": true, "statusCode": 200, "message": "<deskripsi>", "data": { ... } }` — payload berada di `data`;
   - error (non-2xx): `{ "success": false, "statusCode": 400, "path": "/api/v1/...", "message": "<pesan>", "errors": [{ "field": "...", "message": "..." }], "timestamp": "..." }` — `errors` opsional (hanya untuk detail per field). `X-Correlation-Id` disertakan via header, bukan body.
+- Implementasi response sukses berada pada `SuccessResponseInterceptor` global di `platform`; controller hanya mengembalikan DTO bisnis. `@SuccessMessage()` menetapkan `message` endpoint, sedangkan default yang aman dipakai bila metadata belum ditetapkan. Interceptor melewati `204` agar Express tidak mengirim body yang melanggar HTTP.
 - Contoh error:
 ```json
 { "success": false, "statusCode": 409, "path": "/api/v1/checkout", "message": "Stok tidak mencukupi",
