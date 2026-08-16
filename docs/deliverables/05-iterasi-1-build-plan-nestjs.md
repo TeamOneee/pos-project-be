@@ -120,7 +120,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")       // primary, dipakai apps/api utk write
+  url      = env("DATABASE_URL_WRITE")  // primary, dipakai CLI Prisma & PrismaWriteService
 }
 
 enum UserRole {
@@ -154,6 +154,14 @@ enum InsightStatus {
   STALE
 }
 
+enum AiAnalysisJobState {
+  PENDING
+  PROCESSING
+  READY
+  RETRY_SCHEDULED
+  FAILED
+}
+
 model Merchant {
   id          String        @id @default(uuid())
   ownerUserId String        @unique @map("owner_user_id")   // FR-TEN-002
@@ -163,9 +171,8 @@ model Merchant {
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
 
-  owner             User               @relation("MerchantOwner", fields: [ownerUserId], references: [id])
   outlets           Outlet[]
-  users             User[]             @relation("MerchantUsers")
+  users             User[]
   categories        Category[]
   products          Product[]
   inventories       Inventory[]
@@ -199,28 +206,28 @@ model Outlet {
 }
 
 model User {
-  id              String        @id @default(uuid())
-  merchantId      String        @map("merchant_id")
-  outletId        String?       @map("outlet_id")   // null utk OWNER/ADMIN, wajib utk CASHIER (CHECK constraint via raw SQL migration)
-  emailNormalized String        @unique @map("email_normalized")
-  emailOriginal   String        @map("email_original")
-  passwordHash    String        @map("password_hash")          // FR-AUTH-004: hanya hash
-  fullName        String        @map("full_name")
-  role            UserRole                                     // DR-011
-  status          AccountStatus @default(ACTIVE)
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id           String        @id @default(uuid())
+  merchantId   String        @map("merchant_id")
+  outletId     String?       @map("outlet_id")   // null utk OWNER/ADMIN, wajib utk CASHIER (CHECK constraint via raw SQL migration)
+  name         String
+  email        String        @unique // DR-001
+  passwordHash String        @map("password_hash") // FR-AUTH-004: hanya hash
+  role         UserRole                           // DR-011
+  status       AccountStatus @default(ACTIVE)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
 
-  merchant     Merchant     @relation("MerchantUsers", fields: [merchantId], references: [id])
-  outlet       Outlet?      @relation(fields: [outletId], references: [id])
-  ownedMerchant Merchant?   @relation("MerchantOwner")
-  transactions Transaction[]                                     // operator checkout
+  merchant       Merchant         @relation(fields: [merchantId], references: [id])
+  outlet         Outlet?          @relation(fields: [outletId], references: [id], onDelete: SetNull)
+  transactions   Transaction[]    @relation("OperatorTransactions")
+  stockMovements StockMovement[]  @relation("ActorStockMovements")
 
   @@index([merchantId, role])
-  @@map("users")
+  @@index([merchantId, outletId])
+  @@map("user")
 }
-// migration tambahan (raw SQL) setelah prisma migrate:
-// ALTER TABLE users ADD CONSTRAINT chk_cashier_outlet CHECK (
+// migration tambahan (raw SQL) — sudah diterapkan pada `20260816132316_init/migration.sql`:
+// ALTER TABLE "user" ADD CONSTRAINT "chk_cashier_outlet" CHECK (
 //   (role = 'CASHIER' AND outlet_id IS NOT NULL) OR (role IN ('OWNER','ADMIN') AND outlet_id IS NULL)
 // );
 
@@ -273,7 +280,7 @@ model ProductOutletPrice {                       // FR-CAT-010, DG-002 (menutup 
 
   @@unique([outletId, productId])
   @@index([merchantId])
-  @@map("product_outlet_price")
+  @@map("outlet_product_price")
 }
 
 model Inventory {
@@ -311,7 +318,8 @@ model StockMovement {                        // FR-INV-003
   merchant    Merchant    @relation(fields: [merchantId], references: [id])
   outlet      Outlet      @relation(fields: [outletId], references: [id])
   product     Product     @relation(fields: [productId], references: [id])
-  transaction Transaction? @relation(fields: [transactionId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  actor       User        @relation("ActorStockMovements", fields: [actorUserId], references: [id])
 
   @@index([outletId, productId, createdAt])
   @@map("stock_movement")
@@ -328,8 +336,8 @@ model Transaction {
   transactionNumber String            @map("transaction_number")
   status            TransactionStatus                            // FR-CHK-010/011
   paymentMethod     PaymentMethod     @map("payment_method")     // OD-001: atribut pembayaran langsung di Transaction
-  paymentStatus     String            @map("payment_status")     // selalu "CONFIRMED" (FR-PAY-002)
-  paidAt            DateTime          @map("paid_at")
+  paymentStatus     String            @default("CONFIRMED") @map("payment_status") // selalu CONFIRMED (FR-PAY-002)
+  paidAt            DateTime          @default(now()) @map("paid_at")
   checkoutRequestId String            @map("checkout_request_id") // OD-012, FR-CHK-001-016
   requestHash       String            @map("request_hash")        // sha256 payload ternormalisasi
   subtotal          Decimal           @db.Decimal(14, 2)
@@ -338,7 +346,7 @@ model Transaction {
 
   merchant       Merchant           @relation(fields: [merchantId], references: [id])
   outlet         Outlet             @relation(fields: [outletId], references: [id])
-  operator       User               @relation(fields: [operatorUserId], references: [id])
+  operator       User               @relation("OperatorTransactions", fields: [operatorUserId], references: [id])
   items          TransactionItem[]
   stockMovements StockMovement[]
 
@@ -387,7 +395,7 @@ model AiAnalysisJob {                            // FR-AI-006/007; ERD 05b `ai_a
   id            String    @id @default(uuid())
   merchantId    String    @map("merchant_id")
   analysisDate  DateTime  @map("analysis_date") @db.Date   // tanggal lokal Merchant (BR-018)
-  state         String                             // PENDING | PROCESSING | READY | RETRY_SCHEDULED | FAILED
+  state         AiAnalysisJobState
   attempts      Int       @default(0)
   nextRetryAt   DateTime? @map("next_retry_at")
   errorCategory String?   @map("error_category")
@@ -397,7 +405,6 @@ model AiAnalysisJob {                            // FR-AI-006/007; ERD 05b `ai_a
   merchant Merchant @relation(fields: [merchantId], references: [id])
 
   @@unique([merchantId, analysisDate])            // FR-AI-007: satu analisis per Merchant per hari
-  @@index([state, nextRetryAt])
   @@map("ai_analysis_job")
 }
 ```
@@ -414,12 +421,12 @@ export class PrismaWriteService extends PrismaClient {
 // libs/platform/src/prisma/prisma-read.service.ts
 @Injectable()
 export class PrismaReadService extends PrismaClient {
-  constructor() { super({ datasources: { db: { url: process.env.DATABASE_URL_READ_REPLICA } } }); }
+  constructor() { super({ datasources: { db: { url: process.env.DATABASE_URL_READ } } }); }
 }
 ```
 `SalesModule` menyediakan `SalesReportingReadPort`; implementasinya membaca fakta `Transaction` `COMPLETED` dari read replica secara bounded. `ReportingModule` mengagregasi fakta tersebut saat cache miss dan tidak mengakses persistence Sales secara langsung. `InsightModule` memperoleh dataset hanya melalui `ReportingReadPort`, lalu worker menulis `AiAnalysisJob` dan `AiInsight` melalui `PrismaWriteService`. Ini menjaga setiap consumer hanya mengenal kontrak publik modul lain.
 
-**Pembuatan Owner + Merchant:** `Merchant.owner_user_id` adalah FK ke `User`, sedangkan `User.merchant_id` adalah FK ke Merchant. Registration membuat kedua UUID lebih dahulu lalu menyimpan keduanya dalam satu transaksi dengan FK `DEFERRABLE INITIALLY DEFERRED` yang ditetapkan pada raw SQL migration. Dengan demikian, database menjamin Owner ada dan hubungan kepemilikan tidak menjadi scalar tanpa referensi.
+**Pembuatan Owner + Merchant:** `Merchant.owner_user_id` adalah kolom `@unique` yang mengarah ke `User` (FK tidak dimodelkan di schema.prisma), sedangkan `User.merchant_id` adalah FK ke Merchant. Registrasi membuat kedua UUID lebih dahulu lalu menyimpan keduanya dalam satu transaksi; FK `DEFERRABLE INITIALLY DEFERRED` sudah diterapkan melalui raw SQL migration `20260816204625_add_owner_fk_deferred`, sehingga database menjamin Owner ada.
 
 **Catatan penyesuaian dari versi lama:**
 - Tidak ada model `Payment`, `IdempotencyRecord`, `OutboxEvent`, `JobRecord`, `ReportingProjection`, maupun `RefreshToken` — seluruhnya kontradiktif dengan keputusan `Locked` Iterasi 1.
@@ -481,7 +488,7 @@ Konvensi global (berlaku semua endpoint):
 | `GET /products?search=&categoryId=&page=` | OWNER, ADMIN | List/search seluruh produk |
 | `GET /products/catalog?search=&categoryId=&page=&outletId=` | CASHIER, OWNER | Produk aktif yang punya inventory row di Outlet POS yang sah (Kasir: Outlet tugasnya; Owner: Outlet aktif yang dipilih); pencarian/filter dilakukan server dan UI dapat memfilter hasil yang sudah dimuat |
 | `PATCH /products/:id` | OWNER, ADMIN | Ubah nama/harga master/category/status |
-| `PUT /products/:id/outlet-prices/:outletId` | OWNER, ADMIN | Set harga override per Outlet (`product_outlet_price`) (FR-CAT-010) |
+| `PUT /products/:id/outlet-prices/:outletId` | OWNER, ADMIN | Set harga override per Outlet (`outlet_product_price`) (FR-CAT-010) |
 | `DELETE /products/:id/outlet-prices/:outletId` | OWNER, ADMIN | Hapus override; harga efektif kembali ke harga master |
 
 > `OWNER` mewarisi seluruh permission `ADMIN` (`BR-011B`, `UR-OWN-005B`), sehingga mampu menulis Category/Product/harga, bukan read-only.
@@ -612,7 +619,7 @@ export class CheckoutService {
         data: {
           merchantId: actor.merchantId, outletId: dto.outletId,
           operatorUserId: actor.userId,               // ERD 05b: operator (Kasir atau Owner)
-          transactionNumber: await this.nextTransactionNumber(tx, actor.merchantId),
+          transactionNumber: await this.nextTransactionNumber(tx),   // sequence, bukan tabel (poin 4)
           status: 'COMPLETED',
           paymentMethod: dto.paymentMethod,
           paymentStatus: 'CONFIRMED',
@@ -644,8 +651,18 @@ export class CheckoutService {
 
 - Semua perubahan (Transaction + payment attributes + lines + stock + StockMovement) commit sebagai **satu unit atomik** (`FR-CHK-006/007`, `NFR-REL-003`); kegagalan stok di langkah 4 membuat seluruh transaksi rollback.
 - `normalizeCheckoutItems` menggabungkan Product duplikat dan mengurutkan Product ID sebelum hash serta reservasi. Hash juga mengikat `operator_user_id`, sehingga request ID yang dipakai ulang oleh operator atau payload berbeda selalu menjadi `IDEMPOTENCY_CONFLICT`.
-- `StockReservationPort` melakukan conditional atomic update dan memperoleh saldo hasil melalui `UPDATE ... RETURNING`; ia menulis `StockMovement.quantity_before/after` dari nilai aktual tersebut pada transaksi yang sama. Urutan Product yang deterministik juga mengurangi risiko deadlock pada checkout multi-item.
+- `StockReservationPort` (implementasi `PrismaStockReservationRepository` di `libs/inventory`) melakukan conditional atomic update per Product dalam urutan Product ID terurut (anti-deadlock), memakai `UPDATE ... RETURNING`; `quantity_before/after` diambil dari nilai aktual hasil update, bukan pembacaan sebelumnya. Jika satu item tidak cukup, seluruh transaksi checkout rollback (`FR-INV-006`). SQL konkret:
+  ```sql
+  UPDATE "inventory"
+  SET quantity = quantity - $qty, updated_at = NOW()
+  WHERE outlet_id = $outlet AND product_id = $product AND quantity >= $qty
+  RETURNING quantity AS quantity_after;
+  ```
 - **Idempotency** dijamin oleh unique constraint `(merchant_id, checkout_request_id)`. Pada submit bersamaan, hanya satu yang berhasil `create`; request lain yang kena unique violation (`P2002`) harus menangkap error, membaca ulang Transaction yang sama, membandingkan `request_hash`, lalu mengembalikan receipt yang sama atau `IDEMPOTENCY_CONFLICT` (`FR-CHK-003/004`). Tidak ada tabel `IdempotencyRecord` (`OD-012`).
+- **`transaction_number`** berbentuk `INV-{YYYY}-{seq}` (`BR-018`, `DR-003`). Nilai `seq` diambil atomik lewat **Postgres sequence** `transaction_number_seq` (`SELECT nextval('transaction_number_seq')`) di dalam transaksi checkout — **bukan tabel counter** (keputusan Iterasi 1). Sequence dibuat oleh migration raw SQL `20260816210000_add_transaction_number_sequence`; unik global sehingga otomatis unik per Merchant. `YYYY` dihitung dari `created_at` dalam timezone Merchant (`merchant.timezone`); contoh `INV-2026-000123`. SQL:
+  ```sql
+  SELECT 'INV-' || to_char(NOW(), 'YYYY') || '-' || lpad(nextval('transaction_number_seq')::text, 6, '0');
+  ```
 - Checkout **tidak** menulis outbox dan **tidak** membangun/menginvalidasi cache reporting (`FR-CHK-014/015`). Report dibangun saat dashboard dibuka.
 
 ### 6.2 Worker: pemrosesan `AiAnalysisJob` (`apps/worker`, via `libs/insight`)
@@ -662,8 +679,9 @@ export class AiAnalysisJobService {
   @Cron('*/30 * * * * *')   // proses Node terpisah dari yang melayani HTTP checkout
   async processDue() {
     // claimNextDue atomik: PENDING tanpa nextRetryAt, atau RETRY_SCHEDULED yang sudah due.
-    // repository memakai SELECT ... FOR UPDATE SKIP LOCKED lalu mengubah state ke PROCESSING
-    // dalam transaksi yang sama agar beberapa instance Worker tidak memproses job yang sama.
+    // Implementasi di libs/insight/.../ai-analysis-job.repository.ts memakai satu
+    // statement $queryRaw (SELECT ... FOR UPDATE SKIP LOCKED -> UPDATE ke PROCESSING
+    // -> RETURNING) agar beberapa instance Worker tidak memproses job yang sama.
     const job = await this.jobRepository.claimNextDue();
     if (!job) return;
     try {
@@ -680,7 +698,25 @@ export class AiAnalysisJobService {
 ```
 
 - Satu `AiAnalysisJob` per `(merchant_id, analysis_date)` dipastikan oleh unique constraint (`FR-AI-007`); trigger ulang memakai job yang sama. Worker menurunkan periode Merchant-wide 30 hari lokal secara deterministik dari `analysis_date` dan timezone Merchant.
-- Claim job bersifat atomik dan aman untuk banyak Worker. Job `PENDING` tidak membutuhkan `next_retry_at`; hanya `RETRY_SCHEDULED` yang membandingkan waktu retry.
+- Claim job bersifat atomik dan aman untuk banyak Worker. Job `PENDING` tidak membutuhkan `next_retry_at`; hanya `RETRY_SCHEDULED` yang membandingkan waktu retry. SQL:
+  ```sql
+  WITH claimed AS (
+    SELECT id FROM "ai_analysis_job"
+    WHERE state IN ('PENDING', 'RETRY_SCHEDULED')
+      AND (
+        (state = 'PENDING' AND next_retry_at IS NULL)
+        OR (state = 'RETRY_SCHEDULED' AND next_retry_at <= NOW())
+      )
+    ORDER BY created_at
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+  )
+  UPDATE "ai_analysis_job"
+  SET state = 'PROCESSING', updated_at = NOW()
+  FROM claimed
+  WHERE "ai_analysis_job".id = claimed.id
+  RETURNING "ai_analysis_job".*;
+  ```
 - Insight generation membaca dataset lewat `ReportingReadPort` (cached aggregate atau agregasi bounded saat miss), **bukan** membaca tabel Transaction mentah dari modul insight.
 - Worker **tidak** menangani reporting; dashboard memakai cache-aside (`FR-REP-001`).
 
@@ -742,6 +778,8 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 ## 9. Isolasi workload checkout vs reporting/AI
 
 1. **Connection terpisah** — `PrismaWriteService` (primary) dipakai identity/tenant/catalog/inventory/sales/ai-job; implementasi `SalesReportingReadPort` memakai `PrismaReadService` (read replica). Insight memperoleh dataset melalui Reporting. Burst baca dashboard tidak bisa menghabiskan koneksi yang dibutuhkan checkout.
+
+   **Read replica lag diterima (keputusan Iterasi 1, poin 5):** replikasi asinkron Neon bisa tertinggal hingga beberapa detik, dan itu **tidak** memicu fallback/retry. Konsumen baca (dashboard via cache-aside, dataset AI) sudah toleran — freshness diukur dari umur cache (`data_updated_at`), bukan dari sinkronisasi replika. `GET /health` hanya mengecek primary + proses worker, tidak mengecek replika (lihat `07` §8.2).
 2. **Cache-aside reporting** — dashboard dan AI memakai shared cache Redis TTL 30 menit; cache miss meminta fakta `Transaction` `COMPLETED` melalui `SalesReportingReadPort` yang membaca read replica secara bounded dan dilindungi single-flight per key (`FR-REP-001/008`, `FR-REP-009`). Checkout tidak menyentuh cache/agregasi (`FR-CHK-014/015`).
 3. **Proses terpisah** — `apps/worker` khusus `AiAnalysisJob` dijalankan sebagai service Railway kedua dari image yang sama, sehingga beban CPU/koneksi worker AI tidak berbagi resource dengan proses yang melayani checkout, dan bisa di-scale independen (NFR-SCALE-004).
 4. **Degradation order** (SRS §15) — tunda insight generation lebih dulu; batasi concurrency cache miss/agregasi; layani dashboard dari data terakhir berstatus stale; pertahankan product lookup dan checkout selama dependency inti sehat; jika transaksi tidak dapat dijamin benar, tolak checkout dengan jelas.
@@ -793,7 +831,7 @@ Dijalankan wajib di CI: `npx depcruise --config .dependency-cruiser.cjs --valida
 | Decision gate | Dampak ke desain ini |
 |---|---|
 | `DG-001` / `OD-001` | **Locked**: atribut pembayaran `payment_method`/`payment_status = CONFIRMED`/`paid_at` langsung pada `Transaction`; **tidak ada tabel `Payment`** dan tidak ada field `amount` pembayaran terpisah (`DR-013`) |
-| `DG-002` / `OD-002` | **Locked**: harga master global + override per Outlet. Tabel `product_outlet_price`; `CheckoutService` ambil dari situ dulu, fallback ke `Product.price` |
+| `DG-002` / `OD-002` | **Locked**: harga master global + override per Outlet. Tabel `outlet_product_price`; `CheckoutService` ambil dari situ dulu, fallback ke `Product.price` |
 | `DG-005` / `OD-006` | **Locked**: cache-aside shared cache TTL 30 menit; cache miss mengagregasi `Transaction` `COMPLETED`; checkout tidak menginvalidasi cache; data lebih lama hanya fallback `STALE` |
 | `DG-009` / `OD-010` | **Locked**: `OWNER` mewarisi seluruh permission `ADMIN` dan `CASHIER`; Owner checkout pada Outlet aktif yang dipilih, Kasir hanya pada Outlet tugasnya, Admin tidak checkout. `@Roles('CASHIER', 'OWNER')` + validasi scope di service |
 | `DG-010` / `OD-003` | **Locked**: scope riwayat Kasir = transaksi sendiri; query `GET /transactions` untuk CASHIER difilter `operatorUserId = actor.userId` — tidak mengubah skema |
