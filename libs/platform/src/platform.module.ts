@@ -1,5 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
 import { ClsModule } from 'nestjs-cls';
@@ -12,6 +12,7 @@ import { JwtAuthGuard } from './security/jwt-auth.guard';
 import { JwtStrategy } from './security/jwt.strategy';
 import { RolesGuard } from './security/roles.guard';
 import { HealthController } from './web/health.controller';
+import { SuccessResponseInterceptor } from './web/success-response.interceptor';
 
 // Shared kernel (primitif infrastruktur): error, security, money, cache, prisma.
 // Implementasi diisi bertahap — lihat 06-iterasi-1-module-library.md §3.0.
@@ -33,6 +34,7 @@ import { HealthController } from './web/health.controller';
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: SuccessResponseInterceptor },
   ],
   exports: [
     PrismaWriteService,

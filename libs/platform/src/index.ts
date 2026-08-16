@@ -8,6 +8,8 @@ export * from './money/money';
 export * from './web/page-request.dto';
 export * from './web/page-response.dto';
 export * from './web/health.controller';
+export * from './web/success-message.decorator';
+export * from './web/success-response.interceptor';
 export * from './security/user-role';
 export * from './security/correlation-id.middleware';
 export * from './security/jwt.strategy';
