@@ -6,19 +6,18 @@ import {
   TenantReportingReadPort,
 } from './ports/tenant-reporting-read.port';
 
+// membaca konteks tenant (timezone merchant dan daftar outlet) untuk pelaporan.
 @Injectable()
-// membatasi context reporting pada merchant sambil mempertahankan histori outlet.
 export class TenantReportingReadService extends TenantReportingReadPort {
   constructor(private readonly repository: TenantReportingRepository) {
     super();
   }
 
+  // mengambil timezone dan outlet merchant; outlet nonaktif tetap dimuat untuk riwayat historis.
   async getContext(
     merchantId: string,
     outletId?: string,
   ): Promise<TenantReportingContext> {
-    // outlet nonaktif tetap diload karena Owner dapat membaca histori dan analyticsnya.
-    // menyamarkan merchant tidak aktif atau tidak ditemukan sebagai resource absent.
     const [merchant, outlets] = await Promise.all([
       this.repository.findActiveMerchant(merchantId),
       this.repository.findOutlets(merchantId, outletId),
