@@ -6,8 +6,6 @@ export * from './application/token.service';
 export * from './web/dto/auth-tokens.dto';
 export * from './web/dto/create-staff.dto';
 export * from './web/dto/login.dto';
-export * from './web/dto/logout.dto';
-export * from './web/dto/refresh.dto';
 export * from './web/dto/register.dto';
 export * from './web/dto/register-response.dto';
 export * from './web/dto/staff.dto';

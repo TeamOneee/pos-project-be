@@ -5,10 +5,9 @@ import { PrismaWriteService } from '@app/platform';
 export interface CreateUserData {
   merchantId: string;
   outletId: string | null;
-  emailNormalized: string;
-  emailOriginal: string;
+  name: string;
+  email: string;
   passwordHash: string;
-  fullName: string;
   role: UserRole;
   status: AccountStatus;
 }
@@ -22,9 +21,9 @@ export interface StaffListFilter {
 export class UserRepository {
   constructor(private readonly prisma: PrismaWriteService) {}
 
-  findByEmail(emailNormalized: string): Promise<User | null> {
+  findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({
-      where: { emailNormalized },
+      where: { email },
     });
   }
 
