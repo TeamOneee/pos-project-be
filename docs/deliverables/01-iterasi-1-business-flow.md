@@ -434,7 +434,7 @@ Permintaan checkout yang sama harus dapat dikenali. Client membuat satu `checkou
 
 ### 10.4 Stok per Outlet adalah fakta operasional
 
-MVP menyimpan stok numerik untuk setiap kombinasi **Product + Outlet**. Owner dan Admin bekerja pada scope Merchant, tetapi setiap adjustment wajib memilih Outlet secara eksplisit. Checkout hanya boleh berhasil bila produk aktif dan stok Outlet mencukupi; pembuatan Transaction beserta atribut pembayaran `CONFIRMED`, line snapshot, stock movement, dan pengurangan stok harus menjadi satu keputusan atomik agar dua operator checkout tidak menjual stok terakhir yang sama.
+MVP menyimpan stok numerik untuk setiap kombinasi **Product + Outlet**. Owner dan Admin bekerja pada scope Merchant, tetapi setiap adjustment wajib memilih Outlet secara eksplisit. Checkout hanya boleh berhasil bila produk aktif dan stok Outlet mencukupi; pembuatan Transaction beserta atribut pembayaran `CONFIRMED`, `TransactionItem` snapshot, stock movement, dan pengurangan stok harus menjadi satu keputusan atomik agar dua operator checkout tidak menjual stok terakhir yang sama.
 
 ### 10.5 Reporting dan AI membaca hasil, bukan mengendalikan checkout
 
@@ -645,7 +645,7 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 
 ### Checkout dan pembayaran
 
-1. **Resolved (`OD-001` locked) —** Kapan transaksi dianggap final? Setelah operator checkout (Kasir atau Owner) mengonfirmasi pembayaran dan satu commit atomik menyimpan Transaction `COMPLETED` beserta `payment_method`, `payment_status = CONFIRMED`, `paid_at`, line snapshot, StockMovement, dan perubahan stok. Tidak ada Payment terpisah; receipt mengikuti Transaction final tersebut.
+1. **Resolved (`OD-001` locked) —** Kapan transaksi dianggap final? Setelah operator checkout (Kasir atau Owner) mengonfirmasi pembayaran dan satu commit atomik menyimpan Transaction `COMPLETED` beserta `payment_method`, `payment_status = CONFIRMED`, `paid_at`, `TransactionItem` snapshot, StockMovement, dan perubahan stok. Tidak ada Payment terpisah; receipt mengikuti Transaction final tersebut.
 2. **Resolved (`OD-004` locked) —** Apakah diskon, pajak, atau service charge wajib pada MVP? Jawaban: tidak; ketiganya di luar MVP dan total transaksi sama dengan subtotal.
 3. **Resolved (`OD-005` locked) —** Apakah void, cancel, refund, atau koreksi transaksi masuk MVP? Jawaban: tidak masuk MVP.
 

@@ -299,10 +299,10 @@ Keranjang dapat disimpan hanya di client untuk MVP, tetapi checkout server tetap
 | FR-CHK-003 | Jika Transaction dengan `merchant_id + checkout_request_id` dan `request_hash` yang sama sudah ada, sistem harus mengembalikan Transaction/receipt yang sama tanpa membuat transaksi atau mengurangi stok lagi. Pada submit bersamaan, constraint unik harus memastikan hanya satu Transaction commit dan request lain diselesaikan ke hasil Transaction tersebut. | Must | Integration + concurrency test |
 | FR-CHK-004 | Penggunaan `checkout_request_id` yang sama dengan payload, Outlet, atau operator berbeda harus ditolak sebagai `IDEMPOTENCY_CONFLICT` tanpa membocorkan data lintas Merchant. | Must | Security/integration test |
 | FR-CHK-005 | Payload checkout harus menyatakan Outlet checkout. Sistem harus memvalidasi User aktif, `User.merchant_id`, role, Outlet checkout, produk aktif, harga, stok Outlet, metode pembayaran, dan total sebelum finalisasi. Untuk Kasir, Outlet payload wajib sama dengan `User.outlet_id`; untuk Owner, Outlet wajib aktif dan berada dalam Merchant-nya; Admin ditolak. | Must | Integration test |
-| FR-CHK-006 | Pembuatan Transaction beserta atribut pembayaran `CONFIRMED`, line snapshot, stock movement, dan pengurangan stok harus commit sebagai satu unit atomik. | Must | Integration + fault injection test |
+| FR-CHK-006 | Pembuatan Transaction beserta atribut pembayaran `CONFIRMED`, `TransactionItem` snapshot, stock movement, dan pengurangan stok harus commit sebagai satu unit atomik. | Must | Integration + fault injection test |
 | FR-CHK-007 | Bila salah satu operasi finalisasi gagal, tidak satu pun hasil parsial boleh terlihat sebagai transaksi final. | Must | Fault injection test |
 | FR-CHK-008 | Transaksi final harus memperoleh `transaction_id` dan `receipt_number` unik setidaknya dalam merchant. | Must | Integration test |
-| FR-CHK-009 | Transaction line harus menyimpan product ID, nama snapshot, harga unit snapshot, dan kuantitas. Subtotal line dihitung saat dibutuhkan dari harga unit snapshot × kuantitas. | Must | Schema + integration test |
+| FR-CHK-009 | `TransactionItem` harus menyimpan product ID, nama snapshot, harga unit snapshot, kuantitas, dan subtotal snapshot (`unit_price_snapshot × quantity`). | Must | Schema + integration test |
 | FR-CHK-010 | Transaction harus menyimpan User operator checkout (Kasir atau Owner), Merchant, Outlet, waktu, subtotal/total, `payment_method`, `payment_status = CONFIRMED`, `paid_at`, status transaksi, `checkout_request_id`, dan `request_hash`. | Must | Schema test |
 | FR-CHK-011 | Sistem harus mengembalikan status tegas `COMPLETED` untuk checkout final yang berhasil. | Must | Acceptance test |
 | FR-CHK-012 | Sistem harus menyediakan lookup Transaction menggunakan `checkout_request_id` atau `transaction_id` sesuai scope Merchant dan hak akses. | Must | Acceptance + security test |
@@ -541,11 +541,11 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir harus memiliki `
 |---|---|
 | BR-001 | Semua money amount disimpan sebagai exact fixed-point `DECIMAL/NUMERIC`, dengan precision dan scale yang ditetapkan schema; tidak menggunakan binary floating point. |
 | BR-002 | Kuantitas MVP adalah integer positif pada cart. |
-| BR-003 | Subtotal transaksi adalah jumlah `unit_price_snapshot × quantity` untuk semua line pada scope. Pada MVP, total sama dengan subtotal. |
+| BR-003 | `TransactionItem.subtotal` adalah `unit_price_snapshot × quantity`. `Transaction.subtotal` adalah jumlah seluruh subtotal item; pada MVP, total sama dengan subtotal. |
 | BR-004 | `Transaction.total` adalah jumlah pembayaran manual yang dikonfirmasi; `payment_status` selalu `CONFIRMED` ketika Transaction menjadi `COMPLETED`. |
 | BR-005 | Hanya transaksi `COMPLETED` yang mengurangi stok secara final dan masuk laporan penjualan. |
-| BR-006 | Product name dan unit price snapshot tidak berubah setelah transaksi `COMPLETED`. |
-| BR-007 | Perubahan katalog tidak menulis ulang transaction line historis. |
+| BR-006 | Product name, unit price, dan subtotal snapshot pada `TransactionItem` tidak berubah setelah Transaction `COMPLETED`. |
+| BR-007 | Perubahan katalog tidak menulis ulang `TransactionItem` historis. |
 | BR-008 | Satu `(merchant_id, checkout_request_id)` hanya boleh terkait dengan satu Transaction dan satu `request_hash`; ID yang sama tidak boleh digunakan ulang untuk niat pembayaran berbeda. |
 | BR-009 | `checkout_request_id` dan `request_hash` yang sama menghasilkan response Transaction yang sama; payload identik dengan ID baru merupakan transaksi baru yang sah. |
 | BR-010 | Checkout multi-item bersifat all-or-nothing. |
@@ -579,7 +579,7 @@ Hanya User `ACTIVE` pada Merchant aktif yang dapat login; Kasir harus memiliki `
 | Inventory | Saldo dan konfigurasi stok per Outlet | ID, merchant ID, outlet ID, product ID, quantity, low-stock threshold override nullable, updated at |
 | StockMovement | Jejak perubahan stok | merchant/product/outlet, type (`ADJUSTMENT` atau `SALE`), delta, before/after, reason bila adjustment, transaction reference untuk `SALE`, actor, timestamp |
 | Transaction | Header penjualan sekaligus catatan pembayaran/idempotency | ID, merchant ID, outlet ID, receipt no., operator checkout, status, subtotal, total, `payment_method`, `payment_status = CONFIRMED`, `paid_at`, `checkout_request_id`, `request_hash`, timestamps |
-| TransactionLine | Snapshot item terjual | transaction, product reference, name snapshot, unit price snapshot, quantity; subtotal line dihitung saat dibutuhkan |
+| TransactionItem | Snapshot item terjual | transaction, product reference, name snapshot, unit price snapshot, quantity, subtotal snapshot |
 | Insight | Output analitik | merchant, outlet bila relevan, type, period, evidence, content, state, data version, generated at |
 | AiAnalysisJob | Status satu analisis BI harian Merchant | merchant, tanggal analisis lokal, state, attempts, next retry, error category |
 
@@ -592,7 +592,7 @@ Reporting cache bukan entitas bisnis atau tabel permanen. Cache menyimpan serial
 | DR-001 | Email ternormalisasi setiap Owner, Admin, dan Kasir harus unik sesuai model akun global. |
 | DR-002 | Owner hanya dapat memiliki satu Merchant; setiap User terkait satu Merchant, Owner dan Admin harus memiliki `outlet_id = null`, dan Kasir harus memiliki tepat satu `outlet_id` aktif pada MVP. |
 | DR-003 | Receipt number harus unik setidaknya di dalam merchant. |
-| DR-004 | Foreign key/referential integrity harus mencegah TransactionLine tanpa Transaction yang valid. |
+| DR-004 | Foreign key/referential integrity harus mencegah TransactionItem tanpa Transaction yang valid. |
 | DR-005 | Constraint/check atau domain validation harus mencegah amount, kuantitas/stok negatif, status, dan scope outlet tidak valid. |
 | DR-006 | Index harus mendukung login email, pencarian User berdasarkan Merchant/role/Outlet, Category/Product search per Merchant, inventory lookup per Outlet/Product, Transaction lookup berdasarkan `merchant_id + checkout_request_id`, transaction by tenant/outlet/date/receipt, dan reporting by tenant/outlet/period. |
 | DR-007 | Data tenant tidak boleh dicampur dalam unique/index/query yang menghilangkan scope merchant. |
@@ -875,17 +875,17 @@ Jika resource berada di bawah tekanan, sistem harus menurunkan layanan dalam uru
 |---|---|---|---|
 | AT-001 | Owner baru dengan email valid | Registrasi dan membuat merchant | Account Owner, merchant, dan kepemilikan terbentuk konsisten |
 | AT-002 | Kasir Merchant A | Meminta produk/transaksi Merchant B | Tidak ada data B dikembalikan dan kejadian tercatat aman |
-| AT-003 | Produk aktif dengan stok 5 pada Outlet Kasir | Kasir membeli 2 dan mengonfirmasi metode pembayaran | Satu Transaction `COMPLETED` menyimpan `payment_method`, `payment_status = CONFIRMED`, dan `paid_at`; stok menjadi 3 |
+| AT-003 | Produk aktif dengan stok 5 pada Outlet Kasir | Kasir membeli 2 dan mengonfirmasi metode pembayaran | Satu Transaction `COMPLETED` menyimpan `payment_method`, `payment_status = CONFIRMED`, dan `paid_at`; satu `TransactionItem` menyimpan kuantitas, harga unit snapshot, dan subtotal snapshot; stok menjadi 3 |
 | AT-004 | Produk stok 1 pada Outlet A dan dua Kasir Outlet A | Checkout bersamaan masing-masing qty 1 | Tepat satu berhasil; satu ditolak; stok 0, bukan -1 |
 | AT-005 | `checkout_request_id` dan payload yang sama | Submit dua kali secara berurutan atau bersamaan | Kedua request memperoleh satu Transaction dengan request hash yang sama dan stok hanya berkurang sekali |
 | AT-006 | `checkout_request_id` sama, tetapi Cart/metode/scope berbeda | Submit kedua | `IDEMPOTENCY_CONFLICT`; Transaction kedua tidak dibuat |
 | AT-007 | Harga berubah setelah item masuk cart | Checkout | `PRICE_CHANGED`, tidak ada transaksi parsial, total baru ditampilkan |
 | AT-008 | Produk dinonaktifkan atau stok tidak cukup setelah masuk cart | Checkout | Ditolak; tidak ada Transaction atau perubahan stok dibuat |
-| AT-009 | Database error setelah sebagian operasi dicoba | Checkout | Rollback penuh; tidak ada Transaction `COMPLETED`, atribut pembayaran, line, atau StockMovement parsial |
+| AT-009 | Database error setelah sebagian operasi dicoba | Checkout | Rollback penuh; tidak ada Transaction `COMPLETED`, atribut pembayaran, `TransactionItem`, atau StockMovement parsial |
 | AT-010 | Server commit berhasil tetapi response client terputus | Kasir lookup `checkout_request_id` yang sama | Receipt Transaction yang sama ditampilkan; tidak ada duplikasi |
 | AT-011 | Shared cache reporting tidak tersedia | Kasir checkout dan Owner membuka dashboard | Checkout tetap berhasil; dashboard mencoba query sumber secara bounded dan tidak mengubah transaksi |
 | AT-012 | AI provider timeout | Owner membuka dashboard | Dashboard dasar tersedia; insight berstatus retry/failed |
-| AT-013 | Product price diubah | Membuka receipt transaksi lama | Harga snapshot lama tetap tampil |
+| AT-013 | Product price diubah | Membuka receipt transaksi lama | Harga unit dan subtotal snapshot lama pada `TransactionItem` tetap tampil |
 | AT-014 | Akun Kasir dinonaktifkan setelah JWT diterbitkan dan JWT tersebut belum kedaluwarsa | Menggunakan JWT lama untuk checkout | Request ditolak karena status akun saat ini `INACTIVE` |
 | AT-015 | 500 merchant dataset dan mixed workload aktif | Load test dijalankan | Target NFR-PERF dan NFR-SCALE terpenuhi |
 | AT-016 | Owner membuat Admin aktif dengan email dan password awal | Staf login menggunakan email | Admin dapat mengakses data operasional Merchant tanpa mengelola Outlet, staf, atau AI; sistem tidak dapat menampilkan kembali password yang tersimpan |

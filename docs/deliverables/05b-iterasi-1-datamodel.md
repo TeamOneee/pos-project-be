@@ -123,6 +123,7 @@ erDiagram
         string product_name_snapshot
         int quantity
         decimal unit_price_snapshot
+        decimal subtotal
     }
 
     ai_insight {
@@ -172,7 +173,7 @@ erDiagram
 - diagram ini berfokus pada entitas dan relasi; unique key, check, index, dan detail constraint fisik ditetapkan saat rancangan Prisma/migration.
 - `Cart`, `Payment`, `IdempotencyRecord`, audit trail umum, outbox reporting, dan reporting projection sengaja tidak menjadi tabel MVP.
 - `Transaction` menyimpan atribut pembayaran manual dan idempotency checkout secara langsung.
-- `TransactionItem.subtotal` tidak disimpan; nilainya selalu dihitung dari `unit_price_snapshot × quantity` ketika dibutuhkan.
+- `TransactionItem.subtotal` menyimpan snapshot `unit_price_snapshot × quantity` saat checkout; nilainya tidak berubah ketika katalog berubah.
 - `StockMovement` adalah riwayat perubahan stok, bukan audit trail umum; `transaction_id` hanya diisi untuk pergerakan bertipe `SALE`.
 
 ## Siklus AI insight
