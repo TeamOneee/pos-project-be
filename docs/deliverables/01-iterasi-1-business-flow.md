@@ -27,8 +27,8 @@
 
 Aplikasi K membantu merchant/UMKM menjalankan satu siklus bisnis yang utuh:
 
-1. Owner menyiapkan outlet dan tim; Admin menyiapkan kategori, produk, harga, serta stok per outlet agar siap dijual.
-2. Kasir melayani pembeli dan mencatat pembayaran dengan cepat serta benar.
+1. Owner menyiapkan outlet dan tim; Owner atau Admin menyiapkan kategori, produk, harga, serta stok per outlet agar siap dijual.
+2. Kasir melayani pembeli dan mencatat pembayaran dengan cepat serta benar; Owner dapat menjalankan flow POS yang sama pada Outlet aktif yang dipilih.
 3. Setiap penjualan menjadi catatan bisnis yang dapat dipercaya.
 4. Catatan tersebut diolah menjadi laporan dan insight tanpa memperlambat kasir.
 5. Owner memakai hasilnya untuk mengambil keputusan, lalu keputusan itu kembali menjadi tindakan operasional seperti mengubah harga, produk, atau ketersediaan jual.
@@ -60,7 +60,7 @@ Keterlambatan di sini langsung terasa: antrean bertambah, pelanggan bingung, kas
 
 ### Kebutuhan pengelolaan: memahami bisnis setelah transaksi terjadi
 
-Owner perlu membaca banyak transaksi untuk memantau penjualan dan menemukan pola; AI juga perlu memproses riwayat tersebut untuk menghasilkan insight. Admin mengelola katalog dan stok dari ringkasan operasional, tanpa akses ke detail transaksi. Aktivitas ini penting, tetapi umumnya tidak harus selesai dalam detik yang sama dengan checkout.
+Owner perlu membaca banyak transaksi untuk memantau penjualan dan menemukan pola; AI juga perlu memproses riwayat tersebut untuk menghasilkan insight. Owner atau Admin mengelola katalog dan stok dari ringkasan operasional, sedangkan Admin tetap tanpa akses ke detail transaksi. Aktivitas ini penting, tetapi umumnya tidak harus selesai dalam detik yang sama dengan checkout.
 
 Masalah inti studi kasus muncul ketika kedua kebutuhan tersebut memakai sumber daya sistem yang sama tanpa prioritas yang jelas. Laporan atau AI yang sedang membaca banyak data dapat membuat pembayaran melambat.
 
@@ -87,7 +87,7 @@ Ini tidak berarti laporan dan AI tidak penting. Artinya, waktu keberhasilannya b
    Penjualan, harga saat transaksi, dan pembayaran tidak boleh saling bertentangan.
 
 3. **Memberi kendali operasional kepada merchant**  
-   Owner mengelola outlet dan tim, sedangkan Admin menjaga kategori, katalog, harga, dan stok pada seluruh outlet dalam merchant.
+   Owner memegang kendali penuh atas outlet, tim, dan operasi. Admin menjaga kategori, katalog, harga, dan stok pada seluruh outlet dalam merchant sesuai kebutuhan operasionalnya.
 
 4. **Mengubah transaksi menjadi informasi yang berguna**  
    Owner tidak perlu membaca daftar transaksi satu per satu untuk memahami omzet, produk terlaris, atau performa tiap outlet.
@@ -114,7 +114,7 @@ Ini tidak berarti laporan dan AI tidak penting. Artinya, waktu keberhasilannya b
 ## 4. Top-down flow bisnis
 
 ```mermaid
-flowchart TD; A["Owner membuat merchant dan mengelola outlet"] --> B["Owner membuat akun Admin atau menetapkan Kasir ke satu outlet"]; B --> C["Admin menyiapkan kategori, katalog, harga, dan stok per outlet"]; C --> D["Kasir melayani pelanggan"]; D --> E["Transaksi dan pembayaran dikonfirmasi"]; E --> F["Stok per outlet dan riwayat penjualan diperbarui"]; F --> G["Data penjualan diringkas saat cache dashboard perlu dibangun"]; G --> H["Owner melihat kondisi bisnis"]; H --> I["Owner memicu analisis AI secara manual"]; I --> J["AI menganalisis pola secara terpisah"]; J --> K["Owner melihat rekomendasi"]; K --> L["Owner mengambil keputusan bisnis"]; L --> C; E -. "harus cepat dan langsung benar" .-> M["Jalur operasional prioritas"]; G -. "cached aggregate maksimal 30 menit" .-> N["Jalur informasi"]; J -. "boleh selesai belakangan" .-> P["Jalur insight"];
+flowchart TD; A["Owner membuat merchant dan mengelola outlet"] --> B["Owner membuat akun Admin atau menetapkan Kasir ke satu outlet"]; B --> C["Owner atau Admin menyiapkan kategori, katalog, harga, dan stok per outlet"]; C --> D["Kasir atau Owner melayani pelanggan pada outlet yang sah"]; D --> E["Transaksi dan pembayaran dikonfirmasi"]; E --> F["Stok per outlet dan riwayat penjualan diperbarui"]; F --> G["Data penjualan diringkas saat cache dashboard perlu dibangun"]; G --> H["Owner melihat kondisi bisnis"]; H --> I["Owner memicu analisis AI secara manual"]; I --> J["AI menganalisis pola secara terpisah"]; J --> K["Owner melihat rekomendasi"]; K --> L["Owner mengambil keputusan bisnis"]; L --> C; E -. "harus cepat dan langsung benar" .-> M["Jalur operasional prioritas"]; G -. "cached aggregate maksimal 30 menit" .-> N["Jalur informasi"]; J -. "boleh selesai belakangan" .-> P["Jalur insight"];
 ```
 
 Flow di atas membentuk sebuah **business loop**, yaitu siklus berulang:
@@ -308,9 +308,9 @@ AI disebut sebagai aktor dalam studi kasus karena memiliki pola penggunaan siste
 
 | Aktor/fungsi | Mengubah data utama | Membaca data | Butuh hasil langsung? | Jika gagal/terlambat |
 |---|---|---|---|---|
-| Kasir | Membuat transaksi dan mencatat pembayaran pada outlet tugasnya; mengurangi stok sebagai akibat checkout | Produk, harga, stok, status transaksi outlet | Ya | Pelayanan dan pendapatan langsung terdampak. |
+| Kasir | Membuat transaksi dan mencatat pembayaran pada Outlet tugasnya; mengurangi stok sebagai akibat checkout | Produk, harga, stok, status transaksi Outlet | Ya | Pelayanan dan pendapatan langsung terdampak. |
 | Admin | Category, produk, harga, dan stok per Outlet pada Merchant | Katalog, inventory, dan riwayat StockMovement seluruh Merchant | Sebagian besar ya, tetapi bukan seketat checkout | Operasi toko dapat terganggu, tetapi transaksi yang sedang berlangsung harus tetap diprioritaskan. |
-| Owner | Merchant, outlet, akun staf, `User.role`/`User.outlet_id`, dan keputusan pengelolaan | Ringkasan lintas outlet, laporan, detail transaksi, insight | Tidak selalu; beberapa menit keterlambatan dapat diterima | Keputusan tertunda, tetapi kasir tetap harus dapat menjual. |
+| Owner | Merchant, outlet, akun staf, `User.role`/`User.outlet_id`, seluruh operasi Admin/Kasir, dan keputusan pengelolaan | Seluruh data Merchant sesuai permission, termasuk ringkasan lintas Outlet, laporan, detail transaksi, insight | Checkout harus langsung benar saat Owner menjalankan POS; keputusan bisnis dapat sedikit tertunda | Owner dapat menggantikan fungsi operasional tanpa memberi permission tambahan kepada Admin. |
 | Reporting | Membaca cached aggregate atau membangunnya saat cache miss | Banyak transaksi historis | Tidak | Dashboard dapat stale/gagal; checkout tidak boleh terdampak. |
 | AI | Membuat insight turunan | Riwayat atau ringkasan transaksi | Tidak | Insight diberi status belum tersedia/terlambat; checkout dan dashboard dasar tetap berjalan. |
 
@@ -318,17 +318,17 @@ Aturan Iterasi 1 yang telah disepakati: satu Owner memiliki tepat satu Merchant;
 
 ---
 
-## 7. Flow utama kasir: dari pelanggan datang sampai transaksi selesai
+## 7. Flow utama POS: dari pelanggan datang sampai transaksi selesai
 
 ### Happy path
 
-1. Kasir masuk ke POS.
-2. Kasir mencari atau memilih produk.
+1. Kasir masuk ke POS pada Outlet tugasnya, atau Owner masuk lalu memilih Outlet aktif dalam Merchant.
+2. Operator checkout mencari atau memilih produk.
 3. Sistem menampilkan harga dan status produk aktif.
-4. Kasir menyusun keranjang dan memeriksa kuantitas.
+4. Operator checkout menyusun keranjang dan memeriksa kuantitas.
 5. Sistem menghitung subtotal dan total.
-6. Kasir menekan checkout dan memilih metode pembayaran.
-7. Sistem memvalidasi kembali data penting, terutama produk aktif, harga yang berlaku, stok pada Outlet, serta hak Kasir pada outlet tersebut.
+6. Operator checkout menekan checkout dan memilih metode pembayaran.
+7. Sistem memvalidasi kembali data penting, terutama produk aktif, harga yang berlaku, stok pada Outlet, serta hak Kasir atau Owner pada Outlet tersebut.
 8. Sistem menyelesaikan satu kesatuan perubahan: membuat transaksi, menyimpan detail/harga saat penjualan, mencatat pembayaran, dan mengurangi stok Outlet.
 9. Sistem menampilkan status berhasil beserta nomor transaksi.
 10. Kasir memberi bukti transaksi dan melayani pelanggan berikutnya.
@@ -342,7 +342,7 @@ Keranjang dapat terbuka beberapa saat. Di antara produk dimasukkan dan tombol ba
 
 ```mermaid
 flowchart LR
-    A["Kasir membuat keranjang"] --> B["Kasir memilih pembayaran"]
+    A["Operator checkout membuat keranjang"] --> B["Operator checkout memilih pembayaran"]
     B --> C["Validasi harga, produk, stok, dan hak outlet"]
     C --> D["Validasi checkout"]
     D --> E["Tidak valid: tolak dengan alasan yang dapat diperbaiki"]
@@ -373,11 +373,11 @@ Status “belum diketahui” adalah detail yang sering luput. Jaringan dapat put
 
 ---
 
-## 8. Flow admin: menjaga toko siap berjualan
+## 8. Flow operasional: Admin atau Owner menjaga toko siap berjualan
 
 ```mermaid
 flowchart TD
-    A["Admin login"] --> B["Pilih fungsi operasional"]
+    A["Admin atau Owner login"] --> B["Pilih fungsi operasional"]
     B --> C["Kelola Category dan Product master"]
     B --> D["Ubah harga"]
     B --> E["Kelola stok per Outlet"]
@@ -394,7 +394,7 @@ flowchart TD
     J --> K["Riwayat transaksi lama tetap utuh"]
 ```
 
-Prinsipnya: admin mengubah **kondisi bisnis sekarang dan ke depan**, bukan menulis ulang sejarah. Contohnya, harga kopi yang berubah hari ini tidak boleh mengubah harga kopi pada struk minggu lalu.
+Prinsipnya: Admin atau Owner mengubah **kondisi bisnis sekarang dan ke depan**, bukan menulis ulang sejarah. Contohnya, harga kopi yang berubah hari ini tidak boleh mengubah harga kopi pada struk minggu lalu.
 
 ---
 
@@ -409,7 +409,7 @@ flowchart TD
     D --> F["Ya: telusuri periode, produk, atau transaksi"]
     F --> G["Bandingkan dengan insight dan konteks data"]
     G --> H["Owner mengambil keputusan"]
-    H --> I["Admin menjalankan tindakan operasional"]
+    H --> I["Owner atau Admin menjalankan tindakan operasional"]
     I --> J["Dampak terlihat pada penjualan berikutnya"]
     J --> A
 ```
@@ -434,7 +434,7 @@ Permintaan checkout yang sama harus dapat dikenali. Client membuat satu `checkou
 
 ### 10.4 Stok per Outlet adalah fakta operasional
 
-MVP menyimpan stok numerik untuk setiap kombinasi **Product + Outlet**. Admin bekerja pada scope Merchant, tetapi setiap adjustment wajib memilih Outlet secara eksplisit. Checkout hanya boleh berhasil bila produk aktif dan stok Outlet mencukupi; pembuatan Transaction beserta atribut pembayaran `CONFIRMED`, line snapshot, stock movement, dan pengurangan stok harus menjadi satu keputusan atomik agar dua Kasir tidak menjual stok terakhir yang sama.
+MVP menyimpan stok numerik untuk setiap kombinasi **Product + Outlet**. Owner dan Admin bekerja pada scope Merchant, tetapi setiap adjustment wajib memilih Outlet secara eksplisit. Checkout hanya boleh berhasil bila produk aktif dan stok Outlet mencukupi; pembuatan Transaction beserta atribut pembayaran `CONFIRMED`, line snapshot, stock movement, dan pengurangan stok harus menjadi satu keputusan atomik agar dua operator checkout tidak menjual stok terakhir yang sama.
 
 ### 10.5 Reporting dan AI membaca hasil, bukan mengendalikan checkout
 
@@ -613,7 +613,7 @@ Memisahkan ketiganya mencegah tim menganggap tebakan sebagai requirement.
 - Satu Owner memiliki satu Merchant; satu Merchant dapat memiliki banyak Outlet.
 - Owner mengelola penuh lifecycle akun Admin/Kasir; role dan Outlet disimpan langsung pada User. Semua pengguna login dengan email dan memiliki tepat satu role enum `OWNER`, `ADMIN`, atau `CASHIER`; Admin bekerja pada Merchant dan Kasir memiliki tepat satu Outlet.
 - Authentication MVP menggunakan satu JWT access token berumur 900 detik tanpa refresh token atau revocation server-side. Logout menghapus token dari client; request terproteksi selalu memvalidasi signature, expiry, dan status akun saat ini.
-- Setiap Product wajib memiliki satu Category aktif saat dipilih; Category dinonaktifkan, bukan dihapus fisik, tanpa memutus relasi Product dan riwayat yang sudah ada. Product dengan Category nonaktif tidak tampil di katalog Kasir dan tidak dapat di-checkout.
+- Setiap Product wajib memiliki satu Category aktif saat dipilih; Category dinonaktifkan, bukan dihapus fisik, tanpa memutus relasi Product dan riwayat yang sudah ada. Product dengan Category nonaktif tidak tampil di katalog POS dan tidak dapat di-checkout.
 - Adjustment manual untuk penambahan atau pengurangan stok wajib memiliki alasan.
 - Riwayat transaksi tersedia sesuai batas akses setiap role.
 - Fitur BI hanya tersedia dan dipicu secara manual oleh Owner. Satu analisis per Merchant per hari dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data yang tersedia.
@@ -625,7 +625,7 @@ Memisahkan ketiganya mencegah tim menganggap tebakan sebagai requirement.
 
 - **Locked (`OD-001`):** MVP hanya mencatat pembayaran (`CASH` / `QRIS` / `TRANSFER`); sistem tidak memindahkan dana.
 - **Locked:** Category dan Product master dikelola pada Merchant; setiap Product wajib memiliki Category dan stok dikelola per kombinasi Product + Outlet.
-- **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet; hanya Kasir yang dapat melakukan checkout pada Outlet tugasnya. Owner melihat seluruh transaksi lintas Outlet; Kasir hanya transaksi dirinya sendiri; Admin tidak melihat transaksi. Keputusan ini menutup `OD-010`.
+- **Locked untuk flow wajib:** Checkout dan transaksi dioperasikan dalam konteks satu Outlet. Owner mewarisi permission Kasir dan dapat checkout pada Outlet aktif yang dipilih dalam Merchant-nya; Kasir hanya pada Outlet tugasnya; Admin tidak checkout atau melihat transaksi. Keputusan ini menutup `OD-010`.
 - **Locked:** Owner membuat dan mengelola langsung akun Admin/Kasir; registrasi publik hanya untuk Owner dan semua akun login menggunakan email.
 - **Locked (`OD-011`):** JWT access token tunggal dengan expiry 900 detik; tidak ada refresh token/revocation server-side dan logout dilakukan dengan menghapus token dari client.
 - **Locked (`OD-002`):** harga master global + harga override per Outlet; tanpa override, harga master dipakai.
@@ -645,19 +645,19 @@ Label `Open` berarti masih membutuhkan keputusan. Label `Resolved` berarti perta
 
 ### Checkout dan pembayaran
 
-1. **Resolved (`OD-001` locked) —** Kapan transaksi dianggap final? Setelah Kasir mengonfirmasi pembayaran dan satu commit atomik menyimpan Transaction `COMPLETED` beserta `payment_method`, `payment_status = CONFIRMED`, `paid_at`, line snapshot, StockMovement, dan perubahan stok. Tidak ada Payment terpisah; receipt mengikuti Transaction final tersebut.
+1. **Resolved (`OD-001` locked) —** Kapan transaksi dianggap final? Setelah operator checkout (Kasir atau Owner) mengonfirmasi pembayaran dan satu commit atomik menyimpan Transaction `COMPLETED` beserta `payment_method`, `payment_status = CONFIRMED`, `paid_at`, line snapshot, StockMovement, dan perubahan stok. Tidak ada Payment terpisah; receipt mengikuti Transaction final tersebut.
 2. **Resolved (`OD-004` locked) —** Apakah diskon, pajak, atau service charge wajib pada MVP? Jawaban: tidak; ketiganya di luar MVP dan total transaksi sama dengan subtotal.
 3. **Resolved (`OD-005` locked) —** Apakah void, cancel, refund, atau koreksi transaksi masuk MVP? Jawaban: tidak masuk MVP.
 
 ### Struktur merchant dan pengguna
 
-4. **Resolved —** Admin melihat dashboard operasional seluruh Merchant yang hanya memuat ringkasan inventory, stok rendah berdasarkan threshold efektif Product–Outlet, dan kondisi katalog. Admin tidak melihat omzet, AOV, analytics bisnis, insight BI, serta tidak mengelola Outlet atau staf. Owner dapat membaca daftar stok rendah sebagai bagian dari akses inventory read-only, tetapi tidak memiliki dashboard operasional Admin.
+4. **Resolved —** Admin melihat dashboard operasional seluruh Merchant yang hanya memuat ringkasan inventory, stok rendah berdasarkan threshold efektif Product–Outlet, dan kondisi katalog. Admin tidak melihat omzet, AOV, analytics bisnis, insight BI, serta tidak mengelola Outlet atau staf. Owner dapat mengakses dashboard operasional dan menjalankan tindakan katalog/inventory karena mewarisi permission Admin.
 5. **Resolved (`OD-003` locked) —** Apakah Kasir boleh melihat riwayat semua kasir di outletnya atau hanya transaksi sendiri? Jawaban: hanya transaksi yang dilakukannya sendiri.
 
 ### Produk dan inventory
 
 6. **Resolved (`OD-002` locked) —** Apakah harga Product master selalu global, atau boleh memiliki price override per Outlet? Jawaban: harga master global + override per Outlet.
-7. **Resolved —** Low-stock threshold tidak disimpan pada Merchant. Admin wajib menentukan threshold dasar per Product saat membuat Product dan dapat menetapkan override untuk tiap Outlet; tanpa override, Outlet memakai threshold Product.
+7. **Resolved —** Low-stock threshold tidak disimpan pada Merchant. Owner atau Admin wajib menentukan threshold dasar per Product saat membuat Product dan dapat menetapkan override untuk tiap Outlet; tanpa override, Outlet memakai threshold Product.
 
 ### Dashboard dan AI
 
@@ -675,8 +675,8 @@ Jawaban atas pertanyaan ini akan mengubah FRD, flow detail, ERD, dan pengujian. 
 Pada akhir MVP, kita seharusnya dapat memperagakan cerita berikut tanpa penjelasan teknis yang panjang:
 
 1. Owner membuat atau memiliki merchant dan memberi akses kepada Admin dan Kasir.
-2. Owner membuat outlet serta staf; Admin menyiapkan Category, Product master, harga, dan stok per Outlet.
-3. Kasir membuat transaksi dan pembayaran tercatat dengan cepat.
+2. Owner membuat outlet serta staf; Owner atau Admin menyiapkan Category, Product master, harga, dan stok per Outlet.
+3. Kasir atau Owner membuat transaksi dan pembayaran tercatat dengan cepat.
 4. Pengulangan request yang sama tidak membuat transaksi ganda.
 5. Kasir tidak dapat mengakses data merchant atau outlet di luar tugasnya.
 6. Dashboard menunjukkan omzet, jumlah transaksi, AOV, tren penjualan dan AOV, pola waktu, produk terlaris/tidak laku, serta performa outlet dengan waktu pembaruan yang jelas.
@@ -698,6 +698,6 @@ Dashboard dan AI dinilai setelah fondasi ini terpenuhi.
 
 Untuk menutup Iterasi 1, pandangan bersama yang disarankan adalah:
 
-> Aplikasi K adalah sistem operasi bisnis ringan bagi UMKM multi-outlet. Owner mengatur merchant, outlet, dan akses staf. Admin memastikan Category, katalog, dan stok setiap Outlet siap dijual. Kasir mengubah produk menjadi transaksi dengan cepat dan pasti. Transaksi menjadi sumber kebenaran usaha. Reporting mengubahnya menjadi keadaan bisnis yang mudah dibaca. AI memberi saran berdasarkan keadaan tersebut. Owner tetap mengambil keputusan akhir. Seluruh proses pendukung dirancang mengalah terhadap checkout ketika berebut waktu atau sumber daya, karena checkout adalah saat nilai bisnis benar-benar terjadi.
+> Aplikasi K adalah sistem operasi bisnis ringan bagi UMKM multi-outlet. Owner mengatur merchant, outlet, akses staf, dan dapat menjalankan seluruh fungsi Admin maupun Kasir. Admin memastikan Category, katalog, dan stok setiap Outlet siap dijual sesuai kebutuhan operasionalnya. Kasir mengubah produk menjadi transaksi dengan cepat dan pasti pada Outlet tugasnya. Transaksi menjadi sumber kebenaran usaha. Reporting mengubahnya menjadi keadaan bisnis yang mudah dibaca. AI memberi saran berdasarkan keadaan tersebut. Owner tetap mengambil keputusan akhir. Seluruh proses pendukung dirancang mengalah terhadap checkout ketika berebut waktu atau sumber daya, karena checkout adalah saat nilai bisnis benar-benar terjadi.
 
 Dokumen berikutnya sebaiknya tidak langsung memilih teknologi. Iterasi 2 paling bernilai jika mengubah pertanyaan terbuka di atas menjadi keputusan scope, user story, permission matrix, dan business rule yang dapat diuji.

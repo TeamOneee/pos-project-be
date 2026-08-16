@@ -50,14 +50,14 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | Akun | Semua pengguna login menggunakan email. Owner membuat dan mengelola langsung akun staf menggunakan password awal. |
 | Authentication | MVP hanya menggunakan satu JWT access token dengan expiry tetap 900 detik. Tidak ada refresh token atau revocation server-side. Logout menghapus token dari client; setiap request terproteksi tetap memvalidasi signature, expiry, dan status akun saat ini. Token yang telah disalin tetap dapat digunakan sampai expiry selama akun masih aktif. |
 | Role | Satu User memiliki tepat satu role enum: `OWNER`, `ADMIN`, atau `CASHIER`. |
-| Scope staf | Admin berada pada Merchant dengan `User.outlet_id = null`; Kasir berada pada tepat satu Outlet aktif. |
-| Tanggung jawab | Owner mengelola Merchant, Outlet, dan lifecycle staf. Admin mengelola Category, Product master, harga, dan inventory seluruh Outlet. Kasir menjalankan penjualan pada Outlet tugasnya. |
-| Checkout | Hanya Kasir yang dapat melakukan checkout, pada Outlet tugasnya. Owner dan Admin tidak memiliki permission checkout. |
+| Scope staf | Owner dan Admin berada pada Merchant dengan `User.outlet_id = null`; Kasir berada pada tepat satu Outlet aktif. Ketika Owner menjalankan fungsi POS, Owner memilih satu Outlet aktif dalam Merchant sebagai konteks operasi. |
+| Tanggung jawab | `OWNER` adalah role tertinggi dan mewarisi seluruh permission Admin serta Kasir, selain mengelola Merchant, Outlet, lifecycle staf, dashboard bisnis, dan BI insight. `ADMIN` hanya mengelola Category, Product master, harga, inventory, dan dashboard operasional seluruh Outlet. `CASHIER` hanya menjalankan penjualan pada Outlet tugasnya. |
+| Checkout | Kasir dapat checkout pada Outlet tugasnya. Owner juga dapat checkout pada Outlet aktif yang dipilih dalam Merchant-nya. Admin tidak memiliki permission checkout. |
 | Category | Setiap Product wajib memiliki satu Category aktif saat dipilih. Category dinonaktifkan, bukan dihapus fisik. Product yang Category-nya nonaktif tetap tersimpan untuk riwayat, tetapi tidak tampil di katalog Kasir dan tidak dapat di-checkout. |
-| Inventory | Stok numerik disimpan per kombinasi Product + Outlet dan tidak boleh negatif. Setiap Product memiliki low-stock threshold dasar yang wajib ditentukan Admin saat Product dibuat; threshold dapat dioverride pada setiap Outlet. Adjustment manual untuk menambah atau mengurangi stok wajib memiliki alasan. |
+| Inventory | Stok numerik disimpan per kombinasi Product + Outlet dan tidak boleh negatif. Setiap Product memiliki low-stock threshold dasar yang wajib ditentukan Owner atau Admin saat Product dibuat; threshold dapat dioverride pada setiap Outlet. Adjustment manual untuk menambah atau mengurangi stok wajib memiliki alasan. |
 | Transfer stok | Tidak ada workflow transfer/pemindahan stok antar-Outlet pada MVP; setiap perubahan saldo dilakukan sebagai adjustment pada satu Outlet yang dipilih. |
 | Audit | Audit trail umum untuk katalog, staf, dan Outlet berada di luar MVP. StockMovement tetap menyimpan actor/alasan perubahan stok, sedangkan log operasional digunakan untuk observability. |
-| Dashboard Admin | Hanya dashboard operasional Merchant: ringkasan inventory, daftar stok rendah, dan kondisi katalog. Tidak memuat omzet, AOV, analytics bisnis, atau insight BI. |
+| Dashboard Admin | Dashboard operasional Merchant berisi ringkasan inventory, daftar stok rendah, dan kondisi katalog. Admin tidak memperoleh omzet, AOV, analytics bisnis, atau insight BI; Owner dapat mengakses dashboard ini karena mewarisi permission Admin. |
 | Transaksi | Riwayat transaksi wajib dipertahankan. Harga dan nama item saat penjualan disimpan sebagai snapshot. |
 | Uang | Nilai uang menggunakan exact `DECIMAL/NUMERIC`; kontrak API mengirim nilai uang sebagai decimal string. |
 | Dashboard Owner | Must mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, perbandingan Outlet, periode, dan waktu pembaruan. |
@@ -79,7 +79,7 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | OD-007 | BI insight minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV |
 | OD-008 | Kewajiban memakai provider/model AI eksternal | Tidak wajib |
 | OD-009 | Target concurrency resmi | Menggunakan proposed baseline SRS sampai divalidasi |
-| OD-010 | Checkout oleh Owner/Admin | **Locked**: hanya Kasir pada Outlet tugasnya; Owner dan Admin tidak memiliki permission checkout |
+| OD-010 | Hierarki role dan checkout | **Locked**: `OWNER` mewarisi seluruh permission `ADMIN` dan `CASHIER`; Owner checkout pada Outlet aktif yang dipilih dalam Merchant-nya, Kasir hanya pada Outlet tugasnya, dan Admin tidak checkout |
 | OD-011 | Model authentication dan logout | **Locked**: JWT access token tunggal dengan expiry 900 detik; tanpa refresh token/revocation server-side; logout menghapus token dari client |
 | OD-012 | Model idempotency checkout | **Locked**: `checkout_request_id` dan `request_hash` disimpan pada `Transaction`; kombinasi `merchant_id + checkout_request_id` unik, sedangkan `request_hash` tidak harus unik; tanpa tabel `IdempotencyRecord` terpisah |
 
