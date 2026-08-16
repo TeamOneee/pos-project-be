@@ -118,6 +118,7 @@ Format sub-section tiap modul:
 | `ioredis` | belum terpasang* | Utility | Single-flight lock per cache key (FR-REP-008) | runtime |
 | `nestjs-cls` | ^6.2.1 | Utility | `CorrelationIdMiddleware` — inject correlation id lintas proses | runtime |
 | `nestjs-pino` | ^4.6.1 | Utility | Structured log untuk error/platform service | runtime |
+| Nest interceptor bawaan | Core | `SuccessResponseInterceptor` global + `@SuccessMessage()` — membungkus seluruh response 2xx berbody dengan `{ success, statusCode, message, data }`; `204` dilewati | runtime |
 | `@nestjs/jwt` + `@nestjs/passport` + `passport-jwt` | ^11.0.2 + ^11.0.5 + ^4.0.1 | Security | `JwtAuthGuard`, `RolesGuard`, `@Roles()`, `@CurrentUser()` — verifikasi token | runtime |
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | `PageRequestDto` / `PageResponseDto<T>` validasi & transformasi | compile, runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test primitif platform (money, error, guard, cache service) | test |
