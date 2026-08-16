@@ -382,8 +382,8 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Aktor | Owner |
 | Prasyarat | Owner aktif pada Merchant; dashboard dasar tidak bergantung pada AI |
 | Pemicu | Owner menekan tombol analisis BI/AI |
-| Alur utama | Validasi Owner/Merchant → bentuk dedupe key dari `merchant_id + tanggal lokal Merchant`; periode dan versi data disimpan sebagai input, bukan bagian dedupe key → antrekan background job → tampilkan `PENDING/PROCESSING` → worker menghasilkan evidence dan content → simpan `READY` → Owner melihat hasil |
-| Alternatif | Request duplikat memakai job yang sama; kegagalan sementara dijadwalkan retry terbatas; kegagalan akhir menjadi `FAILED`; data lama menjadi `STALE` |
+| Alur utama | Validasi Owner/Merchant → temukan atau buat `AiAnalysisJob` berdasarkan `merchant_id + tanggal lokal Merchant`; periode dan versi data menjadi input, bukan pembeda job → antrekan job → tampilkan `PENDING/PROCESSING` → worker menghasilkan evidence dan content → simpan `READY` → Owner melihat hasil |
+| Alternatif | Request duplikat memakai `AiAnalysisJob` yang sama; kegagalan sementara dijadwalkan retry terbatas; kegagalan akhir menjadi `FAILED`; data lama menjadi `STALE` |
 | Hasil | Satu analisis menghasilkan atau memperbarui insight per tipe yang datanya tersedia (tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), dengan periode, evidence, versi, status, dan waktu; hasil terbaru per tipe tanpa histori dan tidak mengubah Product, stok, akses, atau Transaction |
 | Referensi | `US-AI-001–003`, `FR-AI-001–012`, `AT-012` |
 

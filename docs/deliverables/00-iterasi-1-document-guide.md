@@ -62,7 +62,7 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | Uang | Nilai uang menggunakan exact `DECIMAL/NUMERIC`; kontrak API mengirim nilai uang sebagai decimal string. |
 | Dashboard Owner | Must mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, perbandingan Outlet, periode, dan waktu pembaruan. |
 | Reporting | Dashboard Owner memakai cache-aside bersama dengan freshness TTL 30 menit. Cache miss mengagregasi hanya Transaction `COMPLETED`; cache tidak diperbarui pada checkout dan bukan sumber kebenaran. Worker hanya digunakan untuk pekerjaan AI. |
-| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan AI sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Satu trigger manual maksimal satu kali per hari per Merchant menjalankan **satu analisis** yang dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus, sesuai kecukupan data. Pemrosesan asynchronous dan terlindung dari checkout. |
+| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan AI sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Satu trigger manual maksimal satu kali per hari per Merchant memakai **satu `AiAnalysisJob`** yang dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus, sesuai kecukupan data. Pemrosesan asynchronous dan terlindung dari checkout. |
 | Payment | Tidak ada entitas/tabel Payment terpisah. `Transaction` menyimpan `payment_method` (`CASH`/`QRIS`/`TRANSFER`), `payment_status = CONFIRMED`, dan `paid_at`; `Transaction.total` menjadi jumlah pembayaran yang dikonfirmasi. |
 | Idempotency checkout | Tidak ada `IdempotencyRecord` terpisah. Client membuat `checkout_request_id` UUID untuk satu niat pembayaran; server menyimpan ID tersebut dan `request_hash` pada `Transaction`. Kombinasi `merchant_id + checkout_request_id` unik. |
 
@@ -98,6 +98,7 @@ Keputusan terbuka tidak boleh diasumsikan sebagai keputusan final dalam implemen
 | Inventory | Saldo stok satu Product pada satu Outlet |
 | Transaction | Catatan penjualan yang memiliki state terdefinisi |
 | Reporting cache | Cached aggregate sementara untuk dashboard Owner dengan freshness TTL 30 menit; bukan sumber kebenaran dan dapat dibangun ulang dari Transaction `COMPLETED`. Data lebih lama hanya boleh dipertahankan secara bounded untuk fallback `STALE`. |
+| AiAnalysisJob | Pekerjaan asynchronous khusus analisis BI harian satu Merchant; menyimpan state dan retry, bukan jenis job generik. |
 | Insight BI | **AI Insight yang diwujudkan sebagai Business Intelligence**: beberapa tipe insight analitik turunan untuk Owner, berbasis metrik/evidence; tidak boleh mengubah data bisnis secara otomatis |
 
 Nama entitas konseptual ditulis dengan kapital awal (`Merchant`, `Outlet`, `Category`, `Product`, `User`, `Transaction`). Nama field dan nilai enum ditulis sebagai kode, misalnya `User.outlet_id` dan `CASHIER`.

@@ -321,7 +321,7 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | UR-AI-003 | Insight harus mencantumkan periode data dan waktu pembaruan. | Must | Confirmed |
 | UR-AI-004 | Insight harus menjelaskan dasar ringkas sehingga tidak tampak sebagai klaim tanpa konteks. | Must | Confirmed |
 | UR-AI-005 | Kegagalan AI harus menghasilkan status tertunda/gagal yang dapat dipahami dan dapat diproses ulang. | Must | Confirmed |
-| UR-AI-006 | Retry atau pemrosesan ulang pada hari yang sama harus memakai analisis harian Merchant yang sama dan tidak boleh membuat analysis job kedua; versi data hanya metadata output dan tidak memengaruhi deduplikasi. | Must | Locked |
+| UR-AI-006 | Retry atau pemrosesan ulang pada hari yang sama harus memakai `AiAnalysisJob` harian Merchant yang sama dan tidak boleh membuat job kedua; versi data hanya metadata output dan tidak memengaruhi deduplikasi. | Must | Locked |
 | UR-AI-007 | AI tidak boleh memblokir, membatalkan, atau mengubah hasil checkout. | Must | Confirmed |
 | UR-AI-008 | MVP menyediakan **beberapa tipe insight BI** yang dapat dibuktikan dari data demo: tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu penjualan, dan tren AOV. | Must | Confirmed |
 | UR-AI-009 | Insight tidak boleh menjadi perintah otomatis untuk mengubah harga, status produk, atau akun. | Must | Confirmed |
