@@ -359,7 +359,7 @@ Memetakan **pemanggil → dipanggil → mekanisme** untuk membuktikan bahwa komu
 | Method | `getProductsForSaleValidation(request: ProductReadRequest): Promise<ProductForSale[]>` |
 | Param `ProductReadRequest` | `{ merchantId: string; outletId: string; productIds: string[] }` |
 | Return `ProductForSale` | `{ id; merchantId; categoryId; name; isActive; isCategoryActive; effectivePrice: string }` — harga efektif Outlet bila ada, selainnya harga master (BR-012) |
-| Error | `TenantViolationError` bila Outlet bukan milik Merchant / tidak aktif. ID yang tidak ditemukan **tidak dikembalikan** (bukan throw). |
+| Error | `ApiError` `NOT_FOUND` bila Outlet bukan milik Merchant / tidak aktif (disamarkan sesuai FR-TEN-010). ID Product yang tidak ditemukan **tidak dikembalikan** (bukan throw). |
 | Aturan | Catalog memvalidasi Outlet & kepemilikan tenant; output mengikuti urutan ID unik input; pemanggil **wajib** memeriksa kelengkapan hasil, `isActive`, `isCategoryActive`; port tidak mengelola stok. |
 
 Referensi: 07 §3.3 & §5.3; FR-CAT-006/011–012; sudah terimplementasi di `libs/catalog/src/application/ports/product-read.port.ts`.
@@ -370,7 +370,7 @@ Referensi: 07 §3.3 & §5.3; FR-CAT-006/011–012; sudah terimplementasi di `lib
 |---|---|
 | Method | `getSellableProducts(merchantId: string): Promise<CatalogReportingProduct[]>` |
 | Return `CatalogReportingProduct` | `{ id: string; name: string }` |
-| Error | `TenantViolationError` bila Merchant tidak valid. |
+| Error | Tidak ada error khusus; Merchant tanpa Product efektif dapat dijual menghasilkan array kosong. |
 | Aturan | Hanya Product aktif dengan Category aktif milik Merchant; dipakai dashboard `least-selling` untuk melengkapi produk tanpa penjualan pada periode; **tidak** membocorkan harga/stok. |
 
 Referensi: kode `libs/catalog/src/application/ports/catalog-reporting-read.port.ts`; 07 §6 (dashboard).

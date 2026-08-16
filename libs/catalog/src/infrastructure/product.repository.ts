@@ -68,7 +68,7 @@ export class ProductRepository {
           : {}),
       },
       include: { category: true },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       skip,
       take,
     });

@@ -32,7 +32,8 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { UpsertProductOutletPriceDto } from './dto/upsert-product-outlet-price.dto';
 
 @Controller('products')
-// menyediakan api product master dan harga override khusus admin.
+// menyediakan api product master dan harga override untuk owner dan admin.
+// cashier memperoleh katalog jual melalui inventory, bukan endpoint ini.
 export class ProductController {
   constructor(
     private readonly productService: ProductService,
@@ -40,7 +41,7 @@ export class ProductController {
   ) {}
 
   @Post()
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.CREATED)
   @SuccessMessage('Produk berhasil dibuat.')
   async create(
@@ -81,7 +82,7 @@ export class ProductController {
   }
 
   @Patch(':product_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
   @SuccessMessage('Produk berhasil diperbarui.')
   async update(
@@ -101,7 +102,7 @@ export class ProductController {
   }
 
   @Put(':product_id/outlet-prices/:outlet_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
   @SuccessMessage('Harga outlet berhasil diperbarui.')
   async upsertOutletPrice(
@@ -118,7 +119,7 @@ export class ProductController {
   }
 
   @Delete(':product_id/outlet-prices/:outlet_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeOutletPrice(
     @CurrentUser() actor: AuthUser,

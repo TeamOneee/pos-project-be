@@ -14,29 +14,39 @@ function methodMetadata(target: object, propertyKey: string): unknown {
 // memverifikasi metadata endpoint tanpa menjalankan server http.
 // test ini menjaga role dan path api tetap sesuai kontrak catalog.
 describe('Catalog controller authorization metadata', () => {
-  it('FR-CAT-001: hanya ADMIN dapat memutasi Category', () => {
+  it('FR-CAT-001/BR-011B: OWNER dan ADMIN dapat memutasi Category', () => {
     expect(methodMetadata(CategoryController.prototype, 'create')).toEqual([
+      'OWNER',
       'ADMIN',
     ]);
     expect(methodMetadata(CategoryController.prototype, 'update')).toEqual([
+      'OWNER',
       'ADMIN',
     ]);
+    expect(
+      methodMetadata(CategoryController.prototype, 'list'),
+    ).toBeUndefined();
   });
 
-  it('FR-CAT-004/008: hanya OWNER/ADMIN membaca Product master; CASHIER tidak memiliki endpoint mutasi', () => {
+  it('FR-CAT-004/008: OWNER/ADMIN mengelola Product; CASHIER tidak memiliki endpoint mutasi', () => {
     expect(methodMetadata(ProductController.prototype, 'list')).toEqual([
       'OWNER',
       'ADMIN',
     ]);
     expect(methodMetadata(ProductController.prototype, 'create')).toEqual([
+      'OWNER',
       'ADMIN',
     ]);
     expect(methodMetadata(ProductController.prototype, 'update')).toEqual([
+      'OWNER',
       'ADMIN',
     ]);
     expect(
       methodMetadata(ProductController.prototype, 'upsertOutletPrice'),
-    ).toEqual(['ADMIN']);
+    ).toEqual(['OWNER', 'ADMIN']);
+    expect(
+      methodMetadata(ProductController.prototype, 'removeOutletPrice'),
+    ).toEqual(['OWNER', 'ADMIN']);
   });
 
   it('mengunci path publik API Catalog sesuai kontrak', () => {

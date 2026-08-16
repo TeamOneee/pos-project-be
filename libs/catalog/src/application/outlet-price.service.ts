@@ -7,6 +7,7 @@ import { ProductRepository } from '../infrastructure/product.repository';
 import { OutletPriceResult, UpsertOutletPriceCommand } from './catalog.models';
 
 // mengelola harga override product untuk outlet aktif dalam merchant actor.
+// harga hanya dapat diubah untuk product dan outlet aktif dalam merchant sama.
 @Injectable()
 export class OutletPriceService {
   constructor(
@@ -22,6 +23,7 @@ export class OutletPriceService {
     command: UpsertOutletPriceCommand,
   ): Promise<OutletPriceResult> {
     // memvalidasi product dan outlet lalu menyimpan harga override.
+    // dto dan constraint database menjaga harga override tetap nonnegatif.
     await this.assertProductAndOutlet(actor, productId, outletId);
     const price = await this.outletPriceRepository.upsert(
       actor.merchantId,
