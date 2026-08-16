@@ -25,8 +25,8 @@ export class OutletRepository {
     });
   }
 
-  // 07 §2.2: konflik nama hanya dicek antar outlet aktif dalam merchant.
-  findActiveByNameInMerchant(
+  // DR-007 + 07 §2.2: nama outlet unik per merchant (semua status, DB constraint).
+  findByNameInMerchant(
     name: string,
     merchantId: string,
     excludeOutletId?: string,
@@ -35,7 +35,6 @@ export class OutletRepository {
       where: {
         merchantId,
         name,
-        status: 'ACTIVE',
         id: excludeOutletId ? { not: excludeOutletId } : undefined,
       },
     });

@@ -35,14 +35,20 @@ export class OutletService {
     private readonly tenantAuthorizationService: TenantAuthorizationService,
   ) {}
 
-  // FR-TEN-004: outlet baru selalu status ACTIVE.
+  // FR-TEN-004: outlet baru selalu status ACTIVE; nama wajib unik per merchant (DR-007).
   async create(actor: AuthUser, dto: CreateOutletDto): Promise<OutletDto> {
-    const outlet = await this.outletRepository.create({
-      merchantId: actor.merchantId,
-      name: dto.name.trim(),
-      address: dto.address?.trim() ?? null,
-    });
-    return toOutletDto(outlet);
+    const name = dto.name.trim();
+    await this.assertNoNameClash(name, actor.merchantId);
+    try {
+      const outlet = await this.outletRepository.create({
+        merchantId: actor.merchantId,
+        name,
+        address: dto.address?.trim() ?? null,
+      });
+      return toOutletDto(outlet);
+    } catch (error) {
+      this.rethrowNameClash(error);
+    }
   }
 
   // FR-TEN-004, FR-TEN-007: daftar outlet merchant dengan filter status & paginasi.
@@ -91,19 +97,12 @@ export class OutletService {
 
     const name = dto.name?.trim() ?? current.name;
     const status = dto.status ?? current.status;
-    // 07 §2.2: mengaktifkan outlet dengan nama yang bertabrakan outlet aktif lain = VALIDATION_ERROR.
-    if (status === 'ACTIVE' && current.status !== 'ACTIVE') {
-      const clash = await this.outletRepository.findActiveByNameInMerchant(
-        name,
-        actor.merchantId,
-        outletId,
-      );
-      if (clash) {
-        throw ApiError.validation(
-          'Nama outlet sudah dipakai outlet aktif lain.',
-          [{ field: 'name', reason: 'Konflik nama dengan outlet aktif.' }],
-        );
-      }
+    // DR-007: rename atau aktivasi yang menciptakan duplikat nama ditolak.
+    if (
+      name !== current.name ||
+      (status === 'ACTIVE' && current.status !== 'ACTIVE')
+    ) {
+      await this.assertNoNameClash(name, actor.merchantId, outletId);
     }
 
     const data: Prisma.OutletUncheckedUpdateInput = {};
@@ -117,7 +116,46 @@ export class OutletService {
       data.status = status;
     }
 
-    const outlet = await this.outletRepository.update(outletId, data);
+    const outlet = await this.outletRepository
+      .update(outletId, data)
+      .catch((error: unknown) => this.rethrowNameClash(error));
     return toOutletDto(outlet);
+  }
+
+  // 07 §2.2: konflik nama outlet dalam merchant = VALIDATION_ERROR 400.
+  private async assertNoNameClash(
+    name: string,
+    merchantId: string,
+    excludeOutletId?: string,
+  ): Promise<void> {
+    const clash = await this.outletRepository.findByNameInMerchant(
+      name,
+      merchantId,
+      excludeOutletId,
+    );
+    if (clash) {
+      throw this.nameConflictError();
+    }
+  }
+
+  // DB unique constraint (DR-007) sebagai jaring pengaman saat pre-check kalah balapan.
+  private rethrowNameClash(error: unknown): never {
+    if (this.isNameConflict(error)) {
+      throw this.nameConflictError();
+    }
+    throw error;
+  }
+
+  private isNameConflict(error: unknown): boolean {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    );
+  }
+
+  private nameConflictError(): ApiError {
+    return ApiError.validation('Nama outlet sudah dipakai.', [
+      { field: 'name', reason: 'Nama outlet harus unik dalam merchant.' },
+    ]);
   }
 }

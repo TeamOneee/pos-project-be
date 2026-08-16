@@ -26,7 +26,7 @@ describe('OutletService', () => {
   let service: OutletService;
   const outletRepository = {
     findByIdInMerchant: jest.fn(),
-    findActiveByNameInMerchant: jest.fn(),
+    findByNameInMerchant: jest.fn(),
     create: jest.fn((data: Record<string, unknown>) =>
       Promise.resolve(makeOutlet({ ...data })),
     ),
@@ -50,6 +50,7 @@ describe('OutletService', () => {
 
   describe('create (FR-TEN-004)', () => {
     it('membuat outlet ACTIVE milik merchant dari JWT', async () => {
+      outletRepository.findByNameInMerchant.mockResolvedValue(null);
       const result = await service.create(actor, {
         name: '  Outlet Margonda  ',
         address: '  Jl. Margonda No. 1  ',
@@ -60,6 +61,11 @@ describe('OutletService', () => {
         address: 'Jl. Margonda No. 1',
         status: 'ACTIVE',
       });
+      expect(outletRepository.findByNameInMerchant).toHaveBeenCalledWith(
+        'Outlet Margonda',
+        'merchant-1',
+        undefined,
+      );
       expect(outletRepository.create).toHaveBeenCalledWith({
         merchantId: 'merchant-1',
         name: 'Outlet Margonda',
@@ -68,12 +74,24 @@ describe('OutletService', () => {
     });
 
     it('address opsional menjadi null', async () => {
+      outletRepository.findByNameInMerchant.mockResolvedValue(null);
       await service.create(actor, { name: 'Outlet A' });
       expect(outletRepository.create).toHaveBeenCalledWith({
         merchantId: 'merchant-1',
         name: 'Outlet A',
         address: null,
       });
+    });
+
+    it('menolak nama yang sudah dipakai outlet lain (DR-007)', async () => {
+      outletRepository.findByNameInMerchant.mockResolvedValue(
+        makeOutlet({ id: 'outlet-2' }),
+      );
+      const err = await service
+        .create(actor, { name: 'Outlet Margonda' })
+        .catch((e: unknown) => e);
+      expect((err as { code: string }).code).toBe('VALIDATION_ERROR');
+      expect(outletRepository.create).not.toHaveBeenCalled();
     });
   });
 
@@ -123,29 +141,49 @@ describe('OutletService', () => {
       tenantAuthorizationService.assertOutletOwnedByMerchant.mockResolvedValue(
         makeOutlet(),
       );
+      outletRepository.findByNameInMerchant.mockResolvedValue(null);
       const result = await service.update(actor, 'outlet-1', {
         name: '  Outlet Baru  ',
         status: 'INACTIVE',
       });
       expect(result).toMatchObject({ name: 'Outlet Baru', status: 'INACTIVE' });
+      expect(outletRepository.findByNameInMerchant).toHaveBeenCalledWith(
+        'Outlet Baru',
+        'merchant-1',
+        'outlet-1',
+      );
       expect(outletRepository.update).toHaveBeenCalledWith('outlet-1', {
         name: 'Outlet Baru',
         status: 'INACTIVE',
       });
     });
 
-    it('menolak aktivasi dengan nama bentrok outlet aktif lain (07 §2.2)', async () => {
+    it('menolak rename ke nama yang sudah dipakai (DR-007)', async () => {
+      tenantAuthorizationService.assertOutletOwnedByMerchant.mockResolvedValue(
+        makeOutlet(),
+      );
+      outletRepository.findByNameInMerchant.mockResolvedValue(
+        makeOutlet({ id: 'outlet-2', name: 'Outlet Baru' }),
+      );
+      const err = await service
+        .update(actor, 'outlet-1', { name: 'Outlet Baru' })
+        .catch((e: unknown) => e);
+      expect((err as { code: string }).code).toBe('VALIDATION_ERROR');
+      expect(outletRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('menolak aktivasi dengan nama bentrok outlet lain (07 §2.2)', async () => {
       tenantAuthorizationService.assertOutletOwnedByMerchant.mockResolvedValue(
         makeOutlet({ status: 'INACTIVE' }),
       );
-      outletRepository.findActiveByNameInMerchant.mockResolvedValue(
+      outletRepository.findByNameInMerchant.mockResolvedValue(
         makeOutlet({ id: 'outlet-2', name: 'Outlet Margonda' }),
       );
       const err = await service
         .update(actor, 'outlet-1', { status: 'ACTIVE' })
         .catch((e: unknown) => e);
       expect((err as { code: string }).code).toBe('VALIDATION_ERROR');
-      expect(outletRepository.findActiveByNameInMerchant).toHaveBeenCalledWith(
+      expect(outletRepository.findByNameInMerchant).toHaveBeenCalledWith(
         'Outlet Margonda',
         'merchant-1',
         'outlet-1',
@@ -157,7 +195,7 @@ describe('OutletService', () => {
       tenantAuthorizationService.assertOutletOwnedByMerchant.mockResolvedValue(
         makeOutlet({ status: 'INACTIVE' }),
       );
-      outletRepository.findActiveByNameInMerchant.mockResolvedValue(null);
+      outletRepository.findByNameInMerchant.mockResolvedValue(null);
       const result = await service.update(actor, 'outlet-1', {
         status: 'ACTIVE',
       });

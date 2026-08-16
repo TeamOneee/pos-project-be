@@ -100,6 +100,7 @@ model Outlet {
   stockMovements      StockMovement[]
   transactions        Transaction[]
 
+  @@unique([merchantId, name]) // nama outlet unik per merchant (semua status)
   @@index([merchantId])
   @@map("outlet")
 }
