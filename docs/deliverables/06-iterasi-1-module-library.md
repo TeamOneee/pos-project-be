@@ -279,7 +279,7 @@ Dependensi `@nestjs/cache-manager` + `ioredis` **belum terpasang** di root `pack
 | `cockatiel` | ^4.0.0 | Utility | Circuit breaker + retry + timeout untuk LLM provider agar worker tidak tersumbat (EXT-AI-003; `07` §7) | runtime |
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi query `InsightQueryService` | compile, runtime |
 | `@nestjs/schedule` | ^6.1.3 | Utility | `AiAnalysisJobService.@Cron` — polling job AI di `apps/worker` (FR-AI-006) | runtime |
-| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — tulis `AiAnalysisJob` dan model `Insight` (tabel `ai_insight`; domain `AiInsight`) lewat `PrismaWriteService` (primary); baca dataset via `ReportingReadPort` | runtime |
+| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — tulis `AiAnalysisJob` dan model `AiInsight` (tabel `ai_insight`) lewat `PrismaWriteService` (primary); baca dataset via `ReportingReadPort` | runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test `LlmInsightAdapter` + job processor | test |
 
 **Dependency ke modul lain:**
@@ -288,7 +288,7 @@ Dependensi `@nestjs/cache-manager` + `ioredis` **belum terpasang** di root `pack
 - Proses generate berjalan di `apps/worker` sebagai **job internal** `AiAnalysisJob` (bukan endpoint sinkron) — user menerima `jobId` lalu polling status (07 §7).
 
 **Infrastructure dependency:**
-- PostgreSQL **primary** (tulis `AiAnalysisJob` dan `Insight` — model Prisma, tabel `ai_insight` — via `PrismaWriteService`) dan **read replica** (dataset via `ReportingReadPort`/platform);
+- PostgreSQL **primary** (tulis `AiAnalysisJob` dan `AiInsight` — model Prisma, tabel `ai_insight` — via `PrismaWriteService`) dan **read replica** (dataset via `ReportingReadPort`/platform);
 - Redis shared cache hanya melalui `ReportingReadPort`;
 - **LLM provider** melalui `AiProviderPort`, dengan timeout + circuit breaker `cockatiel`.
 
