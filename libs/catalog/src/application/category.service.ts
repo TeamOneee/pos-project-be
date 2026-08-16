@@ -23,8 +23,6 @@ function toCategoryResult(category: Category): CategoryResult {
     merchantId: category.merchantId,
     name: category.name,
     isActive: category.isActive,
-    createdAt: category.createdAt,
-    updatedAt: category.updatedAt,
   };
 }
 

@@ -11,10 +11,7 @@ export function toMerchantDto(merchant: Merchant): MerchantDto {
     id: merchant.id,
     name: merchant.name,
     timezone: merchant.timezone,
-    currency: merchant.currency,
     status: merchant.status,
-    created_at: merchant.createdAt,
-    updated_at: merchant.updatedAt,
   };
 }
 

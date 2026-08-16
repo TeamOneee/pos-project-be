@@ -25,6 +25,21 @@ export class OutletRepository {
     });
   }
 
+  // DR-007 + 07 §2.2: nama outlet unik per merchant (semua status, DB constraint).
+  findByNameInMerchant(
+    name: string,
+    merchantId: string,
+    excludeOutletId?: string,
+  ): Promise<Outlet | null> {
+    return this.prisma.outlet.findFirst({
+      where: {
+        merchantId,
+        name,
+        id: excludeOutletId ? { not: excludeOutletId } : undefined,
+      },
+    });
+  }
+
   create(data: CreateOutletData): Promise<Outlet> {
     return this.prisma.outlet.create({ data });
   }

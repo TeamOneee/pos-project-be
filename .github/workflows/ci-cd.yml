@@ -17,8 +17,8 @@ name: CI/CD
 #      service `worker` → Build: `npm ci && npx prisma generate && npm run build`,
 #                         Start: `node dist/apps/worker/apps/worker/src/main.js`
 #    Set variabel service di Railway (BUKAN secret GitHub):
-#      api:    PORT, CORS_ORIGINS, NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ_REPLICA, JWT_*
-#      worker: NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ_REPLICA
+#      api:    PORT, CORS_ORIGINS, NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ, JWT_*
+#      worker: NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ
 #
 # 3) Neon: 1 project, 2 database (`pos_staging`, `pos_production`).
 #    Tiap env ambil write URL + read-replica URL (pooled `-pooler`).
@@ -40,7 +40,7 @@ concurrency:
 env:
   # Hanya untuk `prisma validate`/`generate` (tidak konek DB).
   # `prisma migrate deploy` memakai secret asli per environment.
-  DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
+  DATABASE_URL_WRITE: postgresql://dummy:dummy@localhost:5432/dummy
 
 jobs:
   ci:
@@ -84,7 +84,7 @@ jobs:
       - name: Prisma migrate deploy
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_WRITE }}
+          DATABASE_URL_WRITE: ${{ secrets.DATABASE_URL_WRITE }}
 
   migrate-production:
     name: Migrate DB (production)
@@ -103,7 +103,7 @@ jobs:
       - name: Prisma migrate deploy
         run: npx prisma migrate deploy
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_WRITE }}
+          DATABASE_URL_WRITE: ${{ secrets.DATABASE_URL_WRITE }}
 
   deploy-staging:
     name: Deploy (staging)

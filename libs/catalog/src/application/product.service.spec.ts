@@ -18,8 +18,6 @@ const makeCategory = (overrides: Partial<Category> = {}): Category => ({
   merchantId: 'merchant-1',
   name: 'Makanan',
   isActive: true,
-  createdAt: new Date('2026-01-01'),
-  updatedAt: new Date('2026-01-01'),
   ...overrides,
 });
 const makeProduct = (

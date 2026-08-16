@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { Outlet } from '@prisma/client';
 import { ApiError } from '@app/platform';
-import { PrismaWriteService } from '@app/platform';
+import { AuthUser } from '@app/platform';
+import { UserReadPort } from '@app/identity';
 import { OutletRepository } from '../infrastructure/outlet.repository';
 
 // FR-TEN-010, FR-TEN-004: isolasi tenant lintas modul. Konsumen: catalog, inventory, sales.
@@ -9,7 +10,7 @@ import { OutletRepository } from '../infrastructure/outlet.repository';
 export class TenantAuthorizationService {
   constructor(
     private readonly outletRepository: OutletRepository,
-    private readonly prisma: PrismaWriteService,
+    private readonly userReadPort: UserReadPort,
   ) {}
 
   // Pastikan outlet milik merchant pemanggil. Outlet INACTIVE read-only untuk
@@ -29,19 +30,38 @@ export class TenantAuthorizationService {
     return outlet;
   }
 
-  // Boundary note: tabel `users` milik modul `identity`. Sampai identity
-  // mengekspos port read (UserReadPort), validasi ini dibaca langsung lewat
-  // PrismaWriteService. Saat port tersedia, pindahkan pemanggilan ini (06 §3.2).
+  // Validasi keanggotaan user via port identity — tidak membaca tabel `users` langsung (06 §3.2).
   async assertUserBelongsToMerchant(
     userId: string,
     merchantId: string,
   ): Promise<void> {
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, merchantId },
-      select: { id: true },
-    });
-    if (!user) {
+    const belongs = await this.userReadPort.userBelongsToMerchant(
+      userId,
+      merchantId,
+    );
+    if (!belongs) {
       throw ApiError.notFound('User tidak ditemukan.'); // FR-TEN-010: disamarkan
     }
+  }
+
+  // 06 §5.5: rule role saat memilih outlet operasional.
+  // OWNER -> outlet aktif milik merchant (requireActive);
+  // CASHIER -> wajib outlet tugasnya dari klaim JWT (OD-010);
+  // ADMIN -> ditolak (OD-010).
+  async assertOutletOwnedByActor(
+    actor: AuthUser,
+    outletId: string,
+  ): Promise<void> {
+    if (actor.role === 'ADMIN') {
+      throw ApiError.forbidden('Akses ditolak.'); // OD-010
+    }
+    if (actor.role === 'CASHIER') {
+      if (actor.outletId !== outletId) {
+        throw ApiError.forbidden('Akses ditolak.'); // OD-010: bukan outlet tugas
+      }
+    }
+    await this.assertOutletOwnedByMerchant(outletId, actor.merchantId, {
+      requireActive: true, // FR-TEN-004: outlet nonaktif read-only
+    });
   }
 }

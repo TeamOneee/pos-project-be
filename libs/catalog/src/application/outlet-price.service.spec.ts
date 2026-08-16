@@ -29,7 +29,6 @@ const override = (): ProductOutletPrice => ({
   outletId: 'outlet-1',
   productId: 'product-1',
   price: new Prisma.Decimal('6000'),
-  createdAt: new Date(),
   updatedAt: new Date(),
 });
 

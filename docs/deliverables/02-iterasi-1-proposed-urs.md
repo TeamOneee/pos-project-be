@@ -66,7 +66,7 @@ Aplikasi K dibutuhkan agar merchant/UMKM dapat:
 
 ### Masalah paling penting
 
-Kasir, Admin, Owner, reporting, dan AI menggunakan data bisnis yang saling berhubungan tetapi mempunyai urgensi berbeda. Checkout memerlukan jawaban segera, sedangkan laporan dan AI dapat diproses kemudian. Jika semuanya diperlakukan sama, pekerjaan analitik yang berat dapat memperlambat saat uang sedang berpindah.
+Kasir, Admin, Owner, reporting, dan AI menggunakan data bisnis yang saling berhubungan tetapi mempunyai urgensi berbeda. Checkout memerlukan jawaban segera, sedangkan dashboard boleh memakai cached aggregate sampai 30 menit dan AI dapat diproses kemudian. Jika semuanya diperlakukan sama, pekerjaan analitik yang berat dapat memperlambat saat uang sedang berpindah.
 
 ### Prinsip bisnis utama
 
@@ -80,12 +80,12 @@ Kasir, Admin, Owner, reporting, dan AI menggunakan data bisnis yang saling berhu
 
 - registrasi akun Owner dan pembuatan merchant;
 - satu Owner untuk satu Merchant serta CRUD banyak Outlet oleh Owner;
-- login dan logout;
+- login menggunakan JWT access token tunggal dengan expiry 900 detik dan logout dengan menghapus token dari client;
 - pengelolaan penuh lifecycle pengguna oleh Owner: pembuatan akun menggunakan email dan password awal, perubahan role dan Outlet langsung pada User, reset password, aktivasi, dan penonaktifan;
-- role enum `OWNER`, `ADMIN`, dan `CASHIER`; setiap pengguna memiliki tepat satu role, Admin berada pada Merchant dan Kasir pada tepat satu Outlet;
+- role enum `OWNER`, `ADMIN`, dan `CASHIER`; setiap pengguna memiliki tepat satu role; Owner mewarisi permission Admin dan Kasir, Admin berada pada Merchant, dan Kasir pada tepat satu Outlet;
 - isolasi data antarmerchant;
-- pengelolaan Category wajib dan Product master pada Merchant; Category dinonaktifkan, bukan dihapus fisik, dan Product dengan Category nonaktif tidak ditampilkan di katalog Kasir atau dapat di-checkout;
-- inventory per Product + Outlet, termasuk penambahan dan pengurangan stok dengan alasan;
+- pengelolaan Category wajib dan Product master pada Merchant oleh Owner/Admin; Category dinonaktifkan, bukan dihapus fisik, dan Product dengan Category nonaktif tidak ditampilkan di katalog POS atau dapat di-checkout;
+- inventory per Product + Outlet, termasuk penambahan dan pengurangan stok dengan alasan oleh Owner/Admin;
 - keranjang dan checkout;
 - pencatatan metode pembayaran;
 - perlindungan terhadap transaksi duplikat;
@@ -183,7 +183,7 @@ Kasir, Admin, Owner, reporting, dan AI menggunakan data bisnis yang saling berhu
 ## 5. Business flow tingkat atas
 
 ```mermaid
-flowchart TD; A["Owner membuat merchant, outlet, dan menyiapkan tim"] --> B["Admin menyiapkan Category, produk, harga, dan stok per Outlet"]; B --> C["Kasir melayani pelanggan"]; C --> D["Transaksi dan pembayaran dikonfirmasi"]; D --> E["Stok Outlet dan riwayat penjualan diperbarui"]; E --> F["Reporting membentuk ringkasan"]; F --> H["Owner membaca kondisi bisnis"]; H --> G["Owner memicu AI secara manual"]; G --> J["AI membentuk insight secara terpisah"]; J --> H; H --> I["Owner mengambil keputusan"]; I --> B; D -. "hasil harus langsung dan pasti" .-> K["Prioritas tertinggi"]; F -. "boleh sedikit tertinggal" .-> L["Prioritas menengah"]; J -. "boleh selesai belakangan" .-> M["Prioritas pendukung"];
+flowchart TD; A["Owner membuat merchant, outlet, dan menyiapkan tim"] --> B["Owner atau Admin menyiapkan Category, produk, harga, dan stok per Outlet"]; B --> C["Kasir atau Owner melayani pelanggan pada Outlet yang sah"]; C --> D["Transaksi dan pembayaran dikonfirmasi"]; D --> E["Stok Outlet dan riwayat penjualan diperbarui"]; E --> F["Reporting membentuk ringkasan"]; F --> H["Owner membaca kondisi bisnis"]; H --> G["Owner memicu AI secara manual"]; G --> J["AI membentuk insight secara terpisah"]; J --> H; H --> I["Owner mengambil keputusan"]; I --> B; D -. "hasil harus langsung dan pasti" .-> K["Prioritas tertinggi"]; F -. "boleh sedikit tertinggal" .-> L["Prioritas menengah"]; J -. "boleh selesai belakangan" .-> M["Prioritas pendukung"];
 ```
 
 ---
@@ -255,7 +255,7 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | UR-OWN-004 | Owner harus dapat melihat ringkasan nilai penjualan, jumlah transaksi, dan rata-rata nilai transaksi untuk suatu periode. | Must | Confirmed |
 | UR-OWN-005 | Owner harus dapat melihat produk terlaris, produk paling sedikit atau tidak terjual, serta performa merchant dan outlet yang perlu diperhatikan. | Must | Locked    |
 | UR-OWN-005A | Owner harus dapat melihat tren penjualan, tren rata-rata nilai transaksi atau AOV, dan pola waktu penjualan untuk mengetahui perubahan performa serta jam ramai/sepi pada periode yang dipilih. | Must | Locked    |
-| UR-OWN-005B | Owner harus dapat melihat stok dan daftar stok rendah seluruh Outlet secara read-only. Akses ini merupakan inventory read-only, bukan dashboard operasional Admin, dan tidak memberi hak mengubah saldo atau threshold. | Must | Locked |
+| UR-OWN-005B | Owner harus dapat menjalankan seluruh fungsi operasional Admin pada Merchant-nya: mengelola Category, Product, harga, low-stock threshold, inventory, dan dashboard operasional. Owner juga dapat memilih Outlet aktif untuk menjalankan seluruh flow Kasir, termasuk Cart, checkout, receipt, dan lookup transaksi. | Must | Locked |
 | UR-OWN-006 | Owner harus mengetahui kapan data dashboard terakhir diperbarui. | Must | Proposed  |
 | UR-OWN-007 | Owner harus dapat menelusuri ringkasan ke riwayat/detail transaksi yang relevan. | Should | Proposed  |
 | UR-OWN-008 | Owner harus dapat melihat insight beserta periode dan dasar singkatnya. | Must | Proposed  |
@@ -302,10 +302,10 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | ID | Kebutuhan reporting | Prioritas | Status                |
 |---|---|---|-----------------------|
 | UR-REP-001 | Dashboard harus merangkum transaksi final, bukan transaksi draft atau gagal. | Must | Confirmed              |
-| UR-REP-002 | Dashboard harus menampilkan periode dan waktu pembaruan data. | Must | Confirmed              |
+| UR-REP-002 | Dashboard harus menampilkan periode, waktu agregasi data, dan status freshness. | Must | Locked              |
 | UR-REP-003 | Dashboard Owner harus menyediakan omzet, jumlah transaksi, rata-rata transaksi, produk terlaris, produk paling sedikit atau tidak terjual, dan perbandingan performa outlet. | Must | Locked                |
 | UR-REP-003A | Dashboard harus menyediakan tren penjualan, tren AOV, dan pola waktu penjualan pada periode yang dipilih. | Must | Locked                |
-| UR-REP-004 | Reporting boleh diproses setelah checkout dan tidak harus langsung konsisten dengan setiap transaksi. | Must | Confirmed             |
+| UR-REP-004 | Dashboard Owner boleh menggunakan cached aggregate bersama yang berumur maksimal 30 menit. Cache miss harus membangun agregat dari Transaction `COMPLETED` tanpa menambah pekerjaan analitik pada request checkout. | Must | Locked             |
 | UR-REP-005 | Kegagalan pembaruan laporan tidak boleh mengubah atau membatalkan transaksi yang sudah berhasil. | Must | Confirmed             |
 | UR-REP-006 | Data laporan harus selalu dibatasi pada satu merchant. | Must | Confirmed              |
 | UR-REP-007 | Definisi setiap angka utama harus terdokumentasi agar Owner dan tim tidak menafsirkannya berbeda. | Must | Confirmed             |
@@ -321,11 +321,11 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | UR-AI-003 | Insight harus mencantumkan periode data dan waktu pembaruan. | Must | Confirmed |
 | UR-AI-004 | Insight harus menjelaskan dasar ringkas sehingga tidak tampak sebagai klaim tanpa konteks. | Must | Confirmed |
 | UR-AI-005 | Kegagalan AI harus menghasilkan status tertunda/gagal yang dapat dipahami dan dapat diproses ulang. | Must | Confirmed |
-| UR-AI-006 | Retry atau pemrosesan ulang pada hari yang sama harus memakai analisis harian Merchant yang sama dan tidak boleh membuat analysis job kedua; versi data hanya metadata output dan tidak memengaruhi deduplikasi. | Must | Locked |
+| UR-AI-006 | Retry atau pemrosesan ulang pada hari yang sama harus memakai `AiAnalysisJob` harian Merchant yang sama dan tidak boleh membuat job kedua; versi data hanya metadata output dan tidak memengaruhi deduplikasi. | Must | Locked |
 | UR-AI-007 | AI tidak boleh memblokir, membatalkan, atau mengubah hasil checkout. | Must | Confirmed |
 | UR-AI-008 | MVP menyediakan **beberapa tipe insight BI** yang dapat dibuktikan dari data demo: tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu penjualan, dan tren AOV. | Must | Confirmed |
 | UR-AI-009 | Insight tidak boleh menjadi perintah otomatis untuk mengubah harga, status produk, atau akun. | Must | Confirmed |
-| UR-AI-010 | Hanya Owner yang boleh memicu secara manual, melihat, atau mengelola insight BI Merchant; Admin dan Kasir tidak boleh mengaksesnya. Maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data yang tersedia. | Must | Locked |
+| UR-AI-010 | Hanya Owner yang boleh memicu secara manual, melihat, atau mengelola insight BI Merchant; Admin dan Kasir tidak boleh mengaksesnya. Maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data yang tersedia. Analisis MVP selalu mencakup seluruh Merchant untuk 30 hari kalender lokal yang berakhir pada tanggal analisis; Owner tidak memilih Outlet atau rentang periode saat trigger. | Must | Locked |
 
 ### 7.7 Kebutuhan keamanan dan kepercayaan
 
@@ -333,7 +333,7 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 |---|---|---|---|
 | UR-SEC-001 | Setiap pengguna harus menggunakan identitas akun sendiri. | Must | Confirmed |
 | UR-SEC-002 | Password tidak boleh disimpan atau ditampilkan sebagai teks asli. | Must | Proposed |
-| UR-SEC-003 | Pengguna yang logout atau dinonaktifkan tidak boleh terus menggunakan akses lamanya. | Must | Proposed |
+| UR-SEC-003 | Logout harus menghapus JWT access token dari client. Karena MVP tidak memiliki revocation server-side, token yang telah disalin dapat tetap digunakan sampai expiry 900 detik selama akun aktif; akun yang dinonaktifkan harus langsung ditolak pada setiap request terproteksi. | Must | Locked |
 | UR-SEC-004 | Setiap aksi harus diperiksa berdasarkan role/permission dan merchant, tidak hanya disembunyikan dari UI. | Must | Proposed |
 | UR-SEC-005 | Pengguna Merchant A tidak boleh membaca atau mengubah data Merchant B. | Must | Proposed |
 | UR-SEC-006 | Data sensitif dan secret tidak boleh muncul pada log atau repository. | Must | Proposed |
@@ -345,7 +345,7 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | ID | Kebutuhan operasional | Prioritas | Status |
 |---|---|---|---|
 | UR-OPS-001 | Tim operasional harus dapat menelusuri checkout menggunakan identitas transaksi/permintaan. | Must | Confirmed |
-| UR-OPS-002 | Tim harus dapat melihat waktu respons, tingkat error checkout, volume transaksi, dan pekerjaan reporting/AI yang tertunda (monitoring memakai Prometheus + Grafana). | Must | Confirmed |
+| UR-OPS-002 | Tim harus dapat melihat waktu respons, tingkat error checkout, volume transaksi, cache hit/miss/age dan latency agregasi dashboard, serta pekerjaan AI yang tertunda (monitoring memakai Prometheus + Grafana). | Must | Locked |
 | UR-OPS-003 | Kegagalan komponen reporting/AI harus ditangani tanpa mematikan POS. | Must | Confirmed |
 | UR-OPS-004 | Sistem harus dapat diuji dengan data dan aktivitas yang mewakili 500+ merchant. | Must | Confirmed |
 | UR-OPS-005 | Peningkatan kapasitas harus dipicu oleh bukti seperti latency, error, koneksi, atau antrean—bukan hanya perkiraan. | Should | Confirmed |
@@ -357,33 +357,33 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 
 ## 8. Proposed role and permission matrix
 
-Legenda: `✓` diizinkan, `—` tidak diizinkan, `P` adalah kemungkinan permission tambahan yang masih `Open` dan bukan bagian dari flow Must saat ini.
+Legenda: `✓` diizinkan, `—` tidak diizinkan. `OWNER` mewarisi seluruh permission `ADMIN` dan `CASHIER`; untuk permission POS, Owner wajib memilih Outlet aktif dalam Merchant-nya.
 
 | Kapabilitas |              Owner               |             Admin              | Kasir |
 |---|:--------------------------------:|:------------------------------:|:---:|
-| Mengelola profil merchant |                ✓                 |               —                | — |
-| CRUD outlet |                ✓                 |               —                | — |
-| Membuat/menonaktifkan Admin |                ✓                 |               —                | — |
-| Membuat/menonaktifkan Kasir |                ✓                 |               —                | — |
-| Menetapkan role dan outlet staf |                ✓                 |               —                | — |
-| Mengatur/reset akses staf |                ✓                 |               —                | — |
-| Melihat Category dan Product master |                ✓ (read-only)      |               ✓                | Produk tersedia di Outlet tugasnya |
-| Membuat/mengubah/menonaktifkan Category serta mengelola produk dan harga (global + override per Outlet) |                -                 |               ✓                | — |
-| Melihat/mengubah stok per Outlet |         ✓, melihat saja            |    ✓, harus memilih Outlet     | — |
-| Membuat checkout |                —                 |               —                | Outlet tugasnya |
-| Melihat transaksi sendiri | - (tidak bisa melakukan checkout) |               - (tidak bisa melakukan checkout)               | ✓ |
-| Melihat seluruh transaksi |           Semua outlet           |               —                | — |
-| Melihat business dashboard dan analytics |         Semua outlet             |               —                | — |
-| Melihat dashboard operasional Merchant |              —                  |          Merchant              | — |
-| Melihat receipt/struk transaksi |                ✓                 |               —                | ✓ untuk transaksi sendiri |
-| Melihat insight BI |           Semua outlet           |               —                | — |
+| Mengelola profil merchant | ✓ | — | — |
+| CRUD outlet | ✓ | — | — |
+| Membuat/menonaktifkan Admin | ✓ | — | — |
+| Membuat/menonaktifkan Kasir | ✓ | — | — |
+| Menetapkan role dan outlet staf | ✓ | — | — |
+| Mengatur/reset akses staf | ✓ | — | — |
+| Melihat Category dan Product master | ✓ | ✓ | Produk tersedia di Outlet tugasnya |
+| Membuat/mengubah/menonaktifkan Category serta mengelola produk dan harga (global + override per Outlet) | ✓ | ✓ | — |
+| Melihat/mengubah stok per Outlet | ✓, harus memilih Outlet untuk perubahan | ✓, harus memilih Outlet | — |
+| Membuat dan mengubah Cart | ✓, pada Outlet aktif yang dipilih | — | Outlet tugasnya |
+| Membuat checkout | ✓, pada Outlet aktif yang dipilih | — | Outlet tugasnya |
+| Melihat transaksi sendiri | ✓ | — | ✓ |
+| Melihat seluruh transaksi | Semua Outlet | — | — |
+| Melihat business dashboard dan analytics | Semua Outlet | — | — |
+| Melihat dashboard operasional Merchant | ✓ | Merchant | — |
+| Melihat receipt/struk transaksi | ✓ | — | ✓ untuk transaksi sendiri |
+| Melihat insight BI | Semua Outlet | — | — |
 
 Catatan:
 
-- Owner secara bisnis memiliki akses tertinggi, tetapi fokus pada keputusan bisnis: tidak mengelola operasional (Category, Product, Inventory, checkout). Owner hanya dapat melihat katalog dan stok (read-only), serta tidak memiliki dashboard operasional.
-- Daftar stok rendah tetap dapat dibaca Owner sebagai bagian dari inventory read-only; akses tersebut bukan dashboard operasional Admin.
+- Owner adalah role tertinggi: Owner dapat melakukan semua fungsi Admin dan Kasir, selain fungsi eksklusif Owner. Saat menjalankan fungsi Kasir, Owner memilih satu Outlet aktif dalam Merchant sebagai konteks POS; Owner tidak dibatasi oleh `User.outlet_id` staf.
 - Admin fokus operasional: mengelola Category, Product, Inventory, dan melihat dashboard operasional Merchant yang hanya berisi ringkasan inventory, stok rendah, dan kondisi katalog. Admin **tidak melihat omzet, AOV, transaksi, analytics/insight BI**, tidak mengelola Outlet/staf, dan tidak melakukan checkout.
-- Checkout **hanya** dapat dilakukan oleh Kasir pada Outlet tugasnya; Owner dan Admin tidak memiliki permission checkout. Keputusan ini mengunci `OD-010`.
+- Checkout dapat dilakukan oleh Kasir pada Outlet tugasnya atau Owner pada Outlet aktif yang dipilih. Keputusan ini mengunci `OD-010`.
 - Kasir hanya melihat riwayat transaksi yang dilakukan dirinya sendiri (mengunci `OD-003`).
 - Lihat transaksi Owner mencakup **seluruh transaksi Merchant**; lihat transaksi Kasir hanya pada Outlet tempatnya ditugaskan.
 - Admin dapat menetapkan harga override per Outlet di samping harga master (mengunci `OD-002`). Diskon, pajak, dan service charge tidak diterapkan pada MVP (mengunci `OD-004`).
@@ -413,7 +413,7 @@ Catatan:
 
 **Alur ringkas:**
 
-1. Admin membuat Category dan Product master.
+1. Owner atau Admin membuat Category dan Product master.
 2. Admin memasukkan harga dan status aktif produk.
 3. Admin memilih Outlet lalu mengisi atau mengoreksi stok produk.
 4. Sistem mengonfirmasi perubahan.
@@ -427,7 +427,7 @@ Catatan:
 
 **Alur ringkas:**
 
-1. Kasir membuat keranjang.
+1. Kasir membuat keranjang pada Outlet tugasnya, atau Owner membuat keranjang pada Outlet aktif yang dipilih.
 2. Kasir memeriksa item, kuantitas, dan total.
 3. Kasir memilih metode pembayaran.
 4. Sistem memvalidasi kondisi terbaru, termasuk produk aktif, stok cukup, dan hak Kasir pada outlet.
@@ -445,7 +445,7 @@ Catatan:
 1. Sistem tidak menyimpan transaksi parsial.
 2. Kasir mendapat alasan yang spesifik.
 3. Keranjang diperbarui atau item bermasalah dihapus.
-4. Kasir mengonfirmasi ulang total.
+4. Operator checkout mengonfirmasi ulang total.
 
 **Hasil:** kesalahan tidak disembunyikan dan transaksi tetap dapat diselesaikan secara aman.
 
@@ -485,10 +485,10 @@ Catatan:
 **Alur ringkas:**
 
 1. Checkout terus menggunakan jalurnya sendiri.
-2. Sistem mencatat pekerjaan pendukung yang gagal.
-3. Dashboard menunjukkan waktu pembaruan terakhir.
+2. Kegagalan cache atau query agregasi dicatat tanpa membuat pekerjaan reporting pada checkout.
+3. Dashboard memakai hasil cache lama dengan status stale bila tersedia; bila tidak tersedia, dashboard gagal secara terkontrol.
 4. Insight menunjukkan status tertunda bila diperlukan.
-5. Pekerjaan dicoba ulang tanpa menggandakan hasil.
+5. Job AI dicoba ulang tanpa menggandakan hasil.
 
 **Hasil:** fitur informasi menurun secara terkendali, sedangkan penjualan tetap hidup.
 
@@ -500,21 +500,22 @@ Catatan:
 |---|---|
 | UBR-001 | Owner memiliki tepat satu Merchant; satu Merchant dapat memiliki banyak Outlet. |
 | UBR-002 | Owner memiliki kontrol tertinggi atas outlet dan pengguna, termasuk nilai role dan Outlet yang disimpan langsung pada User. |
-| UBR-003 | Setiap User memiliki tepat satu role enum `OWNER`, `ADMIN`, atau `CASHIER`. `User.outlet_id` kosong untuk Admin dan wajib menunjuk tepat satu Outlet untuk Kasir; staf tidak dapat mengubah field tersebut sendiri. |
-| UBR-004 | Hanya produk aktif dengan stok cukup pada Outlet Kasir yang dapat diselesaikan pada checkout. |
+| UBR-003 | Setiap User memiliki tepat satu role enum `OWNER`, `ADMIN`, atau `CASHIER`. Owner mewarisi permission Admin dan Kasir; `User.outlet_id` kosong untuk Owner/Admin dan wajib menunjuk tepat satu Outlet untuk Kasir. Owner memilih Outlet aktif melalui flow POS, sedangkan staf tidak dapat mengubah field tersebut sendiri. |
+| UBR-004 | Hanya produk aktif dengan stok cukup pada Outlet POS yang sah yang dapat diselesaikan pada checkout: Outlet tugas Kasir atau Outlet aktif yang dipilih Owner. |
 | UBR-005 | Harga final adalah harga yang telah divalidasi dan disetujui pada saat checkout. |
 | UBR-006 | Harga/nama produk pada transaksi final tidak berubah ketika katalog diubah kemudian. |
 | UBR-007 | Transaksi final, pembayaran tercatat, dan pengurangan stok Outlet merupakan satu hasil bisnis. |
 | UBR-008 | Permintaan checkout yang sama menghasilkan paling banyak satu transaksi final. |
 | UBR-009 | Dashboard dan AI hanya memakai transaksi final sesuai definisi metrik. |
-| UBR-010 | Dashboard dan insight selalu memiliki periode serta waktu pembaruan. |
+| UBR-010 | Dashboard dan insight selalu memiliki periode serta waktu pembaruan. Cached aggregate dashboard normal boleh digunakan maksimal 30 menit; data yang lebih lama hanya boleh ditampilkan sebagai fallback berstatus stale. |
 | UBR-011 | AI tidak dapat mengeksekusi perubahan bisnis pada MVP. |
 | UBR-012 | Operasi reporting/AI dapat ditunda atau dihentikan lebih dahulu untuk melindungi checkout. |
 | UBR-013 | Setiap adjustment manual untuk menambah atau mengurangi stok menyimpan Outlet, produk, kuantitas sebelum/sesudah, alasan, dan pelaku. Outlet nonaktif hanya dapat dilihat sebagai histori. |
 | UBR-014 | Owner membuat dan mengelola langsung akun staf menggunakan email, password awal, role, status, dan Outlet bila role-nya Kasir. Sistem hanya menyimpan password hash dan tidak dapat menampilkan kembali password yang tersimpan. |
-| UBR-015 | Menonaktifkan akun mencabut kemampuan melakukan aksi baru tanpa menghapus referensi User pada Transaction, Payment, atau StockMovement historis. |
-| UBR-016 | Setiap Product wajib memiliki satu Category. Category harus aktif ketika dipilih untuk Product baru/perubahan dan dinonaktifkan, bukan dihapus fisik, agar relasi produk serta riwayat yang sudah ada tetap utuh. Product dengan Category nonaktif tidak tampil di katalog Kasir dan tidak dapat di-checkout. |
-| UBR-017 | Fitur AI hanya dapat dipicu secara manual dan diakses oleh Owner, maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan beberapa tipe insight sesuai data. |
+| UBR-015 | Menonaktifkan akun mencabut kemampuan melakukan aksi baru tanpa menghapus referensi User pada Transaction atau StockMovement historis. |
+| UBR-016 | Setiap Product wajib memiliki satu Category. Category harus aktif ketika dipilih untuk Product baru/perubahan dan dinonaktifkan, bukan dihapus fisik, agar relasi produk serta riwayat yang sudah ada tetap utuh. Product dengan Category nonaktif tidak tampil di katalog POS dan tidak dapat di-checkout. |
+| UBR-017 | Fitur AI hanya dapat dipicu secara manual dan diakses oleh Owner, maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan beberapa tipe insight sesuai data. Scope analisis MVP adalah seluruh Merchant dengan periode 30 hari kalender lokal yang diturunkan dari tanggal analisis, bukan input client. |
+| UBR-018 | Pembayaran manual dan perlindungan duplikasi checkout disimpan langsung pada Transaction. Satu `checkout_request_id` hanya mewakili satu niat pembayaran dalam Merchant; transaksi berbeda wajib menggunakan ID baru meskipun Cart-nya identik. |
 
 ---
 
@@ -565,19 +566,19 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 
 1. MVP berbasis web responsif.
 2. Satu Owner memiliki tepat satu Merchant, dan Owner dapat mengelola banyak Outlet pada Merchant tersebut.
-3. Setiap pengguna login dengan email dan memiliki satu role enum `OWNER`, `ADMIN`, atau `CASHIER` yang disimpan langsung pada User; `outlet_id` langsung pada User kosong untuk Admin dan wajib terisi untuk Kasir. Lifecycle staf dikelola langsung oleh Owner.
+3. Setiap pengguna login dengan email dan memiliki satu role enum `OWNER`, `ADMIN`, atau `CASHIER` yang disimpan langsung pada User; `outlet_id` langsung pada User kosong untuk Admin dan wajib terisi untuk Kasir. Lifecycle staf dikelola langsung oleh Owner. Authentication MVP hanya menerbitkan satu JWT access token dengan expiry tetap 900 detik, tanpa refresh token atau revocation server-side; logout menghapus token dari client dan setiap request terproteksi memeriksa status akun saat ini.
 4. Product dan Category berada pada Merchant; setiap Product wajib memiliki satu Category, Category harus aktif saat dipilih dan dinonaktifkan alih-alih dihapus fisik, serta inventory berada pada kombinasi Product + Outlet.
 5. Produk MVP sederhana tanpa variant kompleks; stok numerik tidak boleh negatif dan menjadi dasar checkout.
 6. Pembayaran MVP dicatat sebagai tunai atau cashless manual; sistem tidak memindahkan dana.
 7. Pembayaran dianggap dikonfirmasi ketika Kasir menyatakan dana telah diterima.
-8. Dashboard menerima keterlambatan maksimal 5 menit untuk ≥95% pembaruan (`OD-006` locked).
-9. Insight hanya dipicu manual oleh Owner maksimal satu analisis per Merchant per hari dan diproses asynchronous; satu analisis dapat menghasilkan beberapa tipe insight sesuai data, dan analitik deterministik dapat digunakan sebelum integrasi model eksternal.
+8. Dashboard Owner memakai shared cache dengan cached aggregate berumur maksimal 30 menit pada kondisi normal (`OD-006` locked); cache miss mengagregasi Transaction `COMPLETED`, dan checkout tidak menginvalidasi cache.
+9. Insight hanya dipicu manual oleh Owner maksimal satu analisis per Merchant per hari dan diproses asynchronous; satu analisis dapat menghasilkan beberapa tipe insight sesuai data melalui LLM. Status proses dibaca dari job analisis, sedangkan hasil insight hanya ditampilkan setelah lengkap.
 10. Waktu aplikasi ditampilkan dalam zona merchant; penyimpanan waktu internal dapat distandardisasi.
 
 ### 13.2 Dependency
 
 - database operasional yang dapat menyimpan transaksi secara konsisten;
-- mekanisme menjalankan pekerjaan reporting/AI di luar request checkout;
+- shared cache untuk cached aggregate dashboard, query agregasi bounded dari Transaction `COMPLETED`, serta mekanisme menjalankan job AI di luar request checkout;
 - layanan deployment dan observability yang sesuai anggaran;
 - data demo yang cukup untuk memperlihatkan dashboard dan insight;
 - keputusan stakeholder atas pertanyaan terbuka di bawah.
@@ -588,9 +589,9 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 
 | Risiko | Dampak | Mitigasi requirement |
 |---|---|---|
-| Scope BI terlalu besar | Checkout dan fitur inti tidak selesai | BI dibatasi sebagai insight terpisah di luar jalur checkout, dengan beberapa tipe insight minimum yang deterministik |
+| Scope BI terlalu besar | Checkout dan fitur inti tidak selesai | BI dibatasi sebagai insight terpisah di luar jalur checkout, dengan beberapa tipe insight minimum berbasis data yang dapat diverifikasi |
 | Role tanpa tenant isolation | Kebocoran data lintas merchant | Semua akses diperiksa dengan role + merchant |
-| Dashboard membaca transaksi operasional secara berat | Checkout melambat | Reporting menggunakan jalur/proses terpisah dan diuji bersamaan |
+| Cache miss dashboard membaca transaksi operasional secara berat | Checkout melambat atau dashboard lambat | Query agregasi dibatasi, cache digunakan bersama selama maksimal 30 menit, concurrency miss dikendalikan, dan mixed workload diuji |
 | Retry checkout membuat duplikasi | Kerugian uang dan catatan penjualan ganda | Identitas permintaan dan lookup status wajib |
 | Owner salah mengisi Outlet Kasir | Kebocoran atau hambatan operasi antaroutlet | Owner menjadi satu-satunya pengelola `User.outlet_id`; scope Outlet selalu diperiksa server |
 | Adjustment stok pada Outlet yang salah | Saldo stok dan insight tidak dapat dipercaya | Admin harus memilih Outlet eksplisit dan mengisi alasan perubahan |
@@ -604,16 +605,18 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 
 | ID | Pertanyaan | Default proposed | Dampak bila berubah |
 |---|---|---|---|
-| OD-001 | Batas payment record manual | **Locked**: dicatat — CASH, QRIS, dan TRANSFER; sistem tidak memindahkan dana | Mengubah security, status, integrasi, timeout, reconciliation, dan scope testing |
+| OD-001 | Batas payment manual | **Locked**: `payment_method` (`CASH`/`QRIS`/`TRANSFER`), `payment_status = CONFIRMED`, dan `paid_at` disimpan langsung pada Transaction; tidak ada tabel Payment terpisah | Mengubah Transaction, receipt, security, dan scope testing |
 | OD-002 | Apakah harga Product master selalu global atau boleh override per Outlet? | **Locked**: harga master global + override per Outlet (`product_outlet_price`) | Mengubah ProductOutlet/pricing dan permission Admin |
 | OD-003 | Riwayat apa yang boleh dilihat Kasir? | **Locked**: hanya transaksi yang dilakukan oleh dirinya sendiri | Mengubah UX dan authorization |
 | OD-004 | Apakah diskon, pajak, dan service charge wajib? | **Locked**: tidak. Ketiganya di luar MVP dan `total = subtotal` | Mengubah perhitungan, laporan, dan test matrix |
 | OD-005 | Apakah refund/void masuk MVP? | **Locked**: di luar scope Must; tidak ada refund/void | Mengubah state machine dan perhitungan omzet setelah reversal |
-| OD-006 | Seberapa baru dashboard harus diperbarui? | **Locked**: maksimal 5 menit untuk ≥95% pembaruan | Mengubah mekanisme reporting dan biaya |
+| OD-006 | Seberapa baru dashboard harus diperbarui? | **Locked**: cached aggregate dashboard Owner berumur maksimal 30 menit pada kondisi normal | Mengubah TTL, query agregasi, cache, dan biaya |
 | OD-007 | Insight BI minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV | Mengubah kebutuhan data dan BI |
 | OD-008 | Apakah penggunaan model AI eksternal wajib? | Tidak; nilai insight + asynchronous flow yang utama | Mengubah biaya, privasi, reliability, dan demo dependency |
 | OD-009 | Berapa target concurrency resmi? | Baseline usulan pada SRS | Mengubah NFR, load test, dan kapasitas deployment |
-| OD-010 | Apakah Owner/Admin dapat checkout? | **Locked**: hanya Kasir pada Outlet tugasnya; Owner dan Admin tidak melakukan checkout | Mengubah permission model dan validasi checkout |
+| OD-010 | Hierarki role dan checkout | **Locked**: Owner mewarisi seluruh permission Admin dan Kasir; Owner checkout pada Outlet aktif yang dipilih dalam Merchant, Kasir hanya pada Outlet tugasnya, Admin tidak checkout | Mengubah permission model dan validasi checkout |
+| OD-011 | Model authentication dan logout apa yang digunakan? | **Locked**: JWT access token tunggal dengan expiry 900 detik; tanpa refresh token/revocation server-side; logout menghapus token dari client | Mengubah UX sesi, security exposure window, API authentication, dan testing |
+| OD-012 | Bagaimana idempotency checkout disimpan? | **Locked**: `checkout_request_id` UUID dan `request_hash` disimpan pada Transaction; kombinasi `merchant_id + checkout_request_id` unik, sedangkan `request_hash` tidak harus unik; tanpa tabel `IdempotencyRecord` | Mengubah checkout contract, duplicate handling, lookup setelah timeout, dan data model |
 
 ---
 
