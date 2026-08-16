@@ -3,6 +3,7 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaWriteService } from '../prisma/prisma-write.service';
 import { ApiError } from '../error/api-error';
 import { Public } from '../security/public.decorator';
+import { SuccessMessage } from './success-message.decorator';
 
 interface HealthResponse {
   status: 'ok';
@@ -21,6 +22,7 @@ export class HealthController {
   constructor(private readonly prismaWrite: PrismaWriteService) {}
 
   @Get()
+  @SuccessMessage('Sistem sehat.')
   async check(): Promise<HealthResponse> {
     try {
       await this.prismaWrite.$queryRaw`SELECT 1`;
