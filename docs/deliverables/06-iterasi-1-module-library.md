@@ -219,7 +219,7 @@ Format sub-section tiap modul:
 |---|---|---|---|---|
 | `@nestjs/throttler` | ^6.5.0 | Security | Rate-limit checkout (NFR-SEC-008) | runtime |
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi `CheckoutDto` (items, payment method) dan lookup status checkout | compile, runtime |
-| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — satu transaksi Prisma: idempotency via unique `checkout_request_id` → tulis `transaction` (atribut pembayaran) + `transaction_line` (`05` §6.1) | runtime |
+| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — satu transaksi Prisma: idempotency via unique `checkout_request_id` → tulis `transaction` (atribut pembayaran) + `transaction_item` (`05` §6.1) | runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test perhitungan total (`total = subtotal`), idempotency, race stok | test |
 
 **Dependency ke modul lain:**
@@ -235,46 +235,47 @@ Format sub-section tiap modul:
 
 ### 3.6 Reporting — `libs/reporting`
 
-**Tanggung jawab:** agregasi penjualan **cache-aside** (Redis) dari `Transaction` `COMPLETED` + query dashboard bisnis Owner (FR-REP-001–010). Route dashboard operasional Admin mengomposisikan read port Catalog/Inventory pada application/API layer dan tidak membaca agregat penjualan.
+**Tanggung jawab:** agregasi penjualan **cache-aside** (Redis) dari fakta `Transaction` `COMPLETED` yang diterima melalui `SalesReportingReadPort` + query dashboard bisnis Owner (FR-REP-001–010). Route dashboard operasional Admin mengomposisikan read port Catalog/Inventory pada application/API layer dan tidak membaca agregat penjualan.
 
 | Library | Versi | Kategori | Fungsi di modul ini | Scope |
 |---|---|---|---|---|
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi `DashboardQuery`, `LowStockQuery` | compile, runtime |
-| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — agregasi `Transaction` `COMPLETED` lewat `PrismaReadService` (read replica) saat cache miss | runtime |
+| `@prisma/client` | ^6.4.0 | Persistence | Tipe kontrak melalui port; query fakta penjualan berada pada implementasi `SalesReportingReadPort` di modul Sales | runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test agregasi dashboard (freshness status, cache miss) | test |
 
 **Dependency ke modul lain:**
 - `catalog` — **langsung via interface publik** (`CatalogReportingReadPort` — current catalog untuk melengkapi daftar least-selling dashboard). **Good practice.**
 - `tenant` — **langsung via interface publik** (`TenantReportingReadPort` — timezone & label outlet untuk bucket/label agregasi). **Good practice.**
-- `platform` — via interface publik (`PrismaReadService`, `ReportingCacheService`). **Good practice.**
-- **TIDAK depend ke `sales`** dan **tidak membaca tabel `sales`/`inventory`/`catalog`** (anti-corruption; `05` §3). Reporting mengagregasi `Transaction` `COMPLETED` via read replica saat cache miss (bounded + single-flight, FR-REP-008/009); checkout tidak menginvalidasi cache (FR-REP-002). **Good practice.**
+- `sales` — **langsung via interface publik** (`SalesReportingReadPort` — fakta `Transaction` `COMPLETED` yang dibaca bounded dari read replica). **Good practice.**
+- `platform` — via interface publik (`ReportingCacheService`). **Good practice.**
+- Reporting tidak membaca tabel Sales, Inventory, atau Catalog secara langsung. Saat cache miss, ia meminta fakta penjualan ke `SalesReportingReadPort`, lalu mengagregasinya secara bounded + single-flight (FR-REP-008/009); checkout tidak menginvalidasi cache (FR-REP-002). **Good practice.**
 
-**Infrastructure dependency:** PostgreSQL **read replica** (agregasi saat cache miss, via `PrismaReadService`); **Redis shared cache** TTL 30 menit (cache-aside + single-flight). Tidak ada worker reporting — cache dibangun di jalur dashboard (05 §0).
+**Infrastructure dependency:** PostgreSQL **read replica** digunakan oleh implementasi `SalesReportingReadPort`; **Redis shared cache** TTL 30 menit (cache-aside + single-flight). Tidak ada worker reporting — cache dibangun di jalur dashboard (05 §0).
 
 ---
 
 ### 3.7 Insight (BI) — `libs/insight`
 
-**Tanggung jawab:** generate insight BI (SALES_TREND, OUTLET_COMPARISON, TOP_PRODUCTS, TIME_PATTERN, AOV_TREND) via `AiProviderPort` — rule-based default, opsional provider eksternal (FR-AI-001–012).
+**Tanggung jawab:** generate insight BI (SALES_TREND, OUTLET_COMPARISON, TOP_PRODUCTS, TIME_PATTERN, AOV_TREND) melalui LLM di balik `AiProviderPort` (FR-AI-001–012).
 
 | Library | Versi | Kategori | Fungsi di modul ini | Scope |
 |---|---|---|---|---|
-| `axios` | ^1.19.0 | Utility | `ExternalAiAdapter` — panggilan HTTP ke provider AI eksternal (opsional, EXT-AI-003) | runtime |
-| `cockatiel` | ^4.0.0 | Utility | Circuit breaker + retry + timeout untuk provider eksternal agar worker tidak tersumbat (EXT-AI-003; `07` §7) | runtime |
-| `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi `TriggerInsightDto`, query `InsightQueryService` | compile, runtime |
+| `axios` | ^1.19.0 | Utility | `LlmInsightAdapter` — panggilan HTTP ke LLM provider melalui `AiProviderPort` | runtime |
+| `cockatiel` | ^4.0.0 | Utility | Circuit breaker + retry + timeout untuk LLM provider agar worker tidak tersumbat (EXT-AI-003; `07` §7) | runtime |
+| `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi query `InsightQueryService` | compile, runtime |
 | `@nestjs/schedule` | ^6.1.3 | Utility | `AiAnalysisJobService.@Cron` — polling job AI di `apps/worker` (FR-AI-006) | runtime |
 | `@prisma/client` | ^6.4.0 | Persistence | **via platform** — tulis `AiAnalysisJob`/`AiInsight` lewat `PrismaWriteService` (primary); baca dataset via `ReportingReadPort` | runtime |
-| `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test `RuleBasedInsightAdapter` + job processor | test |
+| `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test `LlmInsightAdapter` + job processor | test |
 
 **Dependency ke modul lain:**
 - `reporting` — **langsung via interface publik** (`ReportingReadPort` — dataset cache-aside atau agregasi bounded saat miss, bukan tabel mentah transaksi). **Good practice.**
-- `platform` — **langsung via interface publik** (`PrismaWriteService` untuk state `AiAnalysisJob`, `ReportingCacheService`). **Good practice.**
+- `platform` — **langsung via interface publik** (`PrismaWriteService` untuk state `AiAnalysisJob`). **Good practice.**
 - Proses generate berjalan di `apps/worker` sebagai **job internal** `AiAnalysisJob` (bukan endpoint sinkron) — user menerima `jobId` lalu polling status (07 §7).
 
 **Infrastructure dependency:**
 - PostgreSQL **primary** (tulis `AiAnalysisJob`/`AiInsight` via `PrismaWriteService`) dan **read replica** (dataset via `ReportingReadPort`/platform);
-- Redis shared cache (via `ReportingReadPort`);
-- **External AI API** (hanya bila `ExternalAiAdapter` dipakai) — dengan timeout + circuit breaker `cockatiel`. `RuleBasedInsightAdapter` (default) berjalan tanpa resource eksternal (`05` §12).
+- Redis shared cache hanya melalui `ReportingReadPort`;
+- **LLM provider** melalui `AiProviderPort`, dengan timeout + circuit breaker `cockatiel`.
 
 ---
 
@@ -309,9 +310,9 @@ Memetakan **pemanggil → dipanggil → mekanisme** untuk membuktikan bahwa komu
 | `sales` | `tenant` | Direct method call via interface publik (`TenantAuthorizationService`) | Outlet milik merchant (FR-TEN-010) |
 | `reporting` | `catalog` | Direct method call via interface publik (`CatalogReportingReadPort`) | Current catalog untuk melengkapi least-selling dashboard |
 | `reporting` | `tenant` | Direct method call via interface publik (`TenantReportingReadPort`) | Timezone + label outlet untuk agregasi & dashboard |
-| `reporting` | — | Cache-aside via `ReportingCacheService` (platform) + agregasi `Transaction` `COMPLETED` via `PrismaReadService` | Data penjualan dibangun di jalur dashboard; tidak membaca tabel modul bisnis lain (`05` §3) |
+| `reporting` | `sales` | Direct method call via interface publik (`SalesReportingReadPort`) + cache-aside via `ReportingCacheService` (platform) | Data penjualan dibangun di jalur dashboard dari fakta penjualan bounded; tidak membaca tabel modul bisnis lain langsung (`05` §3) |
 | `insight` | `reporting` | Direct method call via interface publik (`ReportingReadPort`) | Hanya baca dataset hasil agregasi (bukan tabel mentah) |
-| `insight` | `platform` | Direct method call via interface publik (`PrismaWriteService`, `ReportingCacheService`) + job internal worker | Generate insight async; retry/backoff pada state `AiAnalysisJob` |
+| `insight` | `platform` | Direct method call via interface publik (`PrismaWriteService`) + job internal worker | Generate insight async; retry/backoff pada state `AiAnalysisJob` |
 | semua modul bisnis | `platform` | Direct method call via interface publik (guards, `PrismaWrite/ReadService`, cache, money, pagination, error) | Shared kernel yang diizinkan |
 
 > **Catatan mekanisme async:** satu-satunya jalur async pada Iterasi 1 adalah **`AiAnalysisJob` (tabel DB) + `@nestjs/schedule` polling di `apps/worker`** — **bukan outbox, RabbitMQ, maupun Redis/BullMQ** (05 §0: sengaja didefer). Karena semua komunikasi lewat **interface/port**, bila nanti modul di-split menjadi service, jalur ini tinggal mengganti implementasi (mis. ke broker) tanpa mengubah pemanggil.
@@ -371,6 +372,18 @@ Referensi: kode `libs/catalog/src/application/ports/catalog-reporting-read.port.
 
 Referensi: 07 §5.3/§5.6; FR-INV-001–008; 05 §6.1.
 
+### 5.4A `SalesReportingReadPort` — sales (dikonsumsi `reporting`)
+
+| Aspek | Kontrak |
+|---|---|
+| Method | `listCompletedTransactionFacts(request: SalesReportingQuery): Promise<CompletedTransactionFact[]>` |
+| Param `SalesReportingQuery` | `{ merchantId: string; outletId?: string \| null; dateFrom: string; dateTo: string; timezone: string }` |
+| Return `CompletedTransactionFact` | Fakta read-only yang diperlukan agregasi: waktu transaksi, Outlet, Product snapshot, kuantitas, subtotal, dan total. |
+| Error | `TenantViolationError` bila Merchant/Outlet di luar scope; error dependency bila read replica tidak tersedia. |
+| Aturan | Port ini dimiliki Sales. Implementasinya membaca hanya `Transaction` `COMPLETED` dan item-nya dari read replica secara bounded; Reporting tidak mengimpor repository atau tabel Sales secara langsung. |
+
+Referensi: FR-REP-001/008/009; 05 §3; 07 §6.
+
 ### 5.5 `TenantAuthorizationService` — tenant (dikonsumsi `catalog`, `inventory`, `sales`)
 
 | Aspek | Kontrak |
@@ -397,10 +410,10 @@ Referensi: kode `libs/tenant/src/application/ports/tenant-reporting-read.port.ts
 | Aspek | Kontrak |
 |---|---|
 | Method | `getDataset(request: ReportingDatasetRequest): Promise<ReportingDataset>` |
-| Param `ReportingDatasetRequest` | `{ merchantId: string; outletId?: string \| null; dateFrom: string; dateTo: string; timezone: string; granularity: 'HOUR' \| 'DAY' \| 'MONTH'; dimensions?: ('outlet' \| 'product' \| 'hour')[] }` |
+| Param `ReportingDatasetRequest` | `{ merchantId: string; outletId?: string \| null; dateFrom: string; dateTo: string; timezone: string; granularity: 'HOUR' \| 'DAY'; dimensions?: ('outlet' \| 'product' \| 'hour')[] }` |
 | Return `ReportingDataset` | `{ summary: { totalOmzet: string; transactionCount: number; averageTransactionValue: string }; series: [{ bucketStart: string; omzet: string; transactionCount: number; averageTransactionValue?: string }]; byOutlet?: [{ outletId: string; outletName: string; omzet: string; transactionCount: number }]; byProduct?: [{ productId: string; name: string; unitsSold: number; omzet: string }]; byHour?: [{ hourOfDay: number; omzet: string; transactionCount: number }]; dataVersion: string; dataUpdatedAt: string }` |
 | Error | Tidak melempar untuk cache miss/expire — agregasi ulang bounded dijalankan; data terakhir tetap dikembalikan (FR-REP-004). |
-| Aturan | Sumber = cache-aside Redis (TTL 30 menit) atau agregasi bounded `Transaction` `COMPLETED` via read replica saat miss, dengan single-flight per key (FR-REP-008/009); checkout tidak membangun/menginvalidasi cache (FR-REP-002); agregat dalam string desimal; waktu sesuai timezone Merchant (BR-018). Bentuk breakdown mengikuti 07 §6.4 (`TrendPoint`/`TimePatternPoint`/`TopProductsResult`/`OutletComparisonItem`). |
+| Aturan | Sumber = cache-aside Redis (TTL 30 menit) atau agregasi bounded fakta `Transaction` `COMPLETED` melalui `SalesReportingReadPort` saat miss, dengan single-flight per key (FR-REP-008/009); checkout tidak membangun/menginvalidasi cache (FR-REP-002); agregat dalam string desimal; waktu sesuai timezone Merchant (BR-018). Bentuk breakdown mengikuti 07 §6.4 (`TrendPoint`/`TimePatternPoint`/`TopProductsResult`/`OutletComparisonItem`). |
 
 Referensi: 07 §3.6/§6.4; FR-REP-001–010; FR-AI-002; 05 §3/§6.2.
 
@@ -409,19 +422,30 @@ Referensi: 07 §3.6/§6.4; FR-REP-001–010; FR-AI-002; 05 §3/§6.2.
 | Aspek | Kontrak |
 |---|---|
 | Method | `generate(request: AiGenerationRequest): Promise<AiGeneratedInsight[]>` |
-| Param `AiGenerationRequest` | `{ merchantId: string; outletId?: string \| null; periodStart: string; periodEnd: string; dataVersion: string; dataset: ReportingDataset }` |
-| Return `AiGeneratedInsight` | `{ type: 'SALES_TREND' \| 'OUTLET_COMPARISON' \| 'TOP_PRODUCTS' \| 'TIME_PATTERN' \| 'AOV_TREND'; title: string; explanation: string; evidence: Record<string, unknown> }` |
-| Error | Adapter eksternal wajib timeout + circuit breaker `cockatiel`; kegagalan → state job `RETRY_SCHEDULED`/`FAILED` (FR-AI-006/007). |
-| Aturan | Default `RuleBasedInsightAdapter` deterministik tanpa resource eksternal; output berbasis evidence terstruktur (FR-AI-004/005), bukan teks generatif bebas; harus aman di-retry (idempotent per `AiAnalysisJob`). |
+| Param `AiGenerationRequest` | `{ merchantId: string; periodStart: string; periodEnd: string; dataVersion: string; dataset: ReportingDataset }` |
+| Return `AiGeneratedInsight` | `{ type: 'SALES_TREND' \| 'OUTLET_COMPARISON' \| 'TOP_PRODUCTS' \| 'TIME_PATTERN' \| 'AOV_TREND'; title: string; content: string; evidenceSummary: Record<string, unknown> }` |
+| Error | Adapter LLM wajib timeout + circuit breaker `cockatiel`; kegagalan → state job `RETRY_SCHEDULED`/`FAILED` (FR-AI-006/007). |
+| Aturan | Implementasi `LlmInsightAdapter` menggunakan LLM melalui `AiProviderPort`; output tetap berbasis evidence terstruktur (FR-AI-004/005) dan harus aman di-retry (idempotent per `AiAnalysisJob`). |
 
 Referensi: 07 §3.7/§7; DG-006; EXT-AI-003; FR-AI-001–012.
 
-### 5.9 Ringkasan port
+### 5.9 `AiAnalysisJobClaimPort` — insight internal (dipakai worker)
+
+| Aspek | Kontrak |
+|---|---|
+| Method | `claimNextDue(): Promise<AiAnalysisJob | null>` |
+| Return | Satu job yang sudah berubah ke `PROCESSING`, atau `null` bila tidak ada job due. |
+| Aturan | Implementasi menggunakan satu operasi atomik pada primary: hanya `PENDING` dengan `next_retry_at IS NULL` atau `RETRY_SCHEDULED` dengan `next_retry_at <= now()` yang eligible. Gunakan `FOR UPDATE SKIP LOCKED` atau conditional update setara agar dua Worker tidak mengklaim job yang sama. Repository ini internal untuk `insight`, bukan API lintas modul. |
+
+Referensi: 05 §6.2; 07 §7.6; FR-AI-006.
+
+### 5.10 Ringkasan port
 
 | Port | Provider | Konsumen | Method utama |
 |---|---|---|---|
 | `ProductReadPort` | catalog | inventory, sales | `getProductsForSaleValidation` |
 | `CatalogReportingReadPort` | catalog | reporting | `getSellableProducts` |
+| `SalesReportingReadPort` | sales | reporting | `listCompletedTransactionFacts` |
 | `StockReservationPort` | inventory | sales | `reserveForSale` |
 | `TenantAuthorizationService` | tenant | catalog, inventory, sales | `assertUserBelongsToMerchant` / `assertOutletOwnedByMerchant` / `assertOutletOwnedByActor` |
 | `TenantReportingReadPort` | tenant | reporting | `getContext` |
@@ -460,8 +484,8 @@ Referensi: 07 §3.7/§7; DG-006; EXT-AI-003; FR-AI-001–012.
 | `catalog` | `tenant`, `platform` | interface |
 | `inventory` | `catalog`, `tenant`, `platform` | interface (`ProductReadPort`) |
 | `sales` | `catalog`, `inventory`, `tenant`, `identity`, `platform` | interface (`ProductReadPort`, `StockReservationPort`, `TenantAuthorizationService`) |
-| `reporting` | `catalog`, `tenant`, `platform` | interface (`CatalogReportingReadPort`, `TenantReportingReadPort`, `PrismaReadService`, `ReportingCacheService`) |
-| `insight` | `reporting`, `platform` | interface (`ReportingReadPort`, `PrismaWriteService`, `ReportingCacheService`) |
+| `reporting` | `sales`, `catalog`, `tenant`, `platform` | interface (`SalesReportingReadPort`, `CatalogReportingReadPort`, `TenantReportingReadPort`, `ReportingCacheService`) |
+| `insight` | `reporting`, `platform` | interface (`ReportingReadPort`, `PrismaWriteService`) |
 
 **Hasil analisis circular dependency:** **tidak ada** — graf membentuk DAG (directed acyclic graph). Hal ini **dijamin otomatis** oleh `dependency-cruiser` di CI (05 §7, 06 §6). Titik rawan yang sengaja dihindari:
 - `catalog` **tidak** depend ke `inventory` (route `GET /products/catalog` dipegang Inventory — 06 §3.3);

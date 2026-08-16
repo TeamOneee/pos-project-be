@@ -325,7 +325,7 @@ Status gabungan seperti `Confirmed/Proposed` berarti inti kebutuhannya berasal d
 | UR-AI-007 | AI tidak boleh memblokir, membatalkan, atau mengubah hasil checkout. | Must | Confirmed |
 | UR-AI-008 | MVP menyediakan **beberapa tipe insight BI** yang dapat dibuktikan dari data demo: tren penjualan, perbandingan outlet, produk terlaris/tidak laku, pola waktu penjualan, dan tren AOV. | Must | Confirmed |
 | UR-AI-009 | Insight tidak boleh menjadi perintah otomatis untuk mengubah harga, status produk, atau akun. | Must | Confirmed |
-| UR-AI-010 | Hanya Owner yang boleh memicu secara manual, melihat, atau mengelola insight BI Merchant; Admin dan Kasir tidak boleh mengaksesnya. Maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data yang tersedia. | Must | Locked |
+| UR-AI-010 | Hanya Owner yang boleh memicu secara manual, melihat, atau mengelola insight BI Merchant; Admin dan Kasir tidak boleh mengaksesnya. Maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data yang tersedia. Analisis MVP selalu mencakup seluruh Merchant untuk 30 hari kalender lokal yang berakhir pada tanggal analisis; Owner tidak memilih Outlet atau rentang periode saat trigger. | Must | Locked |
 
 ### 7.7 Kebutuhan keamanan dan kepercayaan
 
@@ -514,7 +514,7 @@ Catatan:
 | UBR-014 | Owner membuat dan mengelola langsung akun staf menggunakan email, password awal, role, status, dan Outlet bila role-nya Kasir. Sistem hanya menyimpan password hash dan tidak dapat menampilkan kembali password yang tersimpan. |
 | UBR-015 | Menonaktifkan akun mencabut kemampuan melakukan aksi baru tanpa menghapus referensi User pada Transaction atau StockMovement historis. |
 | UBR-016 | Setiap Product wajib memiliki satu Category. Category harus aktif ketika dipilih untuk Product baru/perubahan dan dinonaktifkan, bukan dihapus fisik, agar relasi produk serta riwayat yang sudah ada tetap utuh. Product dengan Category nonaktif tidak tampil di katalog POS dan tidak dapat di-checkout. |
-| UBR-017 | Fitur AI hanya dapat dipicu secara manual dan diakses oleh Owner, maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan beberapa tipe insight sesuai data. |
+| UBR-017 | Fitur AI hanya dapat dipicu secara manual dan diakses oleh Owner, maksimal satu analisis per Merchant per hari; satu analisis dapat menghasilkan beberapa tipe insight sesuai data. Scope analisis MVP adalah seluruh Merchant dengan periode 30 hari kalender lokal yang diturunkan dari tanggal analisis, bukan input client. |
 | UBR-018 | Pembayaran manual dan perlindungan duplikasi checkout disimpan langsung pada Transaction. Satu `checkout_request_id` hanya mewakili satu niat pembayaran dalam Merchant; transaksi berbeda wajib menggunakan ID baru meskipun Cart-nya identik. |
 
 ---
@@ -572,7 +572,7 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 6. Pembayaran MVP dicatat sebagai tunai atau cashless manual; sistem tidak memindahkan dana.
 7. Pembayaran dianggap dikonfirmasi ketika Kasir menyatakan dana telah diterima.
 8. Dashboard Owner memakai shared cache dengan cached aggregate berumur maksimal 30 menit pada kondisi normal (`OD-006` locked); cache miss mengagregasi Transaction `COMPLETED`, dan checkout tidak menginvalidasi cache.
-9. Insight hanya dipicu manual oleh Owner maksimal satu analisis per Merchant per hari dan diproses asynchronous; satu analisis dapat menghasilkan beberapa tipe insight sesuai data, dan analitik deterministik dapat digunakan sebelum integrasi model eksternal.
+9. Insight hanya dipicu manual oleh Owner maksimal satu analisis per Merchant per hari dan diproses asynchronous; satu analisis dapat menghasilkan beberapa tipe insight sesuai data melalui LLM. Status proses dibaca dari job analisis, sedangkan hasil insight hanya ditampilkan setelah lengkap.
 10. Waktu aplikasi ditampilkan dalam zona merchant; penyimpanan waktu internal dapat distandardisasi.
 
 ### 13.2 Dependency
@@ -589,7 +589,7 @@ Angka ini adalah **target usulan**, bukan klaim kemampuan saat ini. Target harus
 
 | Risiko | Dampak | Mitigasi requirement |
 |---|---|---|
-| Scope BI terlalu besar | Checkout dan fitur inti tidak selesai | BI dibatasi sebagai insight terpisah di luar jalur checkout, dengan beberapa tipe insight minimum yang deterministik |
+| Scope BI terlalu besar | Checkout dan fitur inti tidak selesai | BI dibatasi sebagai insight terpisah di luar jalur checkout, dengan beberapa tipe insight minimum berbasis data yang dapat diverifikasi |
 | Role tanpa tenant isolation | Kebocoran data lintas merchant | Semua akses diperiksa dengan role + merchant |
 | Cache miss dashboard membaca transaksi operasional secara berat | Checkout melambat atau dashboard lambat | Query agregasi dibatasi, cache digunakan bersama selama maksimal 30 menit, concurrency miss dikendalikan, dan mixed workload diuji |
 | Retry checkout membuat duplikasi | Kerugian uang dan catatan penjualan ganda | Identitas permintaan dan lookup status wajib |

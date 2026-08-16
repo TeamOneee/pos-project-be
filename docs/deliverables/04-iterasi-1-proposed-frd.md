@@ -105,7 +105,7 @@ Admin dan Kasir adalah manusia, bukan perangkat POS. Perangkat/register belum di
 | `FEAT-TRX` | Transaction history dan detail | Kasir, Owner | Must | `UC-FRD-11` |
 | `FEAT-DASH-OWN` | Dashboard bisnis Owner | Owner | Must | `UC-FRD-12` |
 | `FEAT-DASH-ADM` | Dashboard operasional Merchant | Owner, Admin | Must | `UC-FRD-13` |
-| `FEAT-AI` | Satu trigger analisis harian, status, hasil, dan pembaruan insight BI (tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV; satu analisis dapat memperbarui beberapa hasil sekaligus, tanpa histori per tipe) | Owner | Must | `UC-FRD-14` |
+| `FEAT-AI` | Satu trigger analisis harian Merchant-wide, status, hasil, dan pembaruan insight BI (periode 30 hari kalender lokal yang diturunkan dari tanggal analisis; tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV; satu analisis dapat memperbarui beberapa hasil sekaligus, tanpa histori per tipe) | Owner | Must | `UC-FRD-14` |
 | `FEAT-OPS` | Operability: observability, health, recovery, dan isolasi workload checkout dari reporting/AI | Operator sistem, Merchant | Must | Cross-cutting; `US-OPS-001–002` |
 
 > **Notifikasi:** Fitur "AI Insight" (`FEAT-AI`) diimplementasikan sebagai **Business Intelligence (BI)** — kumpulan insight analitik beberapa tipe (tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), bukan satu tipe insight tunggal. AI berperan sebagai mesin pengerja/penjelas.
@@ -201,9 +201,9 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | `US-TRX-002` | Sebagai Kasir, saya ingin melihat riwayat transaksi yang saya lakukan sendiri agar dapat membantu pemeriksaan. | Must | Hanya transaksi dengan `operator_user_id = saya` (`OD-003` locked). | `UR-CAS-014`, `FR-TRX-004,006` |
 | `US-DASH-001` | Sebagai Owner, saya ingin memilih periode dan melihat omzet, jumlah transaksi, serta AOV agar memahami kondisi bisnis. | Must | Hanya Transaction `COMPLETED`; definisi metrik konsisten; scope Merchant/Outlet benar. | `UR-OWN-004`, `UR-REP-001–003`, `FR-REP-001–003` |
 | `US-DASH-002` | Sebagai Owner, saya ingin melihat tren penjualan/AOV, pola waktu, Product terlaris/tidak laku, dan perbandingan Outlet agar mengetahui perubahan yang perlu ditindaklanjuti. | Must | Hasil sesuai periode, bucket waktu, timezone Merchant, dan transaksi sumber. | `UR-OWN-005–005A`, `UR-REP-003A`, `FR-REP-003A–003C` |
-| `US-DASH-003` | Sebagai Owner, saya ingin melihat waktu pembaruan dan status stale agar memahami seberapa baru data dashboard. | Must | Cached aggregate normal berumur maksimal 30 menit; `data_updated_at`, timezone, empty state, dan degraded state terlihat. | `UR-OWN-006,009`, `FR-REP-004–007` |
+| `US-DASH-003` | Sebagai Owner, saya ingin melihat waktu pembaruan dan status stale agar memahami seberapa baru data dashboard. | Must | Cached aggregate normal berumur maksimal 30 menit; setiap payload dashboard bisnis memuat `data_updated_at`, timezone, freshness, empty state, dan degraded state. | `UR-OWN-006,009`, `FR-REP-004–007` |
 | `US-DASH-004` | Sebagai Admin atau Owner, saya ingin melihat dashboard operasional agar dapat menjaga seluruh Outlet siap berjualan. | Must | Hanya ringkasan inventory, stok rendah, dan kondisi katalog dalam Merchant; Admin tidak memperoleh omzet, AOV, transaksi, analytics bisnis, atau insight BI. | `UR-OWN-005B`, `UR-ADM-001,007`, `FR-REP-003,009` |
-| `US-AI-001` | Sebagai Owner, saya ingin memicu analisis BI/AI secara manual agar memperoleh insight ketika dibutuhkan. | Must | Hanya Owner; maksimal satu analisis per Merchant per hari; job diproses di luar checkout dan dapat menghasilkan beberapa tipe insight sekaligus. | `UR-AI-002,010`, `FR-AI-001,012`, `BR-020` |
+| `US-AI-001` | Sebagai Owner, saya ingin memicu analisis BI/AI secara manual agar memperoleh insight ketika dibutuhkan. | Must | Hanya Owner; maksimal satu analisis per Merchant per hari; job diproses di luar checkout, selalu menganalisis seluruh Merchant selama 30 hari kalender lokal, dan dapat menghasilkan beberapa tipe insight sekaligus. | `UR-AI-002,010`, `FR-AI-001,012`, `BR-020` |
 | `US-AI-002` | Sebagai Owner, saya ingin melihat status, periode, evidence, dan hasil insight agar dapat menilai dasar rekomendasinya. | Must | Status terlihat; output menyimpan periode, evidence summary, tipe, versi data, dan waktu. | `UR-OWN-008–009`, `UR-AI-003–006`, `FR-AI-002–008` |
 | `US-AI-003` | Sebagai Owner, saya ingin dashboard tetap tersedia ketika AI gagal agar keputusan dasar tidak bergantung pada provider AI. | Must | AI timeout/retry terbatas; status `FAILED` dapat dipahami; checkout dan dashboard dasar tetap hidup. | `UR-AI-005,007`, `FR-AI-006,008,011` |
 
@@ -345,7 +345,7 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 |---|---|
 | Aktor | Owner, Kasir sesuai scope (Admin tidak memiliki akses) |
 | Prasyarat | User login dan mempunyai hak terhadap Transaction yang diminta |
-| Pemicu | Pengguna membuka riwayat atau mencari receipt number |
+| Pemicu | Pengguna membuka riwayat atau mencari transaction number |
 | Alur utama | Tentukan scope dari credential → terapkan filter tanggal dan Outlet sesuai role → kembalikan daftar berpaginasi → pengguna membuka detail/receipt snapshot |
 | Alternatif | Tidak ada hasil; Transaction beda Merchant/Outlet; receipt tidak ditemukan; Kasir hanya dapat mengakses transaksi miliknya (`OD-003` locked) |
 | Hasil | Histori dapat dibaca tanpa mengubah Transaction dan tanpa membaca harga katalog terbaru |
@@ -382,10 +382,10 @@ Setiap baris tetap memakai ID agar ringkas. Untuk membaca sumber lengkapnya, gun
 | Aktor | Owner |
 | Prasyarat | Owner aktif pada Merchant; dashboard dasar tidak bergantung pada AI |
 | Pemicu | Owner menekan tombol analisis BI/AI |
-| Alur utama | Validasi Owner/Merchant → temukan atau buat `AiAnalysisJob` berdasarkan `merchant_id + tanggal lokal Merchant`; periode dan versi data menjadi input, bukan pembeda job → antrekan job → tampilkan `PENDING/PROCESSING` → worker menghasilkan evidence dan content → simpan `READY` → Owner melihat hasil |
+| Alur utama | Validasi Owner/Merchant → temukan atau buat `AiAnalysisJob` berdasarkan `merchant_id + tanggal lokal Merchant` → antrekan job → Owner melihat status job `PENDING/PROCESSING` → worker menurunkan periode 30 hari kalender lokal dari `analysis_date`, menganalisis seluruh Merchant, dan meminta LLM membuat insight → worker menyimpan hasil lengkap `AiInsight` berstatus `READY` → Owner melihat hasil |
 | Alternatif | Request duplikat memakai `AiAnalysisJob` yang sama; kegagalan sementara dijadwalkan retry terbatas; kegagalan akhir menjadi `FAILED`; data lama menjadi `STALE` |
 | Hasil | Satu analisis menghasilkan atau memperbarui insight per tipe yang datanya tersedia (tren, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, tren AOV), dengan periode, evidence, versi, status, dan waktu; hasil terbaru per tipe tanpa histori dan tidak mengubah Product, stok, akses, atau Transaction |
-| Referensi | `US-AI-001–003`, `FR-AI-001–012`, `AT-012` |
+| Referensi | `US-AI-001–003`, `FR-AI-001–012`, `AT-012,031` |
 
 ## 8. Workflow descriptions
 
@@ -636,7 +636,7 @@ Out-of-Scope tidak boleh diimplementasikan diam-diam dengan mengorbankan require
 | `OD-005` | Refund/void | **Locked**: tidak ada pada MVP | Reversal, permission, dan perhitungan omzet setelah reversal |
 | `OD-006` | Freshness dashboard final | **Locked**: cached aggregate dashboard Owner berumur maksimal 30 menit pada kondisi normal | TTL, query agregasi, cache, dan biaya |
 | `OD-007` | Insight minimum demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV | Dataset dan acceptance test BI |
-| `OD-008` | Provider/model AI eksternal wajib atau tidak | Tidak wajib | Biaya, privacy, reliability |
+| `OD-008` | Provider insight | **Locked**: LLM melalui `AiProviderPort` | Biaya, privacy, reliability |
 | `OD-009` | Target concurrency resmi | Proposed Baseline bagian 9.4 | Load test dan kapasitas deployment |
 | `OD-010` | Hierarki role dan checkout | **Locked**: Owner mewarisi seluruh permission Admin dan Kasir; Owner checkout pada Outlet aktif yang dipilih dalam Merchant, Kasir hanya pada Outlet tugasnya, Admin tidak checkout | Permission model dan validasi checkout |
 | `OD-011` | Model authentication dan logout | **Locked**: JWT access token tunggal berumur 900 detik; tanpa refresh token/revocation server-side; logout menghapus token dari client | UX sesi, exposure window token, security, dan testing |
@@ -661,7 +661,7 @@ Item `Open` tidak boleh dianggap final oleh engineer, QA, atau stakeholder. Defa
 | Transaction history | `US-TRX-001–002` | `UR-CAS-014`, `UR-OWN-007` | `FR-TRX-001–007` | History acceptance/security test |
 | Owner dashboard | `US-DASH-001–003` | `UR-OWN-004–006`, `UR-REP-001–007` | `FR-REP-001–010` | `AT-011,017,024–028` |
 | Dashboard operasional | `US-DASH-004` | `UR-OWN-005B`, `UR-ADM-001,007` | `FR-REP-003,009` | `AT-020,030` + Admin permission/dashboard test |
-| BI insight | `US-AI-001–003` | `UR-OWN-008–010`, `UR-AI-001–010` | `FR-AI-001–012` | `AT-012` + AI authorization/idempotency test |
+| BI insight | `US-AI-001–003` | `UR-OWN-008–010`, `UR-AI-001–010` | `FR-AI-001–012` | `AT-012,031` + AI authorization/idempotency test |
 | Operasi | `US-OPS-001–002` | `UR-OPS-001–008` | `FR-OPS-001–006` | Fault, recovery, dan `AT-015` |
 
 ## 13. Deliverable coverage checklist

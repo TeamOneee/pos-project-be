@@ -42,6 +42,8 @@ Jika terdapat perbedaan, gunakan urutan berikut:
 
 Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement. Perubahan harus dicatat melalui change control.
 
+Untuk **nama entitas, relasi, dan atribut konseptual**, [`05b-iterasi-1-datamodel.md`](./05b-iterasi-1-datamodel.md) adalah sumber kebenaran. Dokumen build plan, library, dan API boleh menetapkan constraint fisik, DTO, atau mekanisme implementasi, tetapi tidak boleh menambah atau mengganti entitas/atribut 05b tanpa keputusan data-model baru.
+
 ## 4. Keputusan Iterasi 1 yang sudah dikunci
 
 | Area | Keputusan terkini |
@@ -61,8 +63,8 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | Transaksi | Riwayat transaksi wajib dipertahankan. Harga dan nama item saat penjualan disimpan sebagai snapshot. |
 | Uang | Nilai uang menggunakan exact `DECIMAL/NUMERIC`; kontrak API mengirim nilai uang sebagai decimal string. |
 | Dashboard Owner | Must mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, perbandingan Outlet, periode, dan waktu pembaruan. |
-| Reporting | Dashboard Owner memakai cache-aside bersama dengan freshness TTL 30 menit. Cache miss mengagregasi hanya Transaction `COMPLETED`; cache tidak diperbarui pada checkout dan bukan sumber kebenaran. Worker hanya digunakan untuk pekerjaan AI. |
-| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan AI sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Satu trigger manual maksimal satu kali per hari per Merchant memakai **satu `AiAnalysisJob`** yang dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus, sesuai kecukupan data. Pemrosesan asynchronous dan terlindung dari checkout. |
+| Reporting | Dashboard Owner memakai cache-aside bersama dengan freshness TTL 30 menit. Cache miss meminta fakta `Transaction` `COMPLETED` melalui `SalesReportingReadPort`; implementasi port membaca read replica. Cache tidak diperbarui pada checkout dan bukan sumber kebenaran. Worker hanya digunakan untuk pekerjaan AI. |
+| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan LLM sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Satu trigger manual maksimal satu kali per hari per Merchant memakai **satu `AiAnalysisJob`** yang dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus, sesuai kecukupan data. Scope MVP selalu seluruh Merchant dan periode analisis adalah 30 hari kalender lokal yang berakhir pada `analysis_date`; keduanya diturunkan deterministik dari job, bukan dikirim client. Status pemrosesan dibaca dari job, sedangkan `AiInsight` menyimpan hasil terbaru yang sudah lengkap. Pemrosesan asynchronous dan terlindung dari checkout. |
 | Payment | Tidak ada entitas/tabel Payment terpisah. `Transaction` menyimpan `payment_method` (`CASH`/`QRIS`/`TRANSFER`), `payment_status = CONFIRMED`, dan `paid_at`; `Transaction.total` menjadi jumlah pembayaran yang dikonfirmasi. |
 | Idempotency checkout | Tidak ada `IdempotencyRecord` terpisah. Client membuat `checkout_request_id` UUID untuk satu niat pembayaran; server menyimpan ID tersebut dan `request_hash` pada `Transaction`. Kombinasi `merchant_id + checkout_request_id` unik. |
 
@@ -77,7 +79,7 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 | OD-005 | Refund/void transaksi final | **Locked**: tidak ada refund/void pada MVP |
 | OD-006 | Freshness dashboard | **Locked**: cached aggregate dashboard Owner berumur maksimal 30 menit pada kondisi normal |
 | OD-007 | BI insight minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV |
-| OD-008 | Kewajiban memakai provider/model AI eksternal | Tidak wajib |
+| OD-008 | Provider insight | **Locked**: insight menggunakan LLM melalui `AiProviderPort`. |
 | OD-009 | Target concurrency resmi | Menggunakan proposed baseline SRS sampai divalidasi |
 | OD-010 | Hierarki role dan checkout | **Locked**: `OWNER` mewarisi seluruh permission `ADMIN` dan `CASHIER`; Owner checkout pada Outlet aktif yang dipilih dalam Merchant-nya, Kasir hanya pada Outlet tugasnya, dan Admin tidak checkout |
 | OD-011 | Model authentication dan logout | **Locked**: JWT access token tunggal dengan expiry 900 detik; tanpa refresh token/revocation server-side; logout menghapus token dari client |
@@ -98,7 +100,7 @@ Keputusan terbuka tidak boleh diasumsikan sebagai keputusan final dalam implemen
 | Inventory | Saldo stok satu Product pada satu Outlet |
 | Transaction | Catatan penjualan yang memiliki state terdefinisi |
 | Reporting cache | Cached aggregate sementara untuk dashboard Owner dengan freshness TTL 30 menit; bukan sumber kebenaran dan dapat dibangun ulang dari Transaction `COMPLETED`. Data lebih lama hanya boleh dipertahankan secara bounded untuk fallback `STALE`. |
-| AiAnalysisJob | Pekerjaan asynchronous khusus analisis BI harian satu Merchant; menyimpan state dan retry, bukan jenis job generik. |
+| AiAnalysisJob | Pekerjaan asynchronous khusus analisis BI harian satu Merchant; menyimpan state dan retry, bukan jenis job generik. Periode Merchant-wide 30 hari lokal diturunkan dari `analysis_date`, sehingga tidak memerlukan atribut scope atau periode tersendiri. |
 | Insight BI | **AI Insight yang diwujudkan sebagai Business Intelligence**: beberapa tipe insight analitik turunan untuk Owner, berbasis metrik/evidence; tidak boleh mengubah data bisnis secara otomatis |
 
 Nama entitas konseptual ditulis dengan kapital awal (`Merchant`, `Outlet`, `Category`, `Product`, `User`, `Transaction`). Nama field dan nilai enum ditulis sebagai kode, misalnya `User.outlet_id` dan `CASHIER`.
