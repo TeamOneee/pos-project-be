@@ -1,27 +1,35 @@
+/**
+ * Data ringkas Outlet untuk perbandingan cabang dan pelaporan historis.
+ */
 export interface ReportingOutlet {
-  // id menjadi filter projection dan kunci response outlet comparison.
+  /** ID unik Outlet. */
   id: string;
-  // nama current state ditampilkan bersama angka historis.
+  /** Nama Outlet saat ini. */
   name: string;
 }
 
+/**
+ * Konteks tenant yang dibutuhkan untuk kalkulasi Reporting.
+ */
 export interface TenantReportingContext {
-  // timezone menentukan batas hour/day reporting sesuai br-018.
+  /** Zona waktu Merchant untuk menentukan batas hari/jam lokal (BR-018). */
   timezone: string;
-  // seluruh outlet termasuk nonaktif agar histori Owner tidak hilang.
+  /** Seluruh Outlet milik Merchant (termasuk nonaktif untuk menjaga data historis). */
   outlets: ReportingOutlet[];
 }
 
-/*
- * reporting hanya membutuhkan timezone, scope, dan label outlet dari tenant.
- * tidak ada outlet-changed event pada iterasi ini karena perubahan outlet jarang
- * dan current state dapat dibaca murah dari read replica.
- *
- * todo(scaling): gunakan outlet dimension event bila reporting dipisah menjadi
- * service mandiri atau read port ini menjadi bottleneck yang terukur.
- */
 export abstract class TenantReportingReadPort {
-  // membaca timezone dan outlet dalam scope merchant dari read replica.
+  /**
+   * Membaca timezone dan daftar Outlet dalam scope Merchant dari Read Replica.
+   *
+   * Digunakan oleh:
+   * - Reporting untuk normalisasi waktu lokal (BR-018) dan perbandingan Outlet (FR-REP-005).
+   *
+   * TenantReportingReadPort
+   * ├── validasi scope Merchant dan Outlet
+   * ├── penentuan IANA timezone Merchant
+   * └── daftar seluruh Outlet untuk perbandingan cabang
+   */
   abstract getContext(
     merchantId: string,
     outletId?: string,
