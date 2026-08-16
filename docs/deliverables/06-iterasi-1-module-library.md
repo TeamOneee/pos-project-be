@@ -219,7 +219,7 @@ Format sub-section tiap modul:
 |---|---|---|---|---|
 | `@nestjs/throttler` | ^6.5.0 | Security | Rate-limit checkout (NFR-SEC-008) | runtime |
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi `CheckoutDto` (items, payment method) dan lookup status checkout | compile, runtime |
-| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — satu transaksi Prisma: idempotency via unique `checkout_request_id` → tulis `transaction` (atribut pembayaran) + `transaction_line` (`05` §6.1) | runtime |
+| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — satu transaksi Prisma: idempotency via unique `checkout_request_id` → tulis `transaction` (atribut pembayaran) + `transaction_item` (`05` §6.1) | runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test perhitungan total (`total = subtotal`), idempotency, race stok | test |
 
 **Dependency ke modul lain:**
@@ -397,7 +397,7 @@ Referensi: kode `libs/tenant/src/application/ports/tenant-reporting-read.port.ts
 | Aspek | Kontrak |
 |---|---|
 | Method | `getDataset(request: ReportingDatasetRequest): Promise<ReportingDataset>` |
-| Param `ReportingDatasetRequest` | `{ merchantId: string; outletId?: string \| null; dateFrom: string; dateTo: string; timezone: string; granularity: 'HOUR' \| 'DAY' \| 'MONTH'; dimensions?: ('outlet' \| 'product' \| 'hour')[] }` |
+| Param `ReportingDatasetRequest` | `{ merchantId: string; outletId?: string \| null; dateFrom: string; dateTo: string; timezone: string; granularity: 'HOUR' \| 'DAY'; dimensions?: ('outlet' \| 'product' \| 'hour')[] }` |
 | Return `ReportingDataset` | `{ summary: { totalOmzet: string; transactionCount: number; averageTransactionValue: string }; series: [{ bucketStart: string; omzet: string; transactionCount: number; averageTransactionValue?: string }]; byOutlet?: [{ outletId: string; outletName: string; omzet: string; transactionCount: number }]; byProduct?: [{ productId: string; name: string; unitsSold: number; omzet: string }]; byHour?: [{ hourOfDay: number; omzet: string; transactionCount: number }]; dataVersion: string; dataUpdatedAt: string }` |
 | Error | Tidak melempar untuk cache miss/expire — agregasi ulang bounded dijalankan; data terakhir tetap dikembalikan (FR-REP-004). |
 | Aturan | Sumber = cache-aside Redis (TTL 30 menit) atau agregasi bounded `Transaction` `COMPLETED` via read replica saat miss, dengan single-flight per key (FR-REP-008/009); checkout tidak membangun/menginvalidasi cache (FR-REP-002); agregat dalam string desimal; waktu sesuai timezone Merchant (BR-018). Bentuk breakdown mengikuti 07 §6.4 (`TrendPoint`/`TimePatternPoint`/`TopProductsResult`/`OutletComparisonItem`). |
@@ -409,12 +409,22 @@ Referensi: 07 §3.6/§6.4; FR-REP-001–010; FR-AI-002; 05 §3/§6.2.
 | Aspek | Kontrak |
 |---|---|
 | Method | `generate(request: AiGenerationRequest): Promise<AiGeneratedInsight[]>` |
-| Param `AiGenerationRequest` | `{ merchantId: string; outletId?: string \| null; periodStart: string; periodEnd: string; dataVersion: string; dataset: ReportingDataset }` |
-| Return `AiGeneratedInsight` | `{ type: 'SALES_TREND' \| 'OUTLET_COMPARISON' \| 'TOP_PRODUCTS' \| 'TIME_PATTERN' \| 'AOV_TREND'; title: string; explanation: string; evidence: Record<string, unknown> }` |
+| Param `AiGenerationRequest` | `{ merchantId: string; periodStart: string; periodEnd: string; dataVersion: string; dataset: ReportingDataset }` |
+| Return `AiGeneratedInsight` | `{ type: 'SALES_TREND' \| 'OUTLET_COMPARISON' \| 'TOP_PRODUCTS' \| 'TIME_PATTERN' \| 'AOV_TREND'; title: string; content: string; evidenceSummary: Record<string, unknown> }` |
 | Error | Adapter eksternal wajib timeout + circuit breaker `cockatiel`; kegagalan → state job `RETRY_SCHEDULED`/`FAILED` (FR-AI-006/007). |
 | Aturan | Default `RuleBasedInsightAdapter` deterministik tanpa resource eksternal; output berbasis evidence terstruktur (FR-AI-004/005), bukan teks generatif bebas; harus aman di-retry (idempotent per `AiAnalysisJob`). |
 
 Referensi: 07 §3.7/§7; DG-006; EXT-AI-003; FR-AI-001–012.
+
+### 5.9 `AiAnalysisJobClaimPort` — insight internal (dipakai worker)
+
+| Aspek | Kontrak |
+|---|---|
+| Method | `claimNextDue(): Promise<AiAnalysisJob | null>` |
+| Return | Satu job yang sudah berubah ke `PROCESSING`, atau `null` bila tidak ada job due. |
+| Aturan | Implementasi menggunakan satu operasi atomik pada primary: hanya `PENDING` dengan `next_retry_at IS NULL` atau `RETRY_SCHEDULED` dengan `next_retry_at <= now()` yang eligible. Gunakan `FOR UPDATE SKIP LOCKED` atau conditional update setara agar dua Worker tidak mengklaim job yang sama. Repository ini internal untuk `insight`, bukan API lintas modul. |
+
+Referensi: 05 §6.2; 07 §7.6; FR-AI-006.
 
 ### 5.9 Ringkasan port
 
