@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -19,7 +20,17 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
 @Module({
   imports: [
     ClsModule.forRoot({ global: true }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
+    // TTL/limit throttler via env agar dapat dikendalikan pada environment
+    // load test tanpa mengubah kode (default mengikuti konvensi: 300/60s).
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>('THROTTLE_TTL_MS', 60_000),
+          limit: config.get<number>('THROTTLE_LIMIT', 300),
+        },
+      ],
+    }),
     PrometheusModule.register({ path: '/metrics' }),
   ],
   controllers: [HealthController],

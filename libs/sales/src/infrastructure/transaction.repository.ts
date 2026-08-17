@@ -41,13 +41,16 @@ export class TransactionRepository {
     });
   }
 
-  async nextTransactionNumber(tx: Db, merchantId: string): Promise<string> {
+  async nextTransactionNumber(tx: Db): Promise<string> {
+    // DR-003/BR-018: nomor transaksi diambil dari sequence Postgres (migration
+    // add_transaction_number_sequence). nextval atomic -> unik dan bebas race;
+    // angka berurutan dijamin sequence, bukan count+1 (perbaikan race P2002).
     const year = new Date().getFullYear();
-    const startOfYear = new Date(Date.UTC(year, 0, 1));
-    const count = await tx.transaction.count({
-      where: { merchantId, createdAt: { gte: startOfYear } },
-    });
-    return `INV-${year}-${String(count + 1).padStart(6, '0')}`;
+    const rows = await tx.$queryRaw<
+      Array<{ seq: bigint }>
+    >`SELECT nextval('transaction_number_seq') AS seq`;
+    const seq = Number(rows[0]?.seq ?? 1);
+    return `INV-${year}-${String(seq).padStart(6, '0')}`;
   }
 
   createTransaction(tx: Db, data: CreateTransactionData) {
