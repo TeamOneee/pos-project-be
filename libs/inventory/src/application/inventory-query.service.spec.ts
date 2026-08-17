@@ -90,7 +90,11 @@ describe('InventoryQueryService', () => {
       makeRow({ id: `inv-${i}` }),
     );
     inventoryRepo.findByMerchantWithDetails.mockResolvedValue(rows);
-    const result = await service.list(actor, {}, { page: 1, size: 10, skip: 10, take: 10 });
+    const result = await service.list(
+      actor,
+      {},
+      { page: 1, size: 10, skip: 10, take: 10 },
+    );
     expect(result.content).toHaveLength(10);
     expect(result.total_elements).toBe(25);
   });

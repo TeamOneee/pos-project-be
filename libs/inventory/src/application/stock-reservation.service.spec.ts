@@ -4,7 +4,9 @@ import { StockMovementRepository } from '../infrastructure/stock-movement.reposi
 import { StockReservationResult } from './stock-reservation.port';
 import { StockReservationService } from './stock-reservation.service';
 
-const tx = { inventory: { findUnique: jest.fn() } } as unknown as Prisma.TransactionClient;
+const tx = {
+  inventory: { findUnique: jest.fn() },
+} as unknown as Prisma.TransactionClient;
 
 const baseCtx = {
   merchantId: 'merchant-1',
@@ -16,8 +18,22 @@ const baseCtx = {
 
 const asFailure = (
   result: StockReservationResult,
-): { ok: false; insufficient: Array<{ productId: string; requested: number; available: number }> } =>
-  result as { ok: false; insufficient: Array<{ productId: string; requested: number; available: number }> };
+): {
+  ok: false;
+  insufficient: Array<{
+    productId: string;
+    requested: number;
+    available: number;
+  }>;
+} =>
+  result as {
+    ok: false;
+    insufficient: Array<{
+      productId: string;
+      requested: number;
+      available: number;
+    }>;
+  };
 
 // memverifikasi reservasi stok saat checkout (FR-INV-004, AT-004):
 // pengurangan atomik per line dan pencatatan movement SALE.
@@ -116,8 +132,16 @@ describe('StockReservationService', () => {
 
   it('menggabungkan hasil beberapa line dengan stok parsial', async () => {
     (tx.inventory.findUnique as jest.Mock)
-      .mockResolvedValueOnce({ id: 'inv-1', merchantId: 'merchant-1', quantity: 10 })
-      .mockResolvedValueOnce({ id: 'inv-2', merchantId: 'merchant-1', quantity: 2 });
+      .mockResolvedValueOnce({
+        id: 'inv-1',
+        merchantId: 'merchant-1',
+        quantity: 10,
+      })
+      .mockResolvedValueOnce({
+        id: 'inv-2',
+        merchantId: 'merchant-1',
+        quantity: 2,
+      });
     inventoryRepo.updateQuantityConditional.mockResolvedValue({
       quantityBefore: 10,
       quantityAfter: 9,

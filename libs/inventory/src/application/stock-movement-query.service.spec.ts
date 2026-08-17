@@ -29,7 +29,10 @@ const page = { page: 0, size: 20, skip: 0, take: 20 };
 
 // memverifikasi riwayat movement stok (FR-INV-003) dengan filter dan paginasi.
 describe('StockMovementQueryService', () => {
-  const movementRepo = { findByMerchant: jest.fn(), countByMerchant: jest.fn() };
+  const movementRepo = {
+    findByMerchant: jest.fn(),
+    countByMerchant: jest.fn(),
+  };
   let service: StockMovementQueryService;
 
   beforeEach(() => {

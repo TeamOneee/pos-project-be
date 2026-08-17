@@ -1,5 +1,4 @@
 import { AuthUser, PrismaWriteService } from '@app/platform';
-import { ProductReadPort } from '@app/catalog';
 import { TenantAuthorizationService } from '@app/tenant';
 import { InventoryRepository } from '../infrastructure/inventory.repository';
 import { LowStockThresholdService } from './low-stock-threshold.service';
@@ -30,7 +29,10 @@ describe('LowStockThresholdService', () => {
   const prisma = { $transaction: jest.fn() };
   const tenantAuth = { assertOutletOwnedByMerchant: jest.fn() };
   const productRead = { getProductsForSaleValidation: jest.fn() };
-  const inventoryRepo = { upsertThreshold: jest.fn(), clearThreshold: jest.fn() };
+  const inventoryRepo = {
+    upsertThreshold: jest.fn(),
+    clearThreshold: jest.fn(),
+  };
   let service: LowStockThresholdService;
 
   beforeEach(() => {
@@ -41,7 +43,7 @@ describe('LowStockThresholdService', () => {
     service = new LowStockThresholdService(
       prisma as unknown as PrismaWriteService,
       tenantAuth as unknown as TenantAuthorizationService,
-      productRead as unknown as ProductReadPort,
+      productRead,
       inventoryRepo as unknown as InventoryRepository,
     );
     tenantAuth.assertOutletOwnedByMerchant.mockResolvedValue(outlet);
