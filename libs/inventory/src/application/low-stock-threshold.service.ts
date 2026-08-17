@@ -1,83 +1,94 @@
 import { Injectable } from '@nestjs/common';
-import {
-  AuthenticatedUser,
-  NotFoundError,
-  PrismaWriteService,
-} from '@app/platform';
+import { ApiError, AuthUser, PrismaWriteService } from '@app/platform';
+import { ProductReadPort } from '@app/catalog';
 import { TenantAuthorizationService } from '@app/tenant';
-import { LowStockThresholdDto } from '../web/dto/inventory-response.dto';
+import { InventoryRepository } from '../infrastructure/inventory.repository';
+import { LowStockThresholdResult } from './inventory.models';
 
+// set/hapus low-stock threshold override Product-Outlet (FR-INV-007A, DR-011A).
 @Injectable()
 export class LowStockThresholdService {
   constructor(
     private readonly prisma: PrismaWriteService,
     private readonly tenantAuth: TenantAuthorizationService,
+    private readonly productReadPort: ProductReadPort,
+    private readonly inventoryRepository: InventoryRepository,
   ) {}
 
   async setThreshold(
-    actor: AuthenticatedUser,
+    actor: AuthUser,
     productId: string,
     outletId: string,
     threshold: number,
-  ): Promise<LowStockThresholdDto> {
-    await this.tenantAuth.assertOutletActive(actor, outletId);
+  ): Promise<LowStockThresholdResult> {
+    await this.assertActiveOutletInMerchant(outletId, actor.merchantId);
+    await this.assertProductInMerchant(productId, outletId, actor.merchantId);
 
     return this.prisma.$transaction(async (tx) => {
-      const product = await tx.product.findFirst({
-        where: { id: productId, merchantId: actor.merchantId },
+      const row = await this.inventoryRepository.upsertThreshold(tx, {
+        merchantId: actor.merchantId,
+        outletId,
+        productId,
+        threshold,
       });
-      if (!product) {
-        throw new NotFoundError('Product not found.');
-      }
-
-      const row = await tx.inventory.upsert({
-        where: { outletId_productId: { outletId, productId } },
-        create: {
-          merchantId: actor.merchantId,
-          outletId,
-          productId,
-          quantity: 0,
-          lowStockThresholdOverride: threshold,
-        },
-        update: { lowStockThresholdOverride: threshold },
-      });
-
       return {
-        product_id: productId,
-        outlet_id: outletId,
-        base_low_stock_threshold: product.lowStockThreshold,
-        low_stock_threshold_override: row.lowStockThresholdOverride,
-        effective_low_stock_threshold:
-          row.lowStockThresholdOverride ?? product.lowStockThreshold,
-        updated_at: row.updatedAt.toISOString(),
+        productId,
+        outletId,
+        baseLowStockThreshold: row.product.lowStockThreshold,
+        lowStockThresholdOverride: row.lowStockThresholdOverride,
+        effectiveLowStockThreshold:
+          row.lowStockThresholdOverride ?? row.product.lowStockThreshold,
+        updatedAt: row.updatedAt,
       };
     });
   }
 
   async deleteThreshold(
-    actor: AuthenticatedUser,
+    actor: AuthUser,
     productId: string,
     outletId: string,
   ): Promise<void> {
-    await this.tenantAuth.assertOutletActive(actor, outletId);
+    await this.assertActiveOutletInMerchant(outletId, actor.merchantId);
+    await this.assertProductInMerchant(productId, outletId, actor.merchantId);
 
-    const product = await this.prisma.product.findFirst({
-      where: { id: productId, merchantId: actor.merchantId },
-    });
-    if (!product) {
-      throw new NotFoundError('Product not found.');
-    }
-
-    const res = await this.prisma.inventory.updateMany({
-      where: {
+    // hapus override; threshold efektif kembali ke threshold dasar Product.
+    await this.prisma.$transaction((tx) =>
+      this.inventoryRepository.clearThreshold(
+        tx,
+        actor.merchantId,
         outletId,
         productId,
-        merchantId: actor.merchantId,
-      },
-      data: { lowStockThresholdOverride: null },
+      ),
+    );
+  }
+
+  private async assertActiveOutletInMerchant(
+    outletId: string,
+    merchantId: string,
+  ): Promise<void> {
+    const outlet = await this.tenantAuth.assertOutletOwnedByMerchant(
+      outletId,
+      merchantId,
+    );
+    if (outlet.status !== 'ACTIVE') {
+      throw ApiError.forbidden(
+        'Outlet nonaktif hanya dapat dibaca sebagai histori.',
+      );
+    }
+  }
+
+  private async assertProductInMerchant(
+    productId: string,
+    outletId: string,
+    merchantId: string,
+  ): Promise<void> {
+    const products = await this.productReadPort.getProductsForSaleValidation({
+      merchantId,
+      outletId,
+      productIds: [productId],
     });
-    if (res.count === 0) {
-      throw new NotFoundError('Inventory row not found.');
+    if (products.length === 0) {
+      throw ApiError.notFound('Product tidak ditemukan.');
     }
   }
 }
