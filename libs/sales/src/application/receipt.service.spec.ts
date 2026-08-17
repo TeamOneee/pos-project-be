@@ -46,7 +46,9 @@ const makeTx = (overrides: Record<string, unknown> = {}) => ({
 // memverifikasi komposisi receipt dari snapshot transaksi (07 §5.2).
 describe('ReceiptService', () => {
   const findUnique = jest.fn();
-  const db = { transaction: { findUnique } } as unknown as Prisma.TransactionClient;
+  const db = {
+    transaction: { findUnique },
+  } as unknown as Prisma.TransactionClient;
   let service: ReceiptService;
 
   beforeEach(() => {
@@ -63,7 +65,12 @@ describe('ReceiptService', () => {
       subtotal: '11000.00',
       total: '11000.00',
       items: [
-        { product_id: 'product-1', name: 'Es Teh', unit_price: '5500.00', quantity: 2 },
+        {
+          product_id: 'product-1',
+          name: 'Es Teh',
+          unit_price: '5500.00',
+          quantity: 2,
+        },
       ],
       payment: { method: 'CASH', status: 'CONFIRMED' },
       merchant_name: 'Test Merchant',
@@ -73,9 +80,7 @@ describe('ReceiptService', () => {
   });
 
   it('menolak transaksi lintas Merchant', async () => {
-    findUnique.mockResolvedValue(
-      makeTx({ merchantId: 'merchant-9' }),
-    );
+    findUnique.mockResolvedValue(makeTx({ merchantId: 'merchant-9' }));
     const error = await service
       .compose(db, 'txn-1', actor)
       .catch((e: unknown) => e);
@@ -91,9 +96,7 @@ describe('ReceiptService', () => {
   });
 
   it('OD-003: CASHIER hanya dapat membaca transaksinya sendiri', async () => {
-    findUnique.mockResolvedValue(
-      makeTx({ operatorUserId: 'owner-1' }),
-    );
+    findUnique.mockResolvedValue(makeTx({ operatorUserId: 'owner-1' }));
     const error = await service
       .compose(db, 'txn-1', cashier)
       .catch((e: unknown) => e);

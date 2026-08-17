@@ -1,5 +1,4 @@
 import { AuthUser } from '@app/platform';
-import { ProductReadPort } from '@app/catalog';
 import { TenantAuthorizationService } from '@app/tenant';
 import { InventoryRepository } from '../infrastructure/inventory.repository';
 import { OutletCatalogQueryService } from './outlet-catalog-query.service';
@@ -55,7 +54,7 @@ describe('OutletCatalogQueryService', () => {
     jest.clearAllMocks();
     service = new OutletCatalogQueryService(
       inventoryRepo as unknown as InventoryRepository,
-      productRead as unknown as ProductReadPort,
+      productRead,
       tenantAuth as unknown as TenantAuthorizationService,
     );
     tenantAuth.assertOutletOwnedByMerchant.mockResolvedValue(outlet);
@@ -105,7 +104,11 @@ describe('OutletCatalogQueryService', () => {
     ]);
     productRead.getProductsForSaleValidation.mockResolvedValue([
       makeProduct(),
-      makeProduct({ id: 'product-2', name: 'Kopi Susu', categoryId: 'category-2' }),
+      makeProduct({
+        id: 'product-2',
+        name: 'Kopi Susu',
+        categoryId: 'category-2',
+      }),
     ]);
     const result = await service.catalog(
       owner,

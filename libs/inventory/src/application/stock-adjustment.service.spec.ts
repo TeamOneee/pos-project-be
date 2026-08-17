@@ -1,5 +1,4 @@
 import { AuthUser, PrismaWriteService } from '@app/platform';
-import { ProductReadPort } from '@app/catalog';
 import { TenantAuthorizationService } from '@app/tenant';
 import { InventoryRepository } from '../infrastructure/inventory.repository';
 import { StockMovementRepository } from '../infrastructure/stock-movement.repository';
@@ -46,7 +45,7 @@ describe('StockAdjustmentService', () => {
     service = new StockAdjustmentService(
       prisma as unknown as PrismaWriteService,
       tenantAuth as unknown as TenantAuthorizationService,
-      productRead as unknown as ProductReadPort,
+      productRead,
       inventoryRepo as unknown as InventoryRepository,
       movementRepo as unknown as StockMovementRepository,
     );

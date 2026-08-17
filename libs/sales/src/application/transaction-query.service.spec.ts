@@ -98,10 +98,17 @@ describe('TransactionQueryService', () => {
       date_from: '2026-01-01T00:00:00.000Z',
       date_to: '2026-01-31T23:59:59.999Z',
     });
-    const where = repository.listTransactions.mock.calls[0][0];
-    expect(where.outletId).toBe('outlet-2');
-    expect(where.createdAt.gte).toEqual(new Date('2026-01-01T00:00:00.000Z'));
-    expect(where.createdAt.lte).toEqual(new Date('2026-01-31T23:59:59.999Z'));
+    expect(repository.listTransactions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outletId: 'outlet-2',
+        createdAt: {
+          gte: new Date('2026-01-01T00:00:00.000Z'),
+          lte: new Date('2026-01-31T23:59:59.999Z'),
+        },
+      }),
+      0,
+      20,
+    );
   });
 
   it('detail meneruskan ke komposisi receipt', async () => {
