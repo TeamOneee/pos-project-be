@@ -3,6 +3,7 @@ export * from './application/checkout.service';
 export * from './application/receipt.service';
 export * from './application/idempotency-query.service';
 export * from './application/transaction-query.service';
+export * from './application/ports/sales-reporting-read.port';
 export * from './web/dto/checkout.dto';
 export * from './web/dto/checkout-result.dto';
 export * from './web/dto/transaction-query.dto';

@@ -1,6 +1,7 @@
 export * from './inventory.module';
 export * from './application/stock-reservation.port';
 export * from './application/stock-reservation.service';
+export * from './application/ports/inventory-reporting-read.port';
 export * from './application/inventory.models';
 export * from './application/inventory-query.service';
 export * from './application/stock-adjustment.service';

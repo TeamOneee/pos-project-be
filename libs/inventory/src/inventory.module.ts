@@ -9,8 +9,11 @@ import { StockAdjustmentService } from './application/stock-adjustment.service';
 import { LowStockThresholdService } from './application/low-stock-threshold.service';
 import { StockMovementQueryService } from './application/stock-movement-query.service';
 import { OutletCatalogQueryService } from './application/outlet-catalog-query.service';
+import { InventoryReportingReadPort } from './application/ports/inventory-reporting-read.port';
+import { InventoryReportingReadService } from './application/inventory-reporting-read.service';
 import { InventoryRepository } from './infrastructure/inventory.repository';
 import { StockMovementRepository } from './infrastructure/stock-movement.repository';
+import { InventoryReportingRepository } from './infrastructure/inventory-reporting.repository';
 import { InventoryController } from './web/inventory.controller';
 import { CatalogController } from './web/catalog.controller';
 
@@ -22,14 +25,20 @@ import { CatalogController } from './web/catalog.controller';
   providers: [
     InventoryRepository,
     StockMovementRepository,
+    InventoryReportingRepository,
     InventoryQueryService,
     StockAdjustmentService,
     LowStockThresholdService,
     StockMovementQueryService,
     OutletCatalogQueryService,
     StockReservationService,
+    InventoryReportingReadService,
     { provide: StockReservationPort, useExisting: StockReservationService },
+    {
+      provide: InventoryReportingReadPort,
+      useExisting: InventoryReportingReadService,
+    },
   ],
-  exports: [StockReservationPort],
+  exports: [StockReservationPort, InventoryReportingReadPort],
 })
 export class InventoryModule {}
