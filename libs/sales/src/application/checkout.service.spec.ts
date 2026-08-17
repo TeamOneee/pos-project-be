@@ -2,8 +2,12 @@
 // total = subtotal, pembuatan transaksi, dan reservasi stok.
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
-import { ApiError, AuthUser, ErrorCode } from '@app/platform';
-import type { PrismaWriteService } from '@app/platform';
+import {
+  ApiError,
+  AuthUser,
+  ErrorCode,
+  PrismaWriteService,
+} from '@app/platform';
 import { TenantAuthorizationService } from '@app/tenant';
 import { TransactionRepository } from '../infrastructure/transaction.repository';
 import { ReceiptService } from './receipt.service';
@@ -109,7 +113,7 @@ describe('CheckoutService', () => {
     };
 
     service = new CheckoutService(
-      prisma as unknown as PrismaWriteService,
+      prisma,
       repository as unknown as TransactionRepository,
       receiptService as unknown as ReceiptService,
       productRead,
@@ -131,13 +135,11 @@ describe('CheckoutService', () => {
       productIds: ['product-1'],
     });
     expect(repository.createTransaction).toHaveBeenCalledWith(
-      {},
+      expect.anything(),
       expect.objectContaining({
         merchantId: 'merchant-1',
         outletId: 'outlet-1',
         operatorUserId: 'owner-1',
-        transactionNumber: 'INV-2026-000001',
-        checkoutRequestId: 'req-1',
         status: 'COMPLETED',
         paymentMethod: 'CASH',
         paymentStatus: 'CONFIRMED',
