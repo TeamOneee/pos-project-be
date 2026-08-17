@@ -1,8 +1,8 @@
 import { Type } from 'class-transformer';
 import { IsBoolean, IsOptional, IsUUID } from 'class-validator';
-import { PageQueryDto } from './pagination.dto';
+import { PageRequestDto } from '@app/platform';
 
-export class InventoryQueryDto extends PageQueryDto {
+export class InventoryQueryDto extends PageRequestDto {
   @IsOptional()
   @IsUUID()
   outlet_id?: string;

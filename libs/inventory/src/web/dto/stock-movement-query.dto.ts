@@ -1,7 +1,7 @@
 import { IsIn, IsOptional, IsString, IsUUID } from 'class-validator';
-import { PageQueryDto } from './pagination.dto';
+import { PageRequestDto } from '@app/platform';
 
-export class StockMovementQueryDto extends PageQueryDto {
+export class StockMovementQueryDto extends PageRequestDto {
   @IsOptional()
   @IsUUID()
   outlet_id?: string;
@@ -12,7 +12,7 @@ export class StockMovementQueryDto extends PageQueryDto {
 
   @IsOptional()
   @IsIn(['ADJUSTMENT', 'SALE'])
-  type?: string;
+  type?: 'ADJUSTMENT' | 'SALE';
 
   @IsOptional()
   @IsString()

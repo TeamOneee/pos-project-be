@@ -21,7 +21,7 @@ export interface StockMovementDto {
   quantity_before: number;
   quantity_after: number;
   reason: string | null;
-  reference_id: string | null;
+  transaction_id: string | null;
   actor_user_id: string;
   created_at: string;
 }

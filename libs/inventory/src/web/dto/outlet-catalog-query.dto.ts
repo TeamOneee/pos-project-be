@@ -1,7 +1,7 @@
 import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
-import { PageQueryDto } from './pagination.dto';
+import { PageRequestDto } from '@app/platform';
 
-export class OutletCatalogQueryDto extends PageQueryDto {
+export class OutletCatalogQueryDto extends PageRequestDto {
   @IsUUID()
   @IsNotEmpty()
   outlet_id!: string;
