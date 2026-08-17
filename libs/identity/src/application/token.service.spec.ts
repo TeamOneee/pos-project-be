@@ -18,6 +18,12 @@ describe('TokenService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     const config = {
+      get: jest.fn((key: string) => {
+        const values: Record<string, string> = {
+          JWT_ACCESS_EXPIRES_IN: '15m',
+        };
+        return values[key];
+      }),
       getOrThrow: jest.fn((key: string) => {
         const values: Record<string, string> = {
           JWT_ACCESS_SECRET: 'test-access-secret',
@@ -40,5 +46,20 @@ describe('TokenService', () => {
       { sub: 'u-123', merchant_id: 'm-456', role: 'OWNER', outlet_id: null },
       { secret: 'test-access-secret', expiresIn: 900 },
     );
+  });
+
+  it('mendukung kustomisasi durasi token dari konfigurasi (mis. 30m)', () => {
+    const customConfig = {
+      get: jest.fn((key: string) =>
+        key === 'JWT_ACCESS_EXPIRES_IN' ? '30m' : undefined,
+      ),
+      getOrThrow: jest.fn(() => 'test-access-secret'),
+    };
+    const customService = new TokenService(
+      jwtService as unknown as JwtService,
+      customConfig as unknown as ConfigService,
+    );
+    const { expiresInSeconds } = customService.signAccessToken(claims);
+    expect(expiresInSeconds).toBe(1800);
   });
 });
