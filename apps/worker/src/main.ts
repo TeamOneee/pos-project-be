@@ -6,9 +6,10 @@ async function bootstrap() {
   const app = await NestFactory.createApplicationContext(WorkerModule, {
     bufferLogs: true,
   });
-  app.useLogger(app.get(Logger));
-  app.get(Logger).log('Worker started');
-  void app;
+  const logger = app.get(Logger);
+  app.useLogger(logger);
+  app.enableShutdownHooks();
+  logger.log('Worker background process started successfully');
 }
 
 void bootstrap();
