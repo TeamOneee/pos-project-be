@@ -12,6 +12,7 @@ import { CheckoutController } from './web/checkout.controller';
 import { TransactionController } from './web/transaction.controller';
 import { ReceiptController } from './web/receipt.controller';
 
+// Checkout atomik + idempotency (OD-012), riwayat transaksi, dan receipt (06 §3.4).
 @Module({
   imports: [PlatformModule, CatalogModule, InventoryModule, TenantModule],
   controllers: [CheckoutController, TransactionController, ReceiptController],

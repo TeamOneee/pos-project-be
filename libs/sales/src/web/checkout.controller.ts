@@ -1,11 +1,5 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  JwtAuthGuard,
-  Roles,
-  RolesGuard,
-} from '@app/platform';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { AuthUser, CurrentUser, Roles } from '@app/platform';
 import { CheckoutService } from '../application/checkout.service';
 import { IdempotencyQueryService } from '../application/idempotency-query.service';
 import { CheckoutDto } from './dto/checkout.dto';
@@ -18,21 +12,16 @@ export class CheckoutController {
     private readonly idempotencyQueryService: IdempotencyQueryService,
   ) {}
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('CASHIER')
   @Post('checkout')
-  async checkout(
-    @CurrentUser() actor: AuthenticatedUser,
-    @Body() dto: CheckoutDto,
-  ) {
+  @Roles('CASHIER', 'OWNER')
+  async checkout(@CurrentUser() actor: AuthUser, @Body() dto: CheckoutDto) {
     return this.checkoutService.checkout(actor, dto);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('CASHIER')
   @Get('transactions/status')
+  @Roles('CASHIER', 'OWNER')
   async status(
-    @CurrentUser() actor: AuthenticatedUser,
+    @CurrentUser() actor: AuthUser,
     @Query() query: TransactionStatusQueryDto,
   ) {
     return this.idempotencyQueryService.getStatus(actor, query);

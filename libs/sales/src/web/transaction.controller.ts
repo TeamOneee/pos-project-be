@@ -1,11 +1,5 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
-import {
-  AuthenticatedUser,
-  CurrentUser,
-  JwtAuthGuard,
-  Roles,
-  RolesGuard,
-} from '@app/platform';
+import { Controller, Get, Param, Query } from '@nestjs/common';
+import { AuthUser, CurrentUser, Roles } from '@app/platform';
 import { TransactionQueryService } from '../application/transaction-query.service';
 import {
   ReceiptSearchQueryDto,
@@ -18,37 +12,31 @@ export class TransactionController {
     private readonly transactionQueryService: TransactionQueryService,
   ) {}
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER', 'CASHIER')
   @Get()
+  @Roles('OWNER', 'CASHIER')
   async list(
-    @CurrentUser() actor: AuthenticatedUser,
+    @CurrentUser() actor: AuthUser,
     @Query() query: TransactionQueryDto,
   ) {
     return this.transactionQueryService.list(actor, query);
   }
 
   // Dideklarasikan sebelum ':id' agar route literal menang (Express match by order).
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER', 'CASHIER')
   @Get('search')
+  @Roles('OWNER', 'CASHIER')
   async search(
-    @CurrentUser() actor: AuthenticatedUser,
+    @CurrentUser() actor: AuthUser,
     @Query() query: ReceiptSearchQueryDto,
   ) {
-    return this.transactionQueryService.searchByReceipt(
+    return this.transactionQueryService.searchByTransactionNumber(
       actor,
-      query.receipt_number,
+      query.transaction_number,
     );
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('OWNER', 'CASHIER')
   @Get(':id')
-  async detail(
-    @CurrentUser() actor: AuthenticatedUser,
-    @Param('id') id: string,
-  ) {
+  @Roles('OWNER', 'CASHIER')
+  async detail(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
     return this.transactionQueryService.detail(actor, id);
   }
 }
