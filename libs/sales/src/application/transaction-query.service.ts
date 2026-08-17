@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { AuthenticatedUser, PrismaWriteService } from '@app/platform';
-import { ForbiddenError, NotFoundError } from '@app/platform';
 import {
+  ApiError,
+  AuthUser,
   PageResponseDto,
-  TransactionQueryDto,
-} from '../web/dto/transaction-query.dto';
+  PrismaWriteService,
+} from '@app/platform';
+import { TransactionQueryDto } from '../web/dto/transaction-query.dto';
 import { TransactionSummaryDto } from '../web/dto/checkout-result.dto';
 import { TransactionRepository } from '../infrastructure/transaction.repository';
 import { ReceiptService } from './receipt.service';
@@ -19,7 +20,7 @@ export class TransactionQueryService {
   ) {}
 
   async list(
-    actor: AuthenticatedUser,
+    actor: AuthUser,
     query: TransactionQueryDto,
   ): Promise<PageResponseDto<TransactionSummaryDto>> {
     const where: Prisma.TransactionWhereInput = {
@@ -28,7 +29,7 @@ export class TransactionQueryService {
 
     // OD-003: Kasir hanya melihat transaksinya sendiri — dipaksa di service, bukan dari query.
     if (actor.role === 'CASHIER') {
-      where.cashierUserId = actor.userId;
+      where.operatorUserId = actor.userId;
       where.outletId = actor.outletId ?? undefined;
     } else if (query.outlet_id) {
       where.outletId = query.outlet_id;
@@ -42,54 +43,33 @@ export class TransactionQueryService {
     }
 
     const [rows, total] = await Promise.all([
-      this.repository.listTransactions(where, query.offset, query.limit),
+      this.repository.listTransactions(where, query.skip, query.take),
       this.repository.countTransactions(where),
     ]);
 
-    const userIds = [...new Set(rows.map((r) => r.cashierUserId))];
-    const users = userIds.length
-      ? await this.repository.findUsersByIds(userIds)
-      : [];
-    const nameById = new Map(users.map((u) => [u.id, u.fullName]));
-
     const content: TransactionSummaryDto[] = rows.map((r) => ({
       transaction_id: r.id,
-      receipt_number: r.receiptNumber,
+      transaction_number: r.transactionNumber,
       outlet_id: r.outletId,
-      cashier_name: nameById.get(r.cashierUserId) ?? '',
+      operator_name: r.operator.name,
       total: r.total.toFixed(2),
       status: r.status,
       created_at: r.createdAt.toISOString(),
     }));
 
-    return PageResponseDto.of(
-      content,
-      total,
-      query.page ?? 0,
-      query.size ?? 20,
-    );
+    return PageResponseDto.from(content, query.page, query.size, total);
   }
 
-  async detail(actor: AuthenticatedUser, id: string) {
-    const tx = await this.repository.findTransactionById(this.prisma, id);
-    if (!tx || tx.merchantId !== actor.merchantId) {
-      throw new NotFoundError('Transaction not found.');
-    }
-    if (actor.role === 'CASHIER' && tx.cashierUserId !== actor.userId) {
-      throw new ForbiddenError('You cannot access this transaction.');
-    }
-    return this.receiptService.compose(this.prisma, tx.id, actor);
+  async detail(actor: AuthUser, id: string) {
+    return this.receiptService.compose(this.prisma, id, actor);
   }
 
-  async searchByReceipt(actor: AuthenticatedUser, receiptNumber: string) {
-    const tx = await this.repository.findTransactionByReceipt(
+  async searchByTransactionNumber(actor: AuthUser, transactionNumber: string) {
+    const found = await this.repository.findTransactionByNumber(
       actor.merchantId,
-      receiptNumber,
+      transactionNumber,
     );
-    if (!tx) throw new NotFoundError('Transaction not found.');
-    if (actor.role === 'CASHIER' && tx.cashierUserId !== actor.userId) {
-      throw new ForbiddenError('You cannot access this transaction.');
-    }
-    return this.receiptService.compose(this.prisma, tx.id, actor);
+    if (!found) throw ApiError.notFound('Transaction tidak ditemukan.');
+    return this.receiptService.compose(this.prisma, found.id, actor);
   }
 }
