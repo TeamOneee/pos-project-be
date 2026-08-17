@@ -20,9 +20,9 @@ import {
   ReportingDataset,
   ReportingDatasetRequest,
 } from './reporting.models';
-import { InventoryReportingReadPort } from './ports/inventory-reporting-read.port';
+import { InventoryReportingReadPort } from '@app/inventory';
+import { SalesReportingReadPort } from '@app/sales';
 import { ReportingReadPort } from './ports/reporting-read.port';
-import { SalesReportingReadPort } from './ports/sales-reporting-read.port';
 
 const MAX_PERIOD_MS = 366 * 24 * 60 * 60_000;
 const CACHE_SCHEMA_VERSION = 'v1';
