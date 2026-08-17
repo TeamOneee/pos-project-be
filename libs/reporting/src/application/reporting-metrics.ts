@@ -2,7 +2,7 @@
 import { Money } from '@app/platform';
 import { CatalogReportingProduct } from '@app/catalog';
 import { ReportingOutlet } from '@app/tenant';
-import { CompletedTransactionFact } from './ports/sales-reporting-read.port';
+import { CompletedTransactionFact } from '@app/sales';
 import {
   AovTrendPoint,
   BusinessDashboardData,
