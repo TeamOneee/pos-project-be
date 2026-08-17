@@ -1,3 +1,5 @@
+// memverifikasi alur checkout (FR-CHK-001-014): idempotency, validasi harga,
+// total = subtotal, pembuatan transaksi, dan reservasi stok.
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
 import {
@@ -43,8 +45,8 @@ const makeReceipt = (
   outlet_id: 'outlet-1',
   operator: { user_id: 'owner-1', role: 'OWNER', name: 'Test Owner' },
   items: [],
-  subtotal: '0.00',
-  total: '0.00',
+  subtotal: '11000.00',
+  total: '11000.00',
   payment: {
     method: 'CASH',
     status: 'CONFIRMED',
@@ -64,7 +66,7 @@ const makeDto = (overrides: Partial<CheckoutDto> = {}): CheckoutDto => ({
 
 describe('CheckoutService', () => {
   let service: CheckoutService;
-  let prisma: PrismaWriteService;
+  let prisma: { $transaction: jest.Mock };
   let repository: {
     findByCheckoutRequest: jest.Mock;
     nextTransactionNumber: jest.Mock;
@@ -82,21 +84,18 @@ describe('CheckoutService', () => {
         .mockImplementation((cb: (tx: unknown) => Promise<unknown>) =>
           Promise.resolve(cb({})),
         ),
-    } as unknown as PrismaWriteService;
+    };
 
     repository = {
       findByCheckoutRequest: jest.fn().mockResolvedValue(null),
-      nextTransactionNumber: jest.fn().mockResolvedValue('TRX-1'),
+      nextTransactionNumber: jest.fn().mockResolvedValue('INV-2026-000001'),
       createTransaction: jest.fn().mockResolvedValue({
         id: 'txn-1',
       }),
     };
 
     receiptService = {
-      compose: jest.fn().mockResolvedValue({
-        transaction_id: 'txn-1',
-        transaction_number: 'TRX-1',
-      }),
+      compose: jest.fn().mockResolvedValue(makeReceipt()),
     };
 
     productRead = {
@@ -114,7 +113,7 @@ describe('CheckoutService', () => {
     };
 
     service = new CheckoutService(
-      prisma,
+      prisma as unknown as PrismaWriteService,
       repository as unknown as TransactionRepository,
       receiptService as unknown as ReceiptService,
       productRead,
@@ -123,7 +122,7 @@ describe('CheckoutService', () => {
     );
   });
 
-  it('FR-CHK-001/002/010: sukses checkout dan panggil reservasi stok atomik', async () => {
+  it('FR-CHK-001/002/010: membuat transaksi + reservasi stok atomik dan mengembalikan receipt', async () => {
     const result = await service.checkout(actor, makeDto());
 
     expect(tenantAuth.assertOutletOwnedByActor).toHaveBeenCalledWith(
@@ -136,14 +135,25 @@ describe('CheckoutService', () => {
       productIds: ['product-1'],
     });
     expect(repository.createTransaction).toHaveBeenCalledWith(
-      expect.anything(),
+      {},
       expect.objectContaining({
         merchantId: 'merchant-1',
         outletId: 'outlet-1',
         operatorUserId: 'owner-1',
+        transactionNumber: 'INV-2026-000001',
+        checkoutRequestId: 'req-1',
         status: 'COMPLETED',
         paymentMethod: 'CASH',
         paymentStatus: 'CONFIRMED',
+        subtotal: new Prisma.Decimal('11000.00'),
+        total: new Prisma.Decimal('11000.00'),
+        items: [
+          expect.objectContaining({
+            productId: 'product-1',
+            productNameSnapshot: 'Es Teh',
+            quantity: 2,
+          }),
+        ],
       }),
     );
     expect(reservation.reserveForSale).toHaveBeenCalledWith(
@@ -153,18 +163,18 @@ describe('CheckoutService', () => {
         lines: [{ productId: 'product-1', quantity: 2 }],
       }),
     );
-    expect(result.transaction_id).toBe('txn-1');
+    expect(result).toMatchObject({ transaction_id: 'txn-1' });
   });
 
   it('OD-004/DR-013: total sama dengan subtotal', async () => {
     await service.checkout(actor, makeDto());
-    const calls = repository.createTransaction.mock.calls;
-    const createPayload = (
-      calls[0] as [unknown, { subtotal: Prisma.Decimal; total: Prisma.Decimal }]
-    )[1];
-    expect(createPayload.subtotal.toFixed(2)).toBe('11000.00');
-    expect(createPayload.total.toFixed(2)).toBe('11000.00');
-    expect(createPayload.total.equals(createPayload.subtotal)).toBe(true);
+    expect(repository.createTransaction).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        subtotal: new Prisma.Decimal('11000.00'),
+        total: new Prisma.Decimal('11000.00'),
+      }),
+    );
   });
 
   it('07 §5.6: menggabungkan dan mengurutkan item duplicate Product', async () => {
@@ -187,16 +197,15 @@ describe('CheckoutService', () => {
       outletId: 'outlet-1',
       productIds: ['product-1', 'product-2'],
     });
-    const calls = repository.createTransaction.mock.calls;
-    const createPayload = (
-      calls[0] as [
-        unknown,
-        { items: Array<{ productId: string; quantity: number }> },
-      ]
-    )[1];
-    expect(createPayload.items).toHaveLength(2);
-    expect(createPayload.items[1].productId).toBe('product-2');
-    expect(createPayload.items[1].quantity).toBe(4);
+    expect(repository.createTransaction).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        items: [
+          expect.objectContaining({ productId: 'product-1', quantity: 2 }),
+          expect.objectContaining({ productId: 'product-2', quantity: 4 }),
+        ],
+      }),
+    );
   });
 
   it('FR-CHK-003/OD-012: replay saat checkout_request_id sama dengan hash sama', async () => {
