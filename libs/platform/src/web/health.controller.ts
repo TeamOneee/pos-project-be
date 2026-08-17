@@ -3,13 +3,13 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaWriteService } from '../prisma/prisma-write.service';
 import { ApiError } from '../error/api-error';
 import { Public } from '../security/public.decorator';
+import { SuccessMessage } from './success-message.decorator';
 
 interface HealthResponse {
   status: 'ok';
   database: 'ok';
   worker_backlog: {
-    outbox_pending: number;
-    job_pending: number;
+    ai_job_pending: number;
   };
 }
 
@@ -22,6 +22,7 @@ export class HealthController {
   constructor(private readonly prismaWrite: PrismaWriteService) {}
 
   @Get()
+  @SuccessMessage('Sistem sehat.')
   async check(): Promise<HealthResponse> {
     try {
       await this.prismaWrite.$queryRaw`SELECT 1`;
@@ -33,17 +34,15 @@ export class HealthController {
       throw ApiError.dependencyUnavailable('Database primary tidak sehat.');
     }
 
-    const [outboxPending, jobPending] = await Promise.all([
-      this.prismaWrite.outboxEvent.count({ where: { status: 'PENDING' } }),
-      this.prismaWrite.jobRecord.count({ where: { state: 'PENDING' } }),
-    ]);
+    const aiJobPending = await this.prismaWrite.aiAnalysisJob.count({
+      where: { state: 'PENDING' },
+    });
 
     return {
       status: 'ok',
       database: 'ok',
       worker_backlog: {
-        outbox_pending: outboxPending,
-        job_pending: jobPending,
+        ai_job_pending: aiJobPending,
       },
     };
   }

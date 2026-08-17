@@ -21,8 +21,8 @@ export function toStaffDto(user: User): StaffDto {
     user_id: user.id,
     merchant_id: user.merchantId,
     outlet_id: user.outletId,
-    name: user.fullName,
-    email: user.emailOriginal,
+    name: user.name,
+    email: user.email,
     role: user.role,
     status: user.status,
     created_at: user.createdAt,
@@ -77,10 +77,9 @@ export class StaffService {
     const user = await this.userRepository.create({
       merchantId: actor.merchantId,
       outletId,
-      emailNormalized,
-      emailOriginal: dto.email.trim(),
+      name: dto.name.trim(),
+      email: emailNormalized,
       passwordHash,
-      fullName: dto.name.trim(),
       role: dto.role,
       status: 'ACTIVE',
     });

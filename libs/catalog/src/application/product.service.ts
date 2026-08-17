@@ -37,6 +37,7 @@ function toProductResult(product: ProductWithCategory): ProductResult {
 }
 
 // mengelola product master dan category aktif dalam merchant actor.
+// validasi tetap berjalan bila service dipanggil tanpa controller http.
 @Injectable()
 export class ProductService {
   constructor(
@@ -49,6 +50,7 @@ export class ProductService {
     command: CreateProductCommand,
   ): Promise<ProductResult> {
     // memvalidasi category lalu menyimpan product master baru.
+    // dto dan constraint database menjaga format harga serta threshold.
     await this.assertActiveCategory(actor.merchantId, command.categoryId);
     const product = await this.productRepository.create({
       merchantId: actor.merchantId,

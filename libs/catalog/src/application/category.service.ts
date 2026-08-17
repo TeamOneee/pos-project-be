@@ -23,12 +23,20 @@ function toCategoryResult(category: Category): CategoryResult {
     merchantId: category.merchantId,
     name: category.name,
     isActive: category.isActive,
-    createdAt: category.createdAt,
-    updatedAt: category.updatedAt,
   };
 }
 
+function isCategoryNameConflict(error: unknown): boolean {
+  // menerjemahkan race condition unique index menjadi error bisnis yang stabil.
+  // pre-check nama tetap dipakai agar pesan normal tidak perlu menunggu database gagal.
+  return (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  );
+}
+
 // mengelola lifecycle category dalam merchant actor.
+// seluruh hasil dan perubahan selalu dibatasi ke merchant dari jwt actor.
 @Injectable()
 export class CategoryService {
   constructor(private readonly categoryRepository: CategoryRepository) {}
@@ -40,9 +48,18 @@ export class CategoryService {
     // menolak nama kosong lalu menyimpan category baru.
     const name = this.requireName(command.name);
     await this.assertNameAvailable(actor.merchantId, name);
-    return toCategoryResult(
-      await this.categoryRepository.create(actor.merchantId, name),
-    );
+    try {
+      return toCategoryResult(
+        await this.categoryRepository.create(actor.merchantId, name),
+      );
+    } catch (error: unknown) {
+      if (isCategoryNameConflict(error)) {
+        throw ApiError.validation('Nama kategori sudah digunakan.', [
+          { field: 'name', reason: 'Nama harus unik dalam Merchant.' },
+        ]);
+      }
+      throw error;
+    }
   }
 
   async list(
@@ -51,6 +68,7 @@ export class CategoryService {
     page: PageRequestDto,
   ): Promise<PageResponseDto<CategoryResult>> {
     // membatasi cashier pada category aktif meski query meminta sebaliknya.
+    // owner dan admin dapat melihat category aktif maupun nonaktif.
     const filter: CategoryListFilter = {
       isActive: actor.role === 'CASHIER' ? true : query.isActive,
     };
@@ -99,9 +117,18 @@ export class CategoryService {
     if (command.isActive !== undefined) {
       data.isActive = command.isActive;
     }
-    return toCategoryResult(
-      await this.categoryRepository.update(category.id, data),
-    );
+    try {
+      return toCategoryResult(
+        await this.categoryRepository.update(category.id, data),
+      );
+    } catch (error: unknown) {
+      if (isCategoryNameConflict(error)) {
+        throw ApiError.validation('Nama kategori sudah digunakan.', [
+          { field: 'name', reason: 'Nama harus unik dalam Merchant.' },
+        ]);
+      }
+      throw error;
+    }
   }
 
   private requireName(value: string): string {

@@ -16,6 +16,7 @@ import {
   PageRequestDto,
   PageResponseDto,
   Roles,
+  SuccessMessage,
 } from '@app/platform';
 import { CategoryResult } from '../application/catalog.models';
 import { CategoryService } from '../application/category.service';
@@ -26,13 +27,15 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @Controller('categories')
-// menyediakan api category dengan mutasi khusus admin.
+// menyediakan api category dengan mutasi untuk owner dan admin.
+// cashier hanya dapat membaca category aktif dari merchant sendiri.
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.CREATED)
+  @SuccessMessage('Kategori berhasil dibuat.')
   async create(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateCategoryDto,
@@ -44,6 +47,7 @@ export class CategoryController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Daftar kategori berhasil dimuat.')
   async list(
     @CurrentUser() actor: AuthUser,
     @Query() query: CategoryListQueryDto,
@@ -59,8 +63,9 @@ export class CategoryController {
   }
 
   @Patch(':category_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Kategori berhasil diperbarui.')
   async update(
     @CurrentUser() actor: AuthUser,
     @Param('category_id', ParseUUIDPipe) categoryId: string,

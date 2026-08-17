@@ -7,7 +7,7 @@
 >
 > Sumber kebenaran requirement tetap di `01`–`04`. Bila ada perbedaan detail, dokumen `05`/`06`/`07` yang lebih detail berlaku sebagai acuan implementasi.
 >
-> **Status versi library:** seluruh nilai kolom Versi telah diisi dari root `package.json` (bootstrap Iterasi 1). Dua library yang direncanakan untuk `ReportingCacheService` — `@nestjs/cache-manager` (dengan store Redis) dan `ioredis` — **belum terpasang** di package.json dan wajib diinstal saat implementasi cache (lihat §3.0 dan §7.7). Nama library, peran, dan penempatannya per modul **diturunkan dari `05` §1 dan `07`**.
+> **Status versi library:** seluruh nilai kolom Versi telah diisi dari root `package.json` (bootstrap Iterasi 1). Dua library yang direncanakan untuk `ReportingCacheService` — `@nestjs/cache-manager` (dengan store Redis) dan `ioredis` — **belum terpasang** di package.json dan wajib diinstal saat implementasi cache (lihat §3.0 dan §3.6.1). Nama library, peran, dan penempatannya per modul **diturunkan dari `05` §1 dan `07`**.
 >
 > **Cakupan:** backend saja (8 modul `libs/*` + 2 deployable `apps/api`, `apps/worker`). Frontend (React/Vite) tidak dibahas.
 
@@ -37,12 +37,12 @@
 ### 1.2 Prinsip boundary antar modul
 
 1. **Barrel-only import.** Modul lain hanya boleh `import { CheckoutService } from '@app/sales'` (path alias ke `libs/sales/src/index.ts`), **tidak pernah** ke file internal (`05` §2).
-2. **Interface-first, bukan implementasi.** Pemanggil lintas modul hanya melihat nama interface (mis. `ProductReadPort`, `StockReservationPort`); implementasi berakhiran `Impl` dilarang diimpor. Anti-corruption: interface tidak pernah membocorkan entitas Prisma modul lain (§1.2).
+2. **Interface-first, bukan implementasi.** Pemanggil lintas modul hanya melihat nama interface (mis. `ProductReadPort`, `StockReservationPort`); implementasi konkret (`*repository.ts`/`*service.ts` di `infrastructure/`) dilarang diimpor. Anti-corruption: interface tidak pernah membocorkan entitas Prisma modul lain (§1.2).
 3. **Anti-corruption boundary.** Modul lain **tidak boleh query tabel modul lain** secara langsung; read lintas modul hanya lewat port yang diekspos pemilik data (`05` §3).
 4. **Shared kernel tunggal.** Satu-satunya shared kernel yang boleh dipakai semua modul adalah **`libs/platform`** — primitif infrastruktur (Prisma, cache, money, pagination, security, error, observability). Platform bukan tempat logic bisnis (§3.0).
 5. **Komunikasi antar modul** dilakukan dengan 1 mekanisme terstruktur (bukan import bebas):
    - **direct method call** lewat interface publik (in-process) — untuk jalur sinkron yang memang wajib (mis. checkout → harga/stok);
-   - Jalur async satu-satunya adalah pekerjaan AI: `AiAnalysisJob` (tabel DB) di-polling `apps/worker` — tidak ada outbox/RabbitMQ/BullMQ pada Iterasi 1 (`05` §0).
+   - Jalur async satu-satunya pada Iterasi 1 adalah pekerjaan AI: `AiAnalysisJob` (tabel DB) di-polling `apps/worker`. Tidak ada outbox/RabbitMQ/BullMQ pada Iterasi 1 (`05` §0); mekanisme queue/broker akan **dipertimbangkan untuk iterasi berikutnya** bila kebutuhan async lintas modul bertambah.
 6. **Penegakan otomatis:** `dependency-cruiser` di CI membuat build gagal bila ada modul yang melanggar batas (05 §7, 06 §6).
 
 ### 1.3 Strategi dependency management
@@ -51,7 +51,7 @@
 - **Target split-readiness:** tiap `libs/*` siap memiliki `package.json` sendiri (didukung mode monorepo Nest), sehingga dependency list tiap modul **eksplisit dan bisa di-split** tanpa memilah shared/global secara manual.
 - **Aturan dasar:**
   - library lintas modul (framework, ORM, observability, testing) → deklarasi di root, versi tunggal;
-  - library khusus modul (mis. `argon2` untuk identity, `axios`/`cockatiel` untuk insight) → deklarasi per modul;
+  - library khusus modul (mis. `argon2` untuk identity, `axios`/`cockatiel` untuk insight) → tetap di root `package.json` pada Iterasi 1 (satu lockfile); menjadi deklarasi per modul saat target split-readiness tercapai (§1.3);
   - boundary ditegakkan oleh `dependency-cruiser` agar update dependency tidak pernah menembus batas modul.
 - **CI gate:** eslint → `prisma validate` → jest → `dependency-cruiser` → build → deploy (05 §1).
 
@@ -71,6 +71,7 @@ Library berikut dipakai **lintas modul** dan dideklarasikan di root workspace de
 | `class-transformer` | ^0.5.1 | Transform/typing DTO, konversi tipe body | Pasangan `class-validator`; dipakai global |
 | `@nestjs/jwt` | ^11.0.2 | Signing & verifikasi **access token** (900 detik; tanpa refresh token) | Backbone auth: identity *issue*, platform *verify* (05 §1, OD-011) |
 | `@nestjs/passport` + `passport-jwt` | ^11.0.5 + ^4.0.1 | Strategi autentikasi JWT | Integrasi passport ke Nest untuk `JwtAuthGuard` (05 §1) |
+| `@nestjs/config` | ^4.0.4 | `ConfigModule`/`ConfigService` — load & akses konfigurasi dari env (DB URL WRITE/READ, JWT_SECRET, TZ) | Sumber kebenaran konfigurasi di seluruh runtime (05 §1; dipakai platform & identity) |
 | `nestjs-pino` + `pino` | ^4.6.1 + ^10.3.1 | Structured JSON logging + correlation id | NFR-OBS-001–005; log terstruktur untuk observability (05 §1) |
 | `nestjs-cls` | ^6.2.1 | Async local storage (correlation ID lintas request/worker) | Menyebarkan trace id tanpa melewatkan parameter (NFR-OBS, 05 §1) |
 | `@willsoto/nestjs-prometheus` | ^6.1.0 | Endpoint `/metrics` (di-scrape Prometheus) | NFR-OBS; dipasang di `apps/api` & `apps/worker` (05 §1) |
@@ -111,17 +112,19 @@ Format sub-section tiap modul:
 | Library | Versi | Kategori | Fungsi di modul ini | Scope |
 |---|---|---|---|---|
 | `@nestjs/common` / `@nestjs/core` | ^11.0.1 | Core | Guard, pipe, exception filter, DI | compile, runtime |
+| `@nestjs/config` | ^4.0.4 | Utility | `ConfigModule.forRoot` + `ConfigService` — baca env (`DATABASE_URL_WRITE`/`DATABASE_URL_READ`, `JWT_SECRET`) untuk `PrismaWriteService`, `PrismaReadService`, `JwtStrategy` | compile, runtime |
 | `@prisma/client` | ^6.4.0 | Persistence | `PrismaWriteService` (primary) & `PrismaReadService` (read replica) — 2 instance manual (`05` §4) | runtime |
 | `@nestjs/cache-manager` + store Redis | belum terpasang* | Utility | `ReportingCacheService` — cache-aside + TTL 30 menit (shared lintas instance API) | runtime |
 | `ioredis` | belum terpasang* | Utility | Single-flight lock per cache key (FR-REP-008) | runtime |
 | `nestjs-cls` | ^6.2.1 | Utility | `CorrelationIdMiddleware` — inject correlation id lintas proses | runtime |
 | `nestjs-pino` | ^4.6.1 | Utility | Structured log untuk error/platform service | runtime |
+| Nest interceptor bawaan | Core | `SuccessResponseInterceptor` global + `@SuccessMessage()` — membungkus seluruh response 2xx berbody dengan `{ success, statusCode, message, data }`; `204` dilewati | runtime |
 | `@nestjs/jwt` + `@nestjs/passport` + `passport-jwt` | ^11.0.2 + ^11.0.5 + ^4.0.1 | Security | `JwtAuthGuard`, `RolesGuard`, `@Roles()`, `@CurrentUser()` — verifikasi token | runtime |
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | `PageRequestDto` / `PageResponseDto<T>` validasi & transformasi | compile, runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test primitif platform (money, error, guard, cache service) | test |
 | `testcontainers` | ^12.0.4 | Testing | Integration test Prisma client (primary + replica behavior) | test |
 
-\* Belum terpasang di root `package.json` — wajib diinstal saat implementasi `ReportingCacheService` (cache-aside + single-flight; lihat §7.7).
+\* Belum terpasang di root `package.json` — wajib diinstal saat implementasi `ReportingCacheService` (cache-aside + single-flight; keputusan & detail di §3.6.1).
 
 **Dependency ke modul lain:** tidak ada — platform adalah lapisan dasar. Semua modul bergantung kepadanya (bukan sebaliknya).
 
@@ -180,7 +183,7 @@ Format sub-section tiap modul:
 | Library | Versi | Kategori | Fungsi di modul ini | Scope |
 |---|---|---|---|---|
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi `CreateProductDto`, `CreateCategoryDto`, dll. | compile, runtime |
-| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — tulis product/category/`product_outlet_price` lewat `PrismaWriteService` | runtime |
+| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — tulis product/category/`outlet_product_price` lewat `PrismaWriteService` | runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test harga efektif (override ?: master, BR-012) | test |
 
 **Dependency ke modul lain:**
@@ -252,6 +255,18 @@ Format sub-section tiap modul:
 
 **Infrastructure dependency:** PostgreSQL **read replica** digunakan oleh implementasi `SalesReportingReadPort`; **Redis shared cache** TTL 30 menit (cache-aside + single-flight). Tidak ada worker reporting — cache dibangun di jalur dashboard (05 §0).
 
+#### 3.6.1 `ReportingCacheService` — keputusan Redis (Iterasi 1)
+
+Redis **dipakai** sebagai shared cache reporting lintas instance API (keputusan Iterasi 1, poin 6). Definisi konkret:
+
+- **Posisi:** dijalankan sebagai service tersendiri (Railway) atau provider yang tersedia; bukan embedded. `libs/platform` memakai **`@nestjs/cache-manager`** (store `ioredis`) untuk cache-aside dan **`ioredis`** untuk lock single-flight.
+- **Cache key:** `reporting:{merchantId}:{endpoint}:{scope}` (scope ternormalisasi: outletId/dateFrom/dateTo/bucket). TTL **30 menit** (FR-REP-006/007).
+- **Payload:** agregat + `data_updated_at` + `freshness_status` (`FRESH`/`STALE`) — dihitung dari umur data vs ambang saat dibaca (FR-REP-004/009).
+- **Single-flight (FR-REP-008):** saat cache miss, pemenang mengunci `SET reporting:lock:{key} 1 NX EX 30` via `ioredis`; yang kalah menunggu lalu membaca cache hasil pemenang. Redis mati → hitung langsung secara bounded (fallback, FR-REP-007), jangan blokir checkout (`05` §9 poin 4).
+- **Tidak ada invalidasi saat checkout** (`FR-REP-002`): cache hanya dibangun saat dashboard diakses.
+
+Dependensi `@nestjs/cache-manager` + `ioredis` **belum terpasang** di root `package.json` dan wajib diinstal saat implementasi `ReportingCacheService` (lihat §3.0).
+
 ---
 
 ### 3.7 Insight (BI) — `libs/insight`
@@ -264,7 +279,7 @@ Format sub-section tiap modul:
 | `cockatiel` | ^4.0.0 | Utility | Circuit breaker + retry + timeout untuk LLM provider agar worker tidak tersumbat (EXT-AI-003; `07` §7) | runtime |
 | `class-validator` / `class-transformer` | ^0.15.1 / ^0.5.1 | Core | Validasi query `InsightQueryService` | compile, runtime |
 | `@nestjs/schedule` | ^6.1.3 | Utility | `AiAnalysisJobService.@Cron` — polling job AI di `apps/worker` (FR-AI-006) | runtime |
-| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — tulis `AiAnalysisJob`/`AiInsight` lewat `PrismaWriteService` (primary); baca dataset via `ReportingReadPort` | runtime |
+| `@prisma/client` | ^6.4.0 | Persistence | **via platform** — tulis `AiAnalysisJob` dan model `AiInsight` (tabel `ai_insight`) lewat `PrismaWriteService` (primary); baca dataset via `ReportingReadPort` | runtime |
 | `jest` + `ts-jest` | ^30.0.0 + ^29.2.5 | Testing | Unit test `LlmInsightAdapter` + job processor | test |
 
 **Dependency ke modul lain:**
@@ -273,7 +288,7 @@ Format sub-section tiap modul:
 - Proses generate berjalan di `apps/worker` sebagai **job internal** `AiAnalysisJob` (bukan endpoint sinkron) — user menerima `jobId` lalu polling status (07 §7).
 
 **Infrastructure dependency:**
-- PostgreSQL **primary** (tulis `AiAnalysisJob`/`AiInsight` via `PrismaWriteService`) dan **read replica** (dataset via `ReportingReadPort`/platform);
+- PostgreSQL **primary** (tulis `AiAnalysisJob` dan `AiInsight` — model Prisma, tabel `ai_insight` — via `PrismaWriteService`) dan **read replica** (dataset via `ReportingReadPort`/platform);
 - Redis shared cache hanya melalui `ReportingReadPort`;
 - **LLM provider** melalui `AiProviderPort`, dengan timeout + circuit breaker `cockatiel`.
 
@@ -323,13 +338,13 @@ Memetakan **pemanggil → dipanggil → mekanisme** untuk membuktikan bahwa komu
 
 > Bagian ini menetapkan **signature minimum** untuk setiap port yang menjadi jalur komunikasi lintas modul pada §4. Interface publik **layanan** (mis. `CheckoutService`, `DashboardQueryService`) dikonsumsi `apps/*` dan kontraknya ditetapkan di `07` (endpoint + DTO + error), sehingga tidak diulang di sini.
 >
-> Lokasi kode mengikuti pola yang sudah dipakai `catalog` & `tenant`: `libs/<modul>/src/application/ports/`. Implementasi (`*Impl`) berada di `infrastructure/` dan **dilarang diimpor** pemanggil (06 §1.2).
+> Lokasi kode mengikuti pola yang sudah dipakai `catalog` & `tenant`: `libs/<modul>/src/application/ports/`. Implementasi konkret (pola `*repository.ts`/`*service.ts`) berada di `libs/<modul>/src/infrastructure/` dan **dilarang diimpor** pemanggil (06 §1.2).
 
 ### 5.1 Konvensi kontrak port
 
 | # | Aturan |
 |---|---|
-| 1 | Naming: interface berakhiran `Port`/`Service`; implementasi di `infrastructure/` berakhiran `Impl` dan tidak boleh diimpor lintas modul. |
+| 1 | Naming: interface berakhiran `Port`/`Service`; implementasi konkret di `infrastructure/` memakai pola `*repository.ts` (mis. `product.repository.ts`, `ai-analysis-job.repository.ts`) atau `*service.ts` (mis. `tenant-reporting-read.service.ts`) dan tidak boleh diimpor lintas modul. |
 | 2 | Semua port diekspor dari barrel `libs/<modul>/src/index.ts`; pemanggil hanya `import { X } from '@app/<modul>'`. |
 | 3 | DTO port memakai **camelCase** (internal TS); pemetaan ke payload API **snake_case** terjadi di application/web layer (07). |
 | 4 | Anti-corruption: DTO port tidak boleh membocorkan entitas Prisma modul lain (06 §1.2). |
@@ -344,7 +359,7 @@ Memetakan **pemanggil → dipanggil → mekanisme** untuk membuktikan bahwa komu
 | Method | `getProductsForSaleValidation(request: ProductReadRequest): Promise<ProductForSale[]>` |
 | Param `ProductReadRequest` | `{ merchantId: string; outletId: string; productIds: string[] }` |
 | Return `ProductForSale` | `{ id; merchantId; categoryId; name; isActive; isCategoryActive; effectivePrice: string }` — harga efektif Outlet bila ada, selainnya harga master (BR-012) |
-| Error | `TenantViolationError` bila Outlet bukan milik Merchant / tidak aktif. ID yang tidak ditemukan **tidak dikembalikan** (bukan throw). |
+| Error | `ApiError` `NOT_FOUND` bila Outlet bukan milik Merchant / tidak aktif (disamarkan sesuai FR-TEN-010). ID Product yang tidak ditemukan **tidak dikembalikan** (bukan throw). |
 | Aturan | Catalog memvalidasi Outlet & kepemilikan tenant; output mengikuti urutan ID unik input; pemanggil **wajib** memeriksa kelengkapan hasil, `isActive`, `isCategoryActive`; port tidak mengelola stok. |
 
 Referensi: 07 §3.3 & §5.3; FR-CAT-006/011–012; sudah terimplementasi di `libs/catalog/src/application/ports/product-read.port.ts`.
@@ -355,7 +370,7 @@ Referensi: 07 §3.3 & §5.3; FR-CAT-006/011–012; sudah terimplementasi di `lib
 |---|---|
 | Method | `getSellableProducts(merchantId: string): Promise<CatalogReportingProduct[]>` |
 | Return `CatalogReportingProduct` | `{ id: string; name: string }` |
-| Error | `TenantViolationError` bila Merchant tidak valid. |
+| Error | Tidak ada error khusus; Merchant tanpa Product efektif dapat dijual menghasilkan array kosong. |
 | Aturan | Hanya Product aktif dengan Category aktif milik Merchant; dipakai dashboard `least-selling` untuk melengkapi produk tanpa penjualan pada periode; **tidak** membocorkan harga/stok. |
 
 Referensi: kode `libs/catalog/src/application/ports/catalog-reporting-read.port.ts`; 07 §6 (dashboard).
@@ -365,7 +380,7 @@ Referensi: kode `libs/catalog/src/application/ports/catalog-reporting-read.port.
 | Aspek | Kontrak |
 |---|---|
 | Method | `reserveForSale(ctx: StockReservationContext): Promise<StockReservationResult>` |
-| Param `StockReservationContext` | `{ merchantId: string; outletId: string; transactionId: string; tx: Prisma.TransactionClient; lines: [{ productId: string; quantity: number }] }` |
+| Param `StockReservationContext` | `{ merchantId: string; outletId: string; transactionId: string; actorUserId: string; tx: Prisma.TransactionClient; lines: [{ productId: string; quantity: number }] }` — `actorUserId` dicatat ke `stock_movement.actor_user_id` |
 | Return `StockReservationResult` | `{ ok: true }` \| `{ ok: false; insufficient: [{ productId: string; requested: number; available: number }] }` |
 | Error | Tidak melempar untuk kekurangan stok — hasil dikembalikan lewat `ok: false` agar orchestrator memutuskan rollback. |
 | Aturan | Dipanggil **di dalam transaksi checkout** (`tx` dari pemanggil) — port tidak commit/rollback. Decrement stok **conditional atomic** (hanya bila `quantity >= requested`); menulis `stock_movement` `type=SALE` dengan `transaction_id` pada `tx` yang sama; kekurangan stok → caller mengembalikan HTTP `409` dengan kondisi `INSUFFICIENT_STOCK` (07 §0.1). |
@@ -388,7 +403,7 @@ Referensi: FR-REP-001/008/009; 05 §3; 07 §6.
 
 | Aspek | Kontrak |
 |---|---|
-| Methods | `assertUserBelongsToMerchant(userId: string, merchantId: string): Promise<void>`<br/>`assertOutletOwnedByMerchant(merchantId: string, outletId: string): Promise<void>` — Outlet aktif milik Merchant<br/>`assertOutletOwnedByActor(actor: AuthenticatedUser, outletId: string): Promise<void>` — memuat rule role: OWNER → Outlet aktif pilihan dalam Merchant; CASHIER → `outlet_id` klaim JWT; ADMIN → ditolak (OD-010) |
+| Methods | `assertUserBelongsToMerchant(userId: string, merchantId: string): Promise<void>`<br/>`assertOutletOwnedByMerchant(outletId: string, merchantId: string, options?: { requireActive?: boolean }): Promise<Outlet>` — Outlet milik Merchant; `requireActive: true` saat checkout/adjustment (FR-TEN-004)<br/>`assertOutletOwnedByActor(actor: AuthenticatedUser, outletId: string): Promise<void>` — memuat rule role: OWNER → Outlet aktif pilihan dalam Merchant; CASHIER → `outlet_id` klaim JWT; ADMIN → ditolak (OD-010) |
 | Error | `TenantViolationError` → HTTP `403` (kondisi `FORBIDDEN`, 07 §0.1). |
 | Aturan | Dua lapis: `RolesGuard` memvalidasi klaim JWT, service memvalidasi scope lewat port ini (05 §6.3, SRS §7.2) — ID dari input tidak boleh dipercaya tanpa dicocokkan ke field User. |
 
@@ -429,13 +444,13 @@ Referensi: 07 §3.6/§6.4; FR-REP-001–010; FR-AI-002; 05 §3/§6.2.
 
 Referensi: 07 §3.7/§7; DG-006; EXT-AI-003; FR-AI-001–012.
 
-### 5.9 `AiAnalysisJobClaimPort` — insight internal (dipakai worker)
+### 5.9 `AiAnalysisJobRepository` — insight internal (dipakai worker)
 
 | Aspek | Kontrak |
 |---|---|
-| Method | `claimNextDue(): Promise<AiAnalysisJob | null>` |
-| Return | Satu job yang sudah berubah ke `PROCESSING`, atau `null` bila tidak ada job due. |
-| Aturan | Implementasi menggunakan satu operasi atomik pada primary: hanya `PENDING` dengan `next_retry_at IS NULL` atau `RETRY_SCHEDULED` dengan `next_retry_at <= now()` yang eligible. Gunakan `FOR UPDATE SKIP LOCKED` atau conditional update setara agar dua Worker tidak mengklaim job yang sama. Repository ini internal untuk `insight`, bukan API lintas modul. |
+| Method | `claimNextDue(): Promise<ClaimedAiAnalysisJob \| null>` |
+| Return | `ClaimedAiAnalysisJob` = DTO read-only `{ id; merchantId; analysisDate; attempts; nextRetryAt; errorCategory }` untuk satu job yang sudah berubah ke `PROCESSING`, atau `null` bila tidak ada job due. |
+| Aturan | Implementasi menggunakan satu operasi atomik pada primary (`$queryRaw`): hanya `PENDING` dengan `next_retry_at IS NULL` atau `RETRY_SCHEDULED` dengan `next_retry_at <= now()` yang eligible. Gunakan `FOR UPDATE SKIP LOCKED` atau conditional update setara agar dua Worker tidak mengklaim job yang sama. Ini **repository internal** untuk `insight` (pola `*repository.ts` di `infrastructure/`), bukan port lintas modul — karena itu tidak tercantum di §5.10. Return memakai DTO (`ClaimedAiAnalysisJob`), bukan entitas Prisma (anti-corruption, §5.1 aturan 4). |
 
 Referensi: 05 §6.2; 07 §7.6; FR-AI-006.
 
@@ -498,7 +513,8 @@ Referensi: 05 §6.2; 07 §7.6; FR-AI-006.
 1. **Shared dependency = versi tunggal.** Framework dan library lintas modul (`@nestjs/*`, Prisma, class-validator, pino, prometheus, testing) dideklarasikan di root workspace; semua modul memakai versi identik. Update hanya melalui **satu PR terkoordinasi**; divergensi versi antar modul dilarang (lockfile sebagai bukti).
 2. **Modul-specific dependency boleh update independen.** `argon2` (identity), `axios` + `cockatiel` (insight), `@nestjs/throttler` (identity & sales) bisa naik versi sendiri karena scopenya terisolasi per `libs/*` — cocok dengan target split-readiness (tiap `libs/*` siap punya `package.json` sendiri).
 3. **Sinkronisasi wajib dalam satu ekosistem:**
-   - seluruh `@nestjs/*` (`core`, `common`, `platform-express`, `swagger`, `schedule`, `throttler`, `passport`, `jwt`) harus berbagi **versi major yang sama** karena saling tergantung;
+   - seluruh `@nestjs/*` inti (`core`, `common`, `platform-express`, `swagger`, `passport`, `jwt`) harus berbagi **versi major yang sama** (saat ini **11**) karena saling tergantung pada runtime yang sama;
+   - `@nestjs/schedule` (^6) dan `@nestjs/throttler` (^6) adalah pengecualian: keduanya versi major **6** dan tidak mengikuti major inti Nest (11) — jangan di-*upgrade* ke major 11 bila Nest rilis major tersebut; kecocokan dijamin oleh range `^` yang disetujui, bukan penyamaan major;
    - `prisma` (CLI) dan `@prisma/client` **wajib versi identik** — urutan update: `prisma migrate` → `prisma generate`.
 4. **Kontrak antar modul di-versioned, bukan hanya library.** Perubahan signature interface publik/port yang tidak kompatibel → versi kontrak baru dengan kontrak lama ditandai deprecated (06 §1.2); seluruh consumer wajib menangani sesuai versi kontrak. Ini melindungi update library lintas modul dari *breaking change* runtime.
 5. **CI sebagai gate:** eslint → `prisma validate` → jest → `dependency-cruiser` → build → deploy. Update dependency yang melanggar boundary modul **gagal build**.

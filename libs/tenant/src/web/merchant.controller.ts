@@ -6,7 +6,7 @@ import {
   HttpStatus,
   Patch,
 } from '@nestjs/common';
-import { CurrentUser } from '@app/platform';
+import { CurrentUser, SuccessMessage } from '@app/platform';
 import { AuthUser } from '@app/platform';
 import { Roles } from '@app/platform';
 import { MerchantService } from '../application/merchant.service';
@@ -20,6 +20,7 @@ export class MerchantController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Profil merchant berhasil dimuat.')
   getProfile(@CurrentUser() actor: AuthUser): Promise<MerchantDto> {
     return this.merchantService.getProfile(actor);
   }
@@ -27,6 +28,7 @@ export class MerchantController {
   @Patch()
   @Roles('OWNER')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Merchant berhasil diperbarui.')
   updateProfile(
     @CurrentUser() actor: AuthUser,
     @Body() dto: UpdateMerchantDto,

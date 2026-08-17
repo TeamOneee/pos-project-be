@@ -25,7 +25,7 @@ Dibangun menggunakan **NestJS** sebagai modular monolith: setiap domain (auth, u
 ```bash
 npm install
 
-# siapkan env (copy .env.example → .env, isi DATABASE_URL & SECRET_JWT)
+# siapkan env (copy .env.example → .env, isi DATABASE_URL_WRITE/DATABASE_URL_READ & JWT_*)
 npx prisma generate
 
 # development (watch mode)

@@ -2,17 +2,15 @@ import { User } from '@prisma/client';
 import { PrismaWriteService } from '@app/platform';
 import { AuthService } from './auth.service';
 import { TokenService } from './token.service';
-import { RefreshTokenRepository } from '../infrastructure/refresh-token.repository';
 import { UserRepository } from '../infrastructure/user.repository';
 
 const makeUser = (overrides: Partial<User> = {}): User => ({
   id: 'user-1',
   merchantId: 'merchant-1',
   outletId: null,
-  emailNormalized: 'budi@warungku.id',
-  emailOriginal: 'Budi@Warungku.id',
+  name: 'Budi',
+  email: 'budi@warungku.id',
   passwordHash: 'argon2-hash',
-  fullName: 'Budi',
   role: 'OWNER',
   status: 'ACTIVE',
   createdAt: new Date('2024-01-01T00:00:00.000Z'),
@@ -50,11 +48,6 @@ describe('AuthService', () => {
     findByEmail: jest.fn(),
     findById: jest.fn(),
   };
-  const refreshTokenRepository = {
-    create: jest.fn(),
-    findActiveByHash: jest.fn(),
-    revokeById: jest.fn(),
-  };
   const passwordService = {
     hash: jest.fn(() => Promise.resolve('argon2-hash')),
     verify: jest.fn(() => Promise.resolve(true)),
@@ -64,11 +57,6 @@ describe('AuthService', () => {
       token: 'access-token',
       expiresInSeconds: 900,
     })),
-    signRefreshToken: jest.fn(() => ({
-      token: 'refresh-token',
-      expiresInSeconds: 2_592_000,
-    })),
-    hashRefreshToken: jest.fn((t: string) => `hash:${t}`),
   };
 
   beforeEach(() => {
@@ -76,7 +64,6 @@ describe('AuthService', () => {
     service = new AuthService(
       prisma as unknown as PrismaWriteService,
       userRepository as unknown as UserRepository,
-      refreshTokenRepository as unknown as RefreshTokenRepository,
       passwordService,
       tokenService as unknown as TokenService,
     );
@@ -107,7 +94,7 @@ describe('AuthService', () => {
   });
 
   describe('login (FR-AUTH-005-007, 010)', () => {
-    it('berhasil menerbitkan token pair', async () => {
+    it('berhasil menerbitkan access token tanpa refresh token', async () => {
       userRepository.findByEmail.mockResolvedValue(makeUser());
       const result = await service.login({
         email: 'budi@warungku.id',
@@ -115,16 +102,12 @@ describe('AuthService', () => {
       });
       expect(result).toMatchObject({
         access_token: 'access-token',
-        refresh_token: 'refresh-token',
+        expires_in: 900,
         role: 'OWNER',
         merchant_id: 'merchant-1',
+        outlet_id: null,
       });
-      expect(refreshTokenRepository.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          userId: 'user-1',
-          tokenHash: 'hash:refresh-token',
-        }),
-      );
+      expect(result).not.toHaveProperty('refresh_token');
     });
 
     it('menyamarkan kegagalan password (FR-AUTH-006)', async () => {
@@ -147,44 +130,6 @@ describe('AuthService', () => {
         .login({ email: 'budi@warungku.id', password: 'P4ssw0rd!' })
         .catch((e: unknown) => e);
       expect((err as { code: string }).code).toBe('UNAUTHENTICATED');
-    });
-  });
-
-  describe('refresh (FR-AUTH-007/008)', () => {
-    it('merotasi token lama menjadi pasangan baru', async () => {
-      refreshTokenRepository.findActiveByHash.mockResolvedValue({
-        id: 'rt-1',
-        userId: 'user-1',
-        tokenHash: 'hash:old',
-        expiresAt: new Date(Date.now() + 60_000),
-        revokedAt: null,
-      });
-      userRepository.findById.mockResolvedValue(makeUser());
-      const result = await service.refresh({ refresh_token: 'old-token' });
-      expect(refreshTokenRepository.revokeById).toHaveBeenCalledWith('rt-1');
-      expect(refreshTokenRepository.create).toHaveBeenCalled();
-      expect(result.access_token).toBe('access-token');
-    });
-
-    it('menolak token yang sudah kedaluwarsa', async () => {
-      refreshTokenRepository.findActiveByHash.mockResolvedValue(null);
-      const err = await service
-        .refresh({ refresh_token: 'expired' })
-        .catch((e: unknown) => e);
-      expect((err as { code: string }).code).toBe('UNAUTHENTICATED');
-    });
-  });
-
-  describe('logout (FR-AUTH-008)', () => {
-    it('mencabut refresh token yang valid', async () => {
-      refreshTokenRepository.findActiveByHash.mockResolvedValue({ id: 'rt-1' });
-      await service.logout({ refresh_token: 'tok' });
-      expect(refreshTokenRepository.revokeById).toHaveBeenCalledWith('rt-1');
-    });
-
-    it('no-op bila refresh_token kosong', async () => {
-      await service.logout({});
-      expect(refreshTokenRepository.revokeById).not.toHaveBeenCalled();
     });
   });
 });

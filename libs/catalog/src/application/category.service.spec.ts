@@ -1,4 +1,4 @@
-import { Category } from '@prisma/client';
+import { Category, Prisma } from '@prisma/client';
 import { AuthUser } from '@app/platform';
 import { CategoryService } from './category.service';
 import { CategoryRepository } from '../infrastructure/category.repository';
@@ -15,8 +15,6 @@ const makeCategory = (overrides: Partial<Category> = {}): Category => ({
   merchantId: 'merchant-1',
   name: 'Makanan',
   isActive: true,
-  createdAt: new Date('2026-01-01'),
-  updatedAt: new Date('2026-01-01'),
   ...overrides,
 });
 
@@ -51,6 +49,20 @@ describe('CategoryService', () => {
     const error = await service
       .create(actor, { name: 'Makanan' })
       .catch((e: unknown) => e);
+    expect((error as { code: string }).code).toBe('VALIDATION_ERROR');
+  });
+
+  it('FR-CAT-009: mengubah konflik unique index saat create menjadi validation error', async () => {
+    repository.findByNameInMerchant.mockResolvedValue(null);
+    repository.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('duplicate', {
+        code: 'P2002',
+        clientVersion: '6.4.0',
+      }),
+    );
+    const error = await service
+      .create(actor, { name: 'Makanan' })
+      .catch((value: unknown) => value);
     expect((error as { code: string }).code).toBe('VALIDATION_ERROR');
   });
 

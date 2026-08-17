@@ -56,7 +56,7 @@
 {
   "success": true,
   "statusCode": 200,
-  "message": "Merchant berhasil diperbarui",
+  "message": "Merchant updated successfully",
   "data": {
     "merchant_id": "550e8400-e29b-41d4-a716-446655440000",
     "name": "IndoMart Retail Updated",
@@ -74,7 +74,7 @@
   "success": false,
   "statusCode": 400,
   "path": "/api/v1/products",
-  "message": "Nama produk wajib diisi",
+  "message": "Product name is required",
   "errors": [
     { "field": "name", "message": "Name should not be empty" }
   ],
@@ -83,6 +83,8 @@
 ```
 
 > Aturan envelope: `errors` hanya muncul bila ada detail per field (khususnya validasi `class-validator`); untuk error tanpa field (401/403/404/409/429/503/500) `errors` dihilangkan. `statusCode` selalu konsisten dengan HTTP status nyata; `path` adalah path endpoint yang diminta; `timestamp` adalah waktu server (ISO-8601, UTC). `success` selalu `true` untuk 2xx yang memiliki body dan `false` untuk non-2xx. `204` adalah pengecualian tanpa body.
+
+> Implementasi: `SuccessResponseInterceptor` global di `platform` membungkus DTO sukses setelah controller selesai. Setiap endpoint mendeklarasikan `@SuccessMessage()` agar `message` spesifik terhadap operasi; controller tidak boleh membuat envelope sendiri.
 
 ### 0.1 Katalog kondisi error global (dipakai di seluruh dokumen ini)
 
@@ -512,7 +514,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | 400 | Validasi gagal | `VALIDATION_ERROR` |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 | 404 | Outlet tidak ditemukan / bukan milik merchant | `NOT_FOUND` |
-| 409 | Mengaktifkan outlet dengan konflik nama | `VALIDATION_ERROR` |
+| 400 | Mengaktifkan outlet dengan konflik nama | `VALIDATION_ERROR` |
 
 **Warning ⚠:** Outlet `INACTIVE` tidak boleh dipakai untuk checkout atau stock adjustment (read-only, FR-TEN-004). Kasir yang `outlet_id`-nya nonaktif tidak dapat login-operasional.
 
@@ -578,7 +580,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | Aturan bisnis utama | |
 | | 1. **Role:** mutasi (create/patch/outlet-prices) oleh `ADMIN` dan `OWNER` (OWNER mewarisi permission ADMIN — BR-011B); `CASHIER` hanya lihat katalog aktif outlet tugasnya (04 §5, rule 9). |
 | | 2. Nama Category unik per merchant (DR-010). |
-| | 3. Harga master global + override per Outlet (OD-002, FR-CAT-010): tanpa override → pakai `product.price`; ada override → pakai `product_outlet_price.price`. |
+| | 3. Harga master global + override per Outlet (OD-002, FR-CAT-010): tanpa override → pakai `product.price`; ada override → pakai `outlet_product_price.price`. |
 | | 4. Semua harga rupiah dihitung server saat checkout (BR-012); harga di keranjang client-side hanya display. |
 | | 5. `category_id` saat membuat/mengubah product harus kategori aktif milik merchant yang sama. |
 
@@ -604,7 +606,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | 201 | Berhasil | `{ id, name, is_active: true }` |
 | 400 | Nama kosong | `VALIDATION_ERROR` |
 | 403 | Bukan ADMIN/OWNER | `FORBIDDEN` |
-| 409 | Nama duplikat dalam merchant | `VALIDATION_ERROR`, `errors[].field="name"` |
+| 400 | Nama duplikat dalam merchant | `VALIDATION_ERROR`, `errors[].field="name"` |
 
 #### `GET /categories`
 
@@ -685,9 +687,9 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
 | 201 | Berhasil | `ProductDto` |
-| 400 | Nama kosong / harga negatif / threshold kosong atau negatif / kategori kosong/nonaktif/bukan milik merchant | `VALIDATION_ERROR` |
+| 400 | Nama kosong / harga negatif / threshold kosong atau negatif / kategori kosong/nonaktif | `VALIDATION_ERROR` |
 | 403 | Bukan ADMIN/OWNER | `FORBIDDEN` |
-| 404 | Category tidak ditemukan | `NOT_FOUND` |
+| 404 | Category tidak ditemukan / bukan milik merchant (disamarkan) | `NOT_FOUND` |
 
 **Catatan ℹ:** `is_active=false` saat create diperbolehkan (produk dibikin nonaktif).
 
@@ -779,9 +781,9 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
 | 200 | Berhasil | `{ product_id, outlet_id, price, updated_at }` |
-| 400 | Harga negatif / outlet bukan milik merchant | `VALIDATION_ERROR` |
+| 400 | Harga negatif | `VALIDATION_ERROR` |
 | 403 | Bukan ADMIN/OWNER | `FORBIDDEN` |
-| 404 | Produk/outlet tidak ditemukan | `NOT_FOUND` |
+| 404 | Produk/outlet tidak ditemukan / bukan milik merchant (disamarkan) | `NOT_FOUND` |
 
 **Catatan ℹ:** Untuk menghapus override gunakan `DELETE /products/:product_id/outlet-prices/:outlet_id` — fallback kembali ke harga master.
 
@@ -851,7 +853,7 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 
 1. ADMIN kirim `PUT /products/:product_id/outlet-prices/:outlet_id` (`price`).
 2. Validasi produk aktif milik merchant + outlet milik merchant (via `TenantAuthorizationService`).
-3. Upsert row `product_outlet_price` (unique `outlet_id + product_id`).
+3. Upsert row `outlet_product_price` (unique `outlet_id + product_id`).
 4. Return `200` `{ product_id, outlet_id, price, updated_at }`.
 
 **Warning ⚠:** Checkout berikutnya langsung memakai harga override baru (FR-CAT-010). Harga pada transaksi yang **sudah** terjadi tidak berubah (snapshot `unit_price_snapshot` di `transaction_item`).
@@ -924,16 +926,16 @@ Tidak ada endpoint HTTP internal — monolith in-process. Komunikasi internal mo
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 201 | Berhasil | `{ movement_id, outlet_id, product_id, quantity_before, quantity_after, delta, reason, actor_user_id, created_at }` |
+| 201 | Berhasil | `{ id, outlet_id, product_id, quantity_before, quantity_after, delta, reason, actor_user_id, created_at }` |
 | 400 | `reason` kosong / `delta=0` | `VALIDATION_ERROR` |
 | 403 | Bukan ADMIN/OWNER; outlet nonaktif (read-only, FR-TEN-004) | `FORBIDDEN` |
 | 404 | Outlet/produk tidak ditemukan | `NOT_FOUND` |
-| 409 | Hasil menjadi negatif | `VALIDATION_ERROR`, `errors[].field="delta"` |
+| 400 | Hasil menjadi negatif | `VALIDATION_ERROR`, `errors[].field="delta"` |
 
 ```json
 {
   "success": true, "statusCode": 201, "message": "Adjustment stok berhasil",
-  "data": { "movement_id": "uuid", "outlet_id": "uuid", "product_id": "uuid", "quantity_before": 12, "quantity_after": 9, "delta": -3, "reason": "Barang rusak", "actor_user_id": "uuid", "created_at": "2026-08-13T10:00:00+07:00" }
+  "data": { "id": "uuid", "outlet_id": "uuid", "product_id": "uuid", "quantity_before": 12, "quantity_after": 9, "delta": -3, "reason": "Barang rusak", "actor_user_id": "uuid", "created_at": "2026-08-13T10:00:00+07:00" }
 }
 ```
 
@@ -1028,10 +1030,10 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
 {
   "success": true, "statusCode": 200, "message": "Katalog kasir dimuat",
   "data": {
-    "items": [
+    "content": [
       { "id": "uuid", "name": "Es Teh Manis", "price": "8500.00", "category_id": "uuid", "stock_quantity": 12 }
     ],
-    "page": 1, "size": 20, "total_elements": 1, "total_pages": 1
+    "page": 0, "size": 20, "total_elements": 1, "total_pages": 1
   }
 }
 ```
@@ -1098,7 +1100,7 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
 1. ADMIN kirim `POST /inventory/adjustments` (`outlet_id`, `product_id`, `delta`, `reason`).
 2. Validasi role + outlet/produk milik merchant; outlet harus `ACTIVE`.
 3. Baca `quantity` saat ini → `quantity_before`.
-4. Hitung `quantity_after = quantity_before + delta`; kalau `< 0` → `409 VALIDATION_ERROR` (batal, tanpa perubahan).
+4. Hitung `quantity_after = quantity_before + delta`; kalau `< 0` → `400 VALIDATION_ERROR` (batal, tanpa perubahan).
 5. Update kuantitas + tulis row `stock_movement` (`type=ADJUSTMENT`).
 6. Return `201` `StockMovementDto`.
 
@@ -1120,7 +1122,7 @@ Jika kombinasi Inventory belum ada, endpoint membuat baris Inventory dengan `qua
 | | `total = subtotal`; diskon, pajak, service charge, tip, voucher, dan promo tidak tersedia pada MVP. |
 | | `Transaction.total` adalah jumlah pembayaran manual yang dikonfirmasi untuk single-payment MVP; **tidak ada field payment amount terpisah** (FR-PAY-003). |
 | | Metode bayar: `CASH` / `QRIS` / `TRANSFER` (OD-001). |
-| | Harga dihitung ulang server dari **harga efektif outlet** (override `product_outlet_price` ?: `product.price`), BR-012; `expected_unit_price` hanya untuk deteksi `PRICE_CHANGED`. |
+| | Harga dihitung ulang server dari **harga efektif outlet** (override `outlet_product_price` ?: `product.price`), BR-012; `expected_unit_price` hanya untuk deteksi `PRICE_CHANGED`. |
 | | **Role:** checkout oleh `CASHIER` (Outlet tugasnya) dan `OWNER` (Outlet aktif yang dipilih dalam Merchant), Admin ditolak (OD-010); cart dikelola client-side, tidak ada endpoint REST cart. Lihat transaksi: `OWNER` (seluruh merchant) & `CASHIER` (hanya transaksi dirinya — OD-003); **ADMIN tidak punya akses** transaksi/receipt. |
 
 > Endpoint checkout normatif pada Iterasi 1 adalah **`POST /checkout`**, konsisten dengan `05` §5.5.
@@ -1740,7 +1742,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 | | 1. **OWNER only** untuk trigger dan baca (FR-AI-012). |
 | | 2. Maksimal **1 analisis per Merchant per hari** (`merchant_id + analysis_date` lokal Merchant); satu analisis dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus sesuai data (FR-AI-012). |
 | | 3. Tipe: `SALES_TREND`, `OUTLET_COMPARISON`, `TOP_PRODUCTS`, `TIME_PATTERN`, `AOV_TREND`. |
-| | 4. `GET /insights` mengembalikan **status `AiAnalysisJob` terbaru** serta hasil terbaru per tipe (tanpa histori per tipe, OD-007). |
+| | 4. `GET /insights` mengembalikan **state `AiAnalysisJob` terbaru** serta hasil terbaru per tipe (tanpa histori per tipe, OD-007). |
 | | 5. Output berbasis **evidence terstruktur** (data angka dari hasil agregasi reporting), bukan teks generatif bebas (FR-AI-004/005). |
 | | 6. Modul baca hanya dari `ReportingReadPort` (dataset cache-aside atau agregasi bounded saat miss), bukan tabel transaksi mentah (05 §3). |
 
@@ -1759,12 +1761,12 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
 
 | Status | Kondisi | Body (key fields) |
 |---|---|---|
-| 202 | Trigger pertama pada tanggal lokal Merchant; job dibuat secara async | `{ job_id, status: "PENDING" }` |
-| 200 | Trigger ulang pada tanggal lokal Merchant yang sama; tidak membuat job baru | `{ job_id, status }` dari `AiAnalysisJob` yang sudah ada |
+| 202 | Trigger pertama pada tanggal lokal Merchant; job dibuat secara async | `{ job_id, state: "PENDING" }` |
+| 200 | Trigger ulang pada tanggal lokal Merchant yang sama; tidak membuat job baru | `{ job_id, state }` dari `AiAnalysisJob` yang sudah ada |
 | 403 | Bukan OWNER | `FORBIDDEN` |
 
 ```json
-{ "success": true, "statusCode": 202, "message": "Analisis insight dijadwalkan", "data": { "job_id": "uuid", "status": "PENDING" } }
+{ "success": true, "statusCode": 202, "message": "Analisis insight dijadwalkan", "data": { "job_id": "uuid", "state": "PENDING" } }
 ```
 
 **Catatan ℹ:** Eksekusi dijalankan `apps/worker` (polling `AiAnalysisJob` via `@nestjs/schedule`); client menunggu hasil via `GET /insights`. Dedupe key adalah `merchant_id + tanggal lokal Merchant` berdasarkan `merchant.timezone` (unique `(merchant_id, analysis_date)`, FR-AI-007). Worker selalu menurunkan periode Merchant-wide 30 hari lokal dari `analysis_date`; trigger berikutnya pada hari yang sama mengembalikan job yang sama. Tipe insight dan versi data tidak menjadi bagian dedupe key.
@@ -1788,7 +1790,7 @@ Endpoint ini tidak mengembalikan omzet, AOV, jumlah/nilai transaksi, analytics b
   "success": true, "statusCode": 200, "message": "Insight terbaru per tipe",
   "data": {
     "analysis_job": {
-      "id": "uuid", "status": "READY", "analysis_date": "2026-08-13",
+      "id": "uuid", "state": "READY", "analysis_date": "2026-08-13",
       "updated_at": "2026-08-13T10:02:00+07:00"
     },
     "insights": [

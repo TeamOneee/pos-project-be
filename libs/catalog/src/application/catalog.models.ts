@@ -10,6 +10,7 @@ export interface UpdateCategoryCommand {
 }
 
 // membawa filter category dari web ke application.
+// cashier tetap dipaksa melihat category aktif di service.
 export interface CategoryQuery {
   isActive?: boolean;
 }
@@ -20,8 +21,6 @@ export interface CategoryResult {
   merchantId: string;
   name: string;
   isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
 }
 
 // membawa input pembuatan product dari web ke application.

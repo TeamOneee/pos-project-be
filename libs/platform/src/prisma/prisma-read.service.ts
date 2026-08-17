@@ -12,7 +12,7 @@ export class PrismaReadService
       datasources: {
         db: {
           url:
-            configService.get<string>('DATABASE_URL_READ_REPLICA') ??
+            configService.get<string>('DATABASE_URL_READ') ??
             configService.get<string>('DATABASE_URL') ??
             'postgresql://localhost:5432/pos',
         },

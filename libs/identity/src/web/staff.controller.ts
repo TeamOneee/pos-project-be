@@ -15,6 +15,7 @@ import {
   PageRequestDto,
   PageResponseDto,
   Roles,
+  SuccessMessage,
 } from '@app/platform';
 import { AuthUser } from '@app/platform';
 import { StaffService } from '../application/staff.service';
@@ -31,6 +32,7 @@ export class StaffController {
   // FR-AUTH-011-013, FR-TEN-005-006
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @SuccessMessage('Staf berhasil dibuat.')
   create(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateStaffDto,
@@ -40,6 +42,7 @@ export class StaffController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Daftar staf berhasil dimuat.')
   list(
     @CurrentUser() actor: AuthUser,
     @Query() query: StaffListQueryDto,
@@ -51,6 +54,7 @@ export class StaffController {
   // FR-AUTH-014
   @Patch(':user_id')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Staf berhasil diperbarui.')
   update(
     @CurrentUser() actor: AuthUser,
     @Param('user_id', ParseUUIDPipe) userId: string,

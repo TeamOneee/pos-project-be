@@ -10,14 +10,15 @@ import { ThrottlerException } from '@nestjs/throttler';
 import { randomUUID } from 'node:crypto';
 import type { Request, Response } from 'express';
 import { ClsService } from 'nestjs-cls';
-import { ApiError, ApiErrorDetail } from './api-error';
-import { ErrorCode } from './error-code';
+import { ApiError } from './api-error';
 
-interface ErrorBody {
-  code: ErrorCode;
+export interface ErrorBody {
+  success: false;
+  statusCode: number;
+  path: string;
   message: string;
-  correlation_id: string;
-  details?: ApiErrorDetail[];
+  errors?: { field?: string; message: string }[];
+  timestamp: string;
 }
 
 @Catch()
@@ -34,7 +35,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const correlationId = this.resolveCorrelationId(request);
     response.setHeader('X-Correlation-Id', correlationId);
 
-    const { status, body } = this.mapException(exception, correlationId);
+    const { status, body } = this.mapException(exception, request);
 
     if (status >= 500) {
       this.logger.error(
@@ -60,16 +61,21 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
   private mapException(
     exception: unknown,
-    correlationId: string,
+    request: Request,
   ): { status: number; body: ErrorBody } {
+    const path = request.originalUrl ?? request.url;
+    const timestamp = new Date().toISOString();
+
     if (exception instanceof ApiError) {
       return {
         status: exception.statusCode,
         body: {
-          code: exception.code,
+          success: false,
+          statusCode: exception.statusCode,
+          path,
           message: exception.message,
-          correlation_id: correlationId,
-          details: exception.details,
+          errors: this.toErrors(exception.details),
+          timestamp,
         },
       };
     }
@@ -78,31 +84,31 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return {
         status: HttpStatus.TOO_MANY_REQUESTS,
         body: {
-          code: ErrorCode.RATE_LIMITED,
-          message: 'Terlalu banyak permintaan.',
-          correlation_id: correlationId,
+          success: false,
+          statusCode: HttpStatus.TOO_MANY_REQUESTS,
+          path,
+          message: 'Terlalu banyak permintaan',
+          timestamp,
         },
       };
     }
 
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
-      const response = exception.getResponse();
+      const raw = exception.getResponse();
       const message =
-        typeof response === 'string'
-          ? response
-          : this.messageFromObject(response);
-      const details =
-        typeof response === 'string'
-          ? undefined
-          : this.detailsFromResponse(response);
+        typeof raw === 'string' ? raw : this.messageFromObject(raw);
+      const errors =
+        typeof raw === 'string' ? undefined : this.errorsFromResponse(raw);
       return {
         status,
         body: {
-          code: this.codeForHttpStatus(status),
+          success: false,
+          statusCode: status,
+          path,
           message,
-          correlation_id: correlationId,
-          details,
+          errors,
+          timestamp,
         },
       };
     }
@@ -110,11 +116,23 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return {
       status: HttpStatus.INTERNAL_SERVER_ERROR,
       body: {
-        code: ErrorCode.INTERNAL_ERROR,
-        message: 'Terjadi kesalahan internal.',
-        correlation_id: correlationId,
+        success: false,
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        path,
+        message: 'Terjadi kesalahan internal',
+        timestamp,
       },
     };
+  }
+
+  private toErrors(details?: ApiError['details']): ErrorBody['errors'] {
+    if (!details || details.length === 0) {
+      return undefined;
+    }
+    return details.map((detail) => ({
+      field: detail.field,
+      message: detail.reason ?? 'Nilai tidak valid.',
+    }));
   }
 
   private messageFromObject(response: object): string {
@@ -131,7 +149,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
     return 'Terjadi kesalahan.';
   }
 
-  private detailsFromResponse(response: object): ApiErrorDetail[] | undefined {
+  private errorsFromResponse(
+    response: object,
+  ): ErrorBody['errors'] | undefined {
     if (!('message' in response)) {
       return undefined;
     }
@@ -139,26 +159,26 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (!Array.isArray(message)) {
       return undefined;
     }
-    return message.map((item) => this.toDetail(item)).slice(0, 10);
+    return message.map((item) => this.toError(item)).slice(0, 10);
   }
 
-  private toDetail(item: unknown): ApiErrorDetail {
+  private toError(item: unknown): { field?: string; message: string } {
     if (typeof item !== 'object' || item === null) {
-      return { reason: this.stringify(item) };
+      return { message: this.stringify(item) };
     }
     const record = item as Record<string, unknown>;
     const property =
       typeof record['property'] === 'string' ? record['property'] : undefined;
     const constraints = record['constraints'];
-    let reason: string | undefined;
+    let message: string | undefined;
     if (typeof constraints === 'object' && constraints !== null) {
-      reason = Object.values(constraints)
+      message = Object.values(constraints)
         .map((value) => this.stringify(value))
         .join(', ');
     }
     return property
-      ? { field: property, reason: reason ?? 'Nilai tidak valid.' }
-      : { reason: reason ?? 'Nilai tidak valid.' };
+      ? { field: property, message: message ?? 'Nilai tidak valid.' }
+      : { message: message ?? 'Nilai tidak valid.' };
   }
 
   private stringify(value: unknown): string {
@@ -172,17 +192,5 @@ export class AllExceptionsFilter implements ExceptionFilter {
       return value.toString();
     }
     return JSON.stringify(value) ?? '';
-  }
-
-  private codeForHttpStatus(status: number): ErrorCode {
-    const byStatus: Record<number, ErrorCode> = {
-      [HttpStatus.BAD_REQUEST]: ErrorCode.VALIDATION_ERROR,
-      [HttpStatus.UNAUTHORIZED]: ErrorCode.UNAUTHENTICATED,
-      [HttpStatus.FORBIDDEN]: ErrorCode.FORBIDDEN,
-      [HttpStatus.NOT_FOUND]: ErrorCode.NOT_FOUND,
-      [HttpStatus.TOO_MANY_REQUESTS]: ErrorCode.RATE_LIMITED,
-      [HttpStatus.SERVICE_UNAVAILABLE]: ErrorCode.DEPENDENCY_UNAVAILABLE,
-    };
-    return byStatus[status] ?? ErrorCode.INTERNAL_ERROR;
   }
 }

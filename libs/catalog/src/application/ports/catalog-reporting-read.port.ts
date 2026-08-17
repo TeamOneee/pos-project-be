@@ -1,24 +1,45 @@
-/*
- * menyediakan current catalog minimum yang dibutuhkan reporting.
- *
- * data penjualan dan ranking tetap berasal dari ReportingProjection. port ini
- * hanya melengkapi daftar least-selling dengan product yang masih efektif dapat
- * dijual tetapi belum mempunyai penjualan pada periode yang dipilih.
- * implementasi wajib membatasi data berdasarkan merchant serta hanya
- * mengembalikan product aktif yang category-nya juga aktif.
+/**
+ * Produk aktif di katalog untuk melengkapi ranking least-selling.
  */
-
 export interface CatalogReportingProduct {
-  // id digunakan untuk mencocokkan current product dengan metrics projection.
+  /** ID unik Product untuk pencocokan fakta penjualan. */
   id: string;
-  // nama saat ini ditampilkan ketika product belum memiliki snapshot penjualan.
+  /** Nama Product saat ini sebagai fallback jika belum ada snapshot penjualan. */
   name: string;
 }
 
-// menjadi batas baca lintas modul tanpa mengekspos repository atau prisma catalog.
+/**
+ * Ringkasan status katalog untuk dashboard operasional Admin.
+ */
+export interface CatalogReportingSummary {
+  activeProductCount: number;
+  inactiveProductCount: number;
+  inactiveCategoryCount: number;
+}
+
 export abstract class CatalogReportingReadPort {
-  // mengembalikan product yang efektif dapat dijual dalam satu merchant.
+  /**
+   * Membaca produk yang aktif dan category-nya aktif dalam satu Merchant.
+   *
+   * Digunakan oleh:
+   * - Reporting untuk melengkapi produk 0 penjualan pada least-selling (FR-REP-003B).
+   *
+   * CatalogReportingReadPort
+   * ├── validasi status Product aktif (isActive = true)
+   * ├── validasi status Category aktif (category.isActive = true)
+   * └── isolasi tenant per Merchant
+   */
   abstract getSellableProducts(
     merchantId: string,
   ): Promise<CatalogReportingProduct[]>;
+
+  /**
+   * Menghitung jumlah master produk dan kategori aktif/nonaktif.
+   *
+   * Digunakan oleh:
+   * - Dashboard operasional Admin dan Owner (GET /dashboard/operations).
+   */
+  abstract getCatalogReportingSummary(
+    merchantId: string,
+  ): Promise<CatalogReportingSummary>;
 }

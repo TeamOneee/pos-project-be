@@ -8,6 +8,7 @@ export interface CategoryListFilter {
 
 @Injectable()
 // menyimpan dan membaca category melalui prisma write service.
+// repository tidak menerima actor sehingga service wajib memasok merchant scope.
 export class CategoryRepository {
   constructor(private readonly prisma: PrismaWriteService) {}
 
@@ -38,16 +39,16 @@ export class CategoryRepository {
     take: number,
   ): Promise<Category[]> {
     return this.prisma.category.findMany({
-      where: { merchantId, isActive: filter.isActive },
-      orderBy: { createdAt: 'desc' },
+      where: this.toWhere(merchantId, filter),
       skip,
       take,
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
     });
   }
 
   count(merchantId: string, filter: CategoryListFilter): Promise<number> {
     return this.prisma.category.count({
-      where: { merchantId, isActive: filter.isActive },
+      where: this.toWhere(merchantId, filter),
     });
   }
 
@@ -56,5 +57,17 @@ export class CategoryRepository {
     data: Prisma.CategoryUncheckedUpdateInput,
   ): Promise<Category> {
     return this.prisma.category.update({ where: { id: categoryId }, data });
+  }
+
+  private toWhere(
+    merchantId: string,
+    filter: CategoryListFilter,
+  ): Prisma.CategoryWhereInput {
+    // membatasi query ke merchant tanpa pernah memakai scope dari client.
+    // query yang sama dipakai find dan count agar metadata pagination akurat.
+    return {
+      merchantId,
+      isActive: filter.isActive,
+    };
   }
 }

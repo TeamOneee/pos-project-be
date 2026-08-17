@@ -648,6 +648,7 @@ SRS tidak mengunci REST/GraphQL, tetapi kontrak harus memenuhi:
 | API-006 | Money amount dikirim sebagai string decimal berformat eksplisit dan dipetakan ke exact `DECIMAL/NUMERIC`, bukan JSON binary float. |
 | API-007 | Breaking change pada kontrak harus melalui versioning atau migration plan. |
 | API-008 | Checkout timeout harus dikonfigurasi dan didokumentasikan; client harus menggunakan status lookup sebelum membuat niat pembayaran baru. |
+| API-009 | Semua response sukses 2xx yang memiliki body harus memakai envelope `{ success: true, statusCode, message, data }`; response error memakai envelope standar. `204 No Content` yang dinyatakan eksplisit tidak memiliki body. |
 
 ### 13.3 LLM provider
 

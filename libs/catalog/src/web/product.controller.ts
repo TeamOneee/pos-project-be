@@ -18,6 +18,7 @@ import {
   PageRequestDto,
   PageResponseDto,
   Roles,
+  SuccessMessage,
 } from '@app/platform';
 import { OutletPriceService } from '../application/outlet-price.service';
 import { ProductService } from '../application/product.service';
@@ -31,7 +32,8 @@ import { UpdateProductDto } from './dto/update-product.dto';
 import { UpsertProductOutletPriceDto } from './dto/upsert-product-outlet-price.dto';
 
 @Controller('products')
-// menyediakan api product master dan harga override khusus admin.
+// menyediakan api product master dan harga override untuk owner dan admin.
+// cashier memperoleh katalog jual melalui inventory, bukan endpoint ini.
 export class ProductController {
   constructor(
     private readonly productService: ProductService,
@@ -39,8 +41,9 @@ export class ProductController {
   ) {}
 
   @Post()
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.CREATED)
+  @SuccessMessage('Produk berhasil dibuat.')
   async create(
     @CurrentUser() actor: AuthUser,
     @Body() dto: CreateProductDto,
@@ -59,6 +62,7 @@ export class ProductController {
   @Get()
   @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Daftar produk berhasil dimuat.')
   async list(
     @CurrentUser() actor: AuthUser,
     @Query() query: ProductListQueryDto,
@@ -78,8 +82,9 @@ export class ProductController {
   }
 
   @Patch(':product_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Produk berhasil diperbarui.')
   async update(
     @CurrentUser() actor: AuthUser,
     @Param('product_id', ParseUUIDPipe) productId: string,
@@ -97,8 +102,9 @@ export class ProductController {
   }
 
   @Put(':product_id/outlet-prices/:outlet_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.OK)
+  @SuccessMessage('Harga outlet berhasil diperbarui.')
   async upsertOutletPrice(
     @CurrentUser() actor: AuthUser,
     @Param('product_id', ParseUUIDPipe) productId: string,
@@ -113,7 +119,7 @@ export class ProductController {
   }
 
   @Delete(':product_id/outlet-prices/:outlet_id')
-  @Roles('ADMIN')
+  @Roles('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   async removeOutletPrice(
     @CurrentUser() actor: AuthUser,
