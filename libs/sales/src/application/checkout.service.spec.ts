@@ -113,7 +113,7 @@ describe('CheckoutService', () => {
     };
 
     service = new CheckoutService(
-      prisma,
+      prisma as unknown as PrismaWriteService,
       repository as unknown as TransactionRepository,
       receiptService as unknown as ReceiptService,
       productRead,
