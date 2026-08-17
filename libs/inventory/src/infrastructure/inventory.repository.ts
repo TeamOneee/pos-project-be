@@ -17,6 +17,12 @@ export interface QuantityDeltaResult {
   quantityAfter: number;
 }
 
+export interface BulkQuantityResult {
+  productId: string;
+  quantityBefore: number;
+  quantityAfter: number;
+}
+
 // menyimpan dan membaca saldo stok per kombinasi Product + Outlet (FR-INV-001).
 @Injectable()
 export class InventoryRepository {
@@ -125,5 +131,52 @@ export class InventoryRepository {
       quantityBefore: row.quantity_before,
       quantityAfter: row.quantity_after,
     };
+  }
+
+  // batch conditional atomic update: satu statement UPDATE ... FROM (VALUES ...)
+  // untuk seluruh line checkout (FR-INV-004, AT-004). Mengurangi round-trip per
+  // item (3 query/item -> 1 statement) sehingga durasi transaksi checkout pendek.
+  async bulkUpdateQuantityConditional(
+    tx: Prisma.TransactionClient,
+    params: {
+      merchantId: string;
+      outletId: string;
+      lines: { productId: string; delta: number }[];
+    },
+  ): Promise<BulkQuantityResult[]> {
+    if (params.lines.length === 0) return [];
+    // Urutkan line by product_id agar semua transaksi konkuren mengunci baris
+    // inventory dalam urutan global yang sama -> meminimalkan deadlock (40P01).
+    const sorted = [...params.lines].sort((a, b) =>
+      a.productId.localeCompare(b.productId),
+    );
+    const values = sorted.map(
+      (l) =>
+        Prisma.sql`(${l.productId}, ${params.outletId}, ${params.merchantId}, ${l.delta}::INTEGER)`,
+    );
+    const rows = await tx.$queryRaw<
+      Array<{
+        product_id: string;
+        quantity_before: number;
+        quantity_after: number;
+      }>
+    >`
+      UPDATE "inventory" i
+      SET "quantity" = i."quantity" + v.delta, "updated_at" = NOW()
+      FROM (VALUES ${Prisma.join(values)}) AS v(product_id, outlet_id, merchant_id, delta)
+      WHERE i."outlet_id" = v.outlet_id
+        AND i."product_id" = v.product_id
+        AND i."merchant_id" = v.merchant_id
+        AND i."quantity" + v.delta >= 0
+      RETURNING
+        i."product_id" AS product_id,
+        (i."quantity" - v.delta)::INTEGER AS quantity_before,
+        i."quantity"::INTEGER AS quantity_after
+    `;
+    return rows.map((r) => ({
+      productId: r.product_id,
+      quantityBefore: Number(r.quantity_before),
+      quantityAfter: Number(r.quantity_after),
+    }));
   }
 }
