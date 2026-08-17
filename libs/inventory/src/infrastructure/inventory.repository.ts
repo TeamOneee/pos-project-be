@@ -114,10 +114,10 @@ export class InventoryRepository {
       Array<{ quantity_before: number; quantity_after: number }>
     >`
       UPDATE "inventory"
-      SET "quantity" = "quantity" + ${params.delta}, "updated_at" = NOW()
-      WHERE "id" = ${params.inventoryId} AND "quantity" + ${params.delta} >= 0
-      RETURNING ("quantity" - ${params.delta}) AS "quantity_before",
-                "quantity" AS "quantity_after"
+      SET "quantity" = "quantity" + ${params.delta}::INTEGER, "updated_at" = NOW()
+      WHERE "id" = ${params.inventoryId} AND "quantity" + ${params.delta}::INTEGER >= 0
+      RETURNING ("quantity" - ${params.delta}::INTEGER)::INTEGER AS "quantity_before",
+                "quantity"::INTEGER AS "quantity_after"
     `;
     const row = rows[0];
     if (!row) return null;
