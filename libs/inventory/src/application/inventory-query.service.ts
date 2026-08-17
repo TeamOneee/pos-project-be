@@ -1,67 +1,46 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { AuthenticatedUser, PrismaWriteService } from '@app/platform';
-import { InventoryQueryDto } from '../web/dto/inventory-query.dto';
-import { PageResponseDto } from '../web/dto/pagination.dto';
-import { InventoryItemDto } from '../web/dto/inventory-response.dto';
+import { AuthUser, PageRequestDto, PageResponseDto } from '@app/platform';
+import { InventoryRepository } from '../infrastructure/inventory.repository';
+import { InventoryListFilter, InventoryRowResult } from './inventory.models';
 
+// daftar stok seluruh Outlet dalam Merchant dengan filter opsional (FR-INV-002, FR-INV-007).
 @Injectable()
 export class InventoryQueryService {
-  constructor(private readonly prisma: PrismaWriteService) {}
+  constructor(private readonly inventoryRepository: InventoryRepository) {}
 
   async list(
-    actor: AuthenticatedUser,
-    query: InventoryQueryDto,
-  ): Promise<PageResponseDto<InventoryItemDto>> {
-    const where: Prisma.InventoryWhereInput = {
-      merchantId: actor.merchantId,
-    };
-    if (query.outlet_id) where.outletId = query.outlet_id;
-    if (query.product_id) where.productId = query.product_id;
+    actor: AuthUser,
+    filter: InventoryListFilter,
+    page: PageRequestDto,
+  ): Promise<PageResponseDto<InventoryRowResult>> {
+    const rows = await this.inventoryRepository.findByMerchantWithDetails(
+      actor.merchantId,
+      { outletId: filter.outletId, productId: filter.productId },
+    );
 
-    const rows = await this.prisma.inventory.findMany({
-      where,
-      include: { product: true },
-    });
-
-    const outletIds = [...new Set(rows.map((r) => r.outletId))];
-    const outlets = outletIds.length
-      ? await this.prisma.outlet.findMany({
-          where: { id: { in: outletIds } },
-          select: { id: true, name: true },
-        })
-      : [];
-    const outletName = new Map(outlets.map((o) => [o.id, o.name]));
-
-    let items: InventoryItemDto[] = rows.map((r) => {
-      const base = r.product.lowStockThreshold;
-      const effective = r.lowStockThresholdOverride ?? base;
+    let items: InventoryRowResult[] = rows.map((r) => {
+      const effective =
+        r.lowStockThresholdOverride ?? r.product.lowStockThreshold;
       return {
         id: r.id,
-        outlet_id: r.outletId,
-        outlet_name: outletName.get(r.outletId) ?? '',
-        product_id: r.productId,
-        product_name: r.product.name,
+        outletId: r.outletId,
+        outletName: r.outlet.name,
+        productId: r.productId,
+        productName: r.product.name,
         quantity: r.quantity,
-        base_low_stock_threshold: base,
-        low_stock_threshold_override: r.lowStockThresholdOverride,
-        effective_low_stock_threshold: effective,
-        is_low_stock: r.quantity <= effective,
-        updated_at: r.updatedAt.toISOString(),
+        baseLowStockThreshold: r.product.lowStockThreshold,
+        lowStockThresholdOverride: r.lowStockThresholdOverride,
+        effectiveLowStockThreshold: effective,
+        isLowStock: r.quantity <= effective,
+        updatedAt: r.updatedAt,
       };
     });
 
-    if (query.low_stock_only) {
-      items = items.filter((i) => i.is_low_stock);
+    if (filter.lowStockOnly) {
+      items = items.filter((i) => i.isLowStock);
     }
 
-    const total = items.length;
-    const content = items.slice(query.offset, query.offset + query.limit);
-    return PageResponseDto.of(
-      content,
-      total,
-      query.page ?? 0,
-      query.size ?? 20,
-    );
+    const content = items.slice(page.skip, page.skip + page.take);
+    return PageResponseDto.from(content, page.page, page.size, items.length);
   }
 }

@@ -1,44 +1,55 @@
 import { Injectable } from '@nestjs/common';
 import {
-  AuthenticatedUser,
-  ForbiddenError,
-  PrismaWriteService,
-  ValidationError,
+  ApiError,
+  AuthUser,
+  PageRequestDto,
+  PageResponseDto,
 } from '@app/platform';
 import { ProductReadPort } from '@app/catalog';
-import { OutletCatalogQueryDto } from '../web/dto/outlet-catalog-query.dto';
-import { PageResponseDto } from '../web/dto/pagination.dto';
-import { CatalogProductDto } from '../web/dto/inventory-response.dto';
+import { TenantAuthorizationService } from '@app/tenant';
+import { InventoryRepository } from '../infrastructure/inventory.repository';
+import { CatalogProductResult, OutletCatalogQuery } from './inventory.models';
 
+// katalog POS per Outlet (FR-CAT-006): hanya Product aktif + Category aktif
+// yang punya inventory di Outlet; harga = harga efektif Outlet.
 @Injectable()
 export class OutletCatalogQueryService {
   constructor(
-    private readonly prisma: PrismaWriteService,
+    private readonly inventoryRepository: InventoryRepository,
     private readonly productReadPort: ProductReadPort,
+    private readonly tenantAuth: TenantAuthorizationService,
   ) {}
 
   async catalog(
-    actor: AuthenticatedUser,
-    query: OutletCatalogQueryDto,
-  ): Promise<PageResponseDto<CatalogProductDto>> {
-    if (!query.outlet_id) {
-      throw new ValidationError('outlet_id is required.');
+    actor: AuthUser,
+    query: OutletCatalogQuery,
+    page: PageRequestDto,
+  ): Promise<PageResponseDto<CatalogProductResult>> {
+    if (actor.role === 'CASHIER' && actor.outletId !== query.outletId) {
+      throw ApiError.forbidden('Outlet bukan Outlet tugas kasir.');
     }
-    if (actor.role === 'CASHIER' && actor.outletId !== query.outlet_id) {
-      throw new ForbiddenError('Outlet is not assigned to this cashier.');
+    const outlet = await this.tenantAuth.assertOutletOwnedByMerchant(
+      query.outletId,
+      actor.merchantId,
+    );
+    if (outlet.status !== 'ACTIVE') {
+      throw ApiError.forbidden(
+        'Owner hanya dapat memilih Outlet aktif dalam Merchant.',
+      );
     }
 
-    const rows = await this.prisma.inventory.findMany({
-      where: { merchantId: actor.merchantId, outletId: query.outlet_id },
-    });
+    const rows = await this.inventoryRepository.findInOutlet(
+      actor.merchantId,
+      query.outletId,
+    );
     const productIds = rows.map((r) => r.productId);
     if (productIds.length === 0) {
-      return PageResponseDto.of([], 0, query.page ?? 0, query.size ?? 20);
+      return PageResponseDto.from([], page.page, page.size, 0);
     }
 
     const products = await this.productReadPort.getProductsForSaleValidation({
       merchantId: actor.merchantId,
-      outletId: query.outlet_id,
+      outletId: query.outletId,
       productIds,
     });
     const quantityByProduct = new Map(
@@ -52,25 +63,20 @@ export class OutletCatalogQueryService {
       const needle = query.search.toLowerCase();
       items = items.filter((p) => p.name.toLowerCase().includes(needle));
     }
-    if (query.category_id) {
-      items = items.filter((p) => p.categoryId === query.category_id);
+    if (query.categoryId) {
+      items = items.filter((p) => p.categoryId === query.categoryId);
     }
 
-    const content: CatalogProductDto[] = items
-      .slice(query.offset, query.offset + query.limit)
+    const content: CatalogProductResult[] = items
+      .slice(page.skip, page.skip + page.take)
       .map((p) => ({
         id: p.id,
         name: p.name,
         price: p.effectivePrice,
-        category_id: p.categoryId,
-        stock_quantity: quantityByProduct.get(p.id) ?? 0,
+        categoryId: p.categoryId,
+        stockQuantity: quantityByProduct.get(p.id) ?? 0,
       }));
 
-    return PageResponseDto.of(
-      content,
-      items.length,
-      query.page ?? 0,
-      query.size ?? 20,
-    );
+    return PageResponseDto.from(content, page.page, page.size, items.length);
   }
 }

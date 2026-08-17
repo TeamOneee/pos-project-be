@@ -1,61 +1,55 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, StockMovementType } from '@prisma/client';
-import { AuthenticatedUser, PrismaWriteService } from '@app/platform';
-import { StockMovementQueryDto } from '../web/dto/stock-movement-query.dto';
-import { PageResponseDto } from '../web/dto/pagination.dto';
-import { StockMovementDto } from '../web/dto/inventory-response.dto';
+import { AuthUser, PageRequestDto, PageResponseDto } from '@app/platform';
+import { StockMovementRepository } from '../infrastructure/stock-movement.repository';
+import {
+  StockMovementListFilter,
+  StockMovementResult,
+} from './inventory.models';
 
+// riwayat pergerakan stok (FR-INV-003) dengan filter Outlet/Product/jenis/tanggal.
 @Injectable()
 export class StockMovementQueryService {
-  constructor(private readonly prisma: PrismaWriteService) {}
+  constructor(
+    private readonly stockMovementRepository: StockMovementRepository,
+  ) {}
 
   async list(
-    actor: AuthenticatedUser,
-    query: StockMovementQueryDto,
-  ): Promise<PageResponseDto<StockMovementDto>> {
-    const where: Prisma.StockMovementWhereInput = {
-      merchantId: actor.merchantId,
+    actor: AuthUser,
+    filter: StockMovementListFilter,
+    page: PageRequestDto,
+  ): Promise<PageResponseDto<StockMovementResult>> {
+    const dbFilter = {
+      outletId: filter.outletId,
+      productId: filter.productId,
+      type: filter.type,
+      dateFrom: filter.dateFrom,
+      dateTo: filter.dateTo,
     };
-    if (query.outlet_id) where.outletId = query.outlet_id;
-    if (query.product_id) where.productId = query.product_id;
-    if (query.type) where.type = query.type as StockMovementType;
-
-    if (query.date_from || query.date_to) {
-      const dateFilter: Prisma.DateTimeFilter = {};
-      if (query.date_from) dateFilter.gte = new Date(query.date_from);
-      if (query.date_to) dateFilter.lte = new Date(query.date_to);
-      where.createdAt = dateFilter;
-    }
 
     const [rows, total] = await Promise.all([
-      this.prisma.stockMovement.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: query.offset,
-        take: query.limit,
-      }),
-      this.prisma.stockMovement.count({ where }),
+      this.stockMovementRepository.findByMerchant(
+        actor.merchantId,
+        dbFilter,
+        page.skip,
+        page.take,
+      ),
+      this.stockMovementRepository.countByMerchant(actor.merchantId, dbFilter),
     ]);
 
-    const content: StockMovementDto[] = rows.map((m) => ({
+    const content: StockMovementResult[] = rows.map((m) => ({
       id: m.id,
-      outlet_id: m.outletId,
-      product_id: m.productId,
+      outletId: m.outletId,
+      productId: m.productId,
       type: m.type,
       delta: m.delta,
-      quantity_before: m.quantityBefore,
-      quantity_after: m.quantityAfter,
+      quantityBefore: m.quantityBefore,
+      quantityAfter: m.quantityAfter,
       reason: m.reason,
-      reference_id: m.referenceId,
-      actor_user_id: m.actorUserId,
-      created_at: m.createdAt.toISOString(),
+      transactionId: m.transactionId,
+      actorUserId: m.actorUserId,
+      createdAt: m.createdAt,
     }));
 
-    return PageResponseDto.of(
-      content,
-      total,
-      query.page ?? 0,
-      query.size ?? 20,
-    );
+    return PageResponseDto.from(content, page.page, page.size, total);
   }
 }
