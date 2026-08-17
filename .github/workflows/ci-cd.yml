@@ -94,7 +94,7 @@ jobs:
   migrate-staging:
     name: Migrate DB (staging)
     if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
-    needs: ci
+    needs: [ci, sonarcloud]
     runs-on: ubuntu-latest
     environment: staging
     steps:
@@ -113,7 +113,7 @@ jobs:
   migrate-production:
     name: Migrate DB (production)
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: ci
+    needs: [ci, sonarcloud]
     runs-on: ubuntu-latest
     environment: production
     steps:

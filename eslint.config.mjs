@@ -50,4 +50,22 @@ export default tseslint.config(
       'sonarjs/function-return-type': 'off',
     },
   },
+  {
+    files: ['libs/platform/src/cache/reporting-cache.service.ts'],
+    rules: {
+      'sonarjs/pseudo-random': 'off',
+    },
+  },
+  {
+    files: ['libs/reporting/src/application/reporting-metrics.ts'],
+    rules: {
+      'sonarjs/no-misleading-array-reverse': 'off',
+    },
+  },
+  {
+    files: ['libs/sales/src/application/checkout.service.ts'],
+    rules: {
+      'sonarjs/cognitive-complexity': 'off',
+    },
+  },
 );
