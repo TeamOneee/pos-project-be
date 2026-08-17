@@ -2,12 +2,8 @@
 // total = subtotal, pembuatan transaksi, dan reservasi stok.
 import { createHash } from 'crypto';
 import { Prisma } from '@prisma/client';
-import {
-  ApiError,
-  AuthUser,
-  ErrorCode,
-  PrismaWriteService,
-} from '@app/platform';
+import { ApiError, AuthUser, ErrorCode } from '@app/platform';
+import type { PrismaWriteService } from '@app/platform';
 import { TenantAuthorizationService } from '@app/tenant';
 import { TransactionRepository } from '../infrastructure/transaction.repository';
 import { ReceiptService } from './receipt.service';
