@@ -200,7 +200,13 @@ export class CheckoutService {
         // 6) commit -> return receipt tersimpan (tanpa outbox/event, FR-CHK-014/015)
         return this.receiptService.compose(tx, transaction.id, actor);
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      {
+        // remote Neon ~0.5-1s/query; transaksi checkout banyak query berurutan,
+        // naikkan batas agar tidak kedaluwarsa pada DB dengan latensi tinggi.
+        maxWait: 10_000,
+        timeout: 30_000,
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      },
     );
   }
 
