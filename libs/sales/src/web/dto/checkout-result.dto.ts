@@ -7,23 +7,25 @@ export interface CheckoutLineDto {
   subtotal: string;
 }
 
-export interface PaymentDto {
-  method: string;
-  amount: string;
-  status: string;
+export interface OperatorDto {
+  user_id: string;
+  role: string;
+  name: string;
 }
 
-export interface CashierDto {
-  user_id: string;
-  name: string;
+// PaymentInfo adalah atribut pada Transaction (OD-001) — tidak ada entitas Payment.
+export interface PaymentDto {
+  method: string;
+  status: string;
+  paid_at: string;
 }
 
 export interface CheckoutResultDto {
   transaction_id: string;
-  receipt_number: string;
+  transaction_number: string;
   status: string;
   outlet_id: string;
-  cashier: CashierDto;
+  operator: OperatorDto;
   items: CheckoutLineDto[];
   subtotal: string;
   total: string;
@@ -39,9 +41,9 @@ export interface ReceiptDto extends CheckoutResultDto {
 
 export interface TransactionSummaryDto {
   transaction_id: string;
-  receipt_number: string;
+  transaction_number: string;
   outlet_id: string;
-  cashier_name: string;
+  operator_name: string;
   total: string;
   status: string;
   created_at: string;

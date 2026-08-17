@@ -7,6 +7,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   Min,
   ValidateNested,
@@ -14,8 +15,7 @@ import {
 import { PaymentMethod } from '@prisma/client';
 
 export class CheckoutItemDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsUUID()
   product_id!: string;
 
   @IsInt()
@@ -28,22 +28,14 @@ export class CheckoutItemDto {
   expected_unit_price?: string;
 }
 
-export class PaymentRequestDto {
-  @IsEnum(PaymentMethod)
-  method!: PaymentMethod;
-
-  @IsString()
-  @Matches(/^\d+(\.\d{1,2})?$/)
-  amount!: string;
-}
-
+// Request checkout (07 §5.4 CheckoutRequest): idempotency dijamin oleh
+// checkout_request_id unik per merchant (OD-012), bukan tabel IdempotencyRecord.
 export class CheckoutDto {
   @IsString()
   @IsNotEmpty()
-  idempotency_key!: string;
+  checkout_request_id!: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsUUID()
   outlet_id!: string;
 
   @IsArray()
@@ -52,7 +44,6 @@ export class CheckoutDto {
   @Type(() => CheckoutItemDto)
   items!: CheckoutItemDto[];
 
-  @ValidateNested()
-  @Type(() => PaymentRequestDto)
-  payment!: PaymentRequestDto;
+  @IsEnum(PaymentMethod)
+  payment_method!: PaymentMethod;
 }
