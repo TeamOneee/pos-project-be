@@ -1,5 +1,7 @@
-// [kontrak] StockReservationPort — dimiliki modul inventory, dipakai sales saat checkout.
-// Reservasi stok atomik dalam transaksi Prisma yang sama (conditional update quantity >= x, 05 §6.1).
+// [kontrak] StockReservationPort — dimiliki modul inventory, dipakai sales saat checkout (06 §5.4).
+// Dipanggil DI DALAM transaksi checkout (tx milik pemanggil); port tidak commit/rollback.
+// Tidak melempar untuk kekurangan stok — hasil dikembalikan via `ok: false` agar
+// orchestrator memutuskan rollback dan memetakan ke HTTP 409 INSUFFICIENT_STOCK.
 import { Prisma } from '@prisma/client';
 
 export interface ReserveForSaleLine {
@@ -7,24 +9,28 @@ export interface ReserveForSaleLine {
   quantity: number;
 }
 
-export interface StockReservationResult {
+export interface InsufficientStockItem {
   productId: string;
-  quantityBefore: number;
-  quantityAfter: number;
+  requested: number;
+  available: number;
+}
+
+export type StockReservationResult =
+  { ok: true } | { ok: false; insufficient: InsufficientStockItem[] };
+
+export interface StockReservationContext {
+  merchantId: string;
+  outletId: string;
+  /** Transaction yang sedang di-commit; ditulis ke stock_movement type=SALE. */
+  transactionId: string;
+  /** Pelaku checkout; wajib untuk stock_movement.actor_user_id (FR-INV-003). */
+  actorUserId: string;
+  tx: Prisma.TransactionClient;
+  lines: ReserveForSaleLine[];
 }
 
 export abstract class StockReservationPort {
-  /**
-   * Kurangi stok outlet secara atomik untuk setiap line dan tulis stock_movement type=SALE.
-   * Melempar InsufficientStockError bila salah satu line tidak terpenuhi (rollback penuh).
-   */
   abstract reserveForSale(
-    tx: Prisma.TransactionClient,
-    params: {
-      merchantId: string;
-      outletId: string;
-      actorUserId: string;
-      lines: ReserveForSaleLine[];
-    },
-  ): Promise<StockReservationResult[]>;
+    ctx: StockReservationContext,
+  ): Promise<StockReservationResult>;
 }

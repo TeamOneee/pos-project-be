@@ -1,89 +1,82 @@
-// Implementasi StockReservationPort — atomic conditional update (quantity >= x) dalam
-// transaksi checkout yang sama (05 §6.1, AT-004). Gagal pada salah satu line => rollback penuh.
+// Implementasi StockReservationPort — conditional atomic update (quantity >= x)
+// dalam transaksi checkout yang sama (05 §6.1, AT-004). Mengembalikan ok:false
+// bila ada line yang tidak terpenuhi, tidak melempar (06 §5.4).
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { InsufficientStockError } from '@app/platform';
+import { InventoryRepository } from '../infrastructure/inventory.repository';
+import { StockMovementRepository } from '../infrastructure/stock-movement.repository';
 import {
+  InsufficientStockItem,
+  StockReservationContext,
   StockReservationPort,
   StockReservationResult,
 } from './stock-reservation.port';
 
 @Injectable()
 export class StockReservationService implements StockReservationPort {
-  async reserveForSale(
-    tx: Prisma.TransactionClient,
-    params: {
-      merchantId: string;
-      outletId: string;
-      actorUserId: string;
-      lines: { productId: string; quantity: number }[];
-    },
-  ): Promise<StockReservationResult[]> {
-    const results: StockReservationResult[] = [];
+  constructor(
+    private readonly inventoryRepository: InventoryRepository,
+    private readonly stockMovementRepository: StockMovementRepository,
+  ) {}
 
-    for (const line of params.lines) {
-      const row = await tx.inventory.findUnique({
+  async reserveForSale(
+    ctx: StockReservationContext,
+  ): Promise<StockReservationResult> {
+    const insufficient: InsufficientStockItem[] = [];
+
+    for (const line of ctx.lines) {
+      const row = await ctx.tx.inventory.findUnique({
         where: {
           outletId_productId: {
-            outletId: params.outletId,
+            outletId: ctx.outletId,
             productId: line.productId,
           },
         },
       });
 
-      if (!row || row.merchantId !== params.merchantId) {
-        throw new InsufficientStockError([
-          {
-            field: 'items[].product_id',
-            reason: `stock=0, requested=${line.quantity}`,
-          },
-        ]);
-      }
-      if (row.quantity < line.quantity) {
-        throw new InsufficientStockError([
-          {
-            field: 'items[].product_id',
-            reason: `stock=${row.quantity}, requested=${line.quantity}`,
-          },
-        ]);
-      }
-
-      const res = await tx.inventory.updateMany({
-        where: { id: row.id, quantity: { gte: line.quantity } },
-        data: { quantity: { decrement: line.quantity } },
-      });
-      if (res.count === 0) {
-        throw new InsufficientStockError([
-          {
-            field: 'items[].product_id',
-            reason: `stock changed concurrently for ${line.productId}`,
-          },
-        ]);
-      }
-
-      const quantityAfter = row.quantity - line.quantity;
-      await tx.stockMovement.create({
-        data: {
-          merchantId: params.merchantId,
-          outletId: params.outletId,
+      if (
+        !row ||
+        row.merchantId !== ctx.merchantId ||
+        row.quantity < line.quantity
+      ) {
+        insufficient.push({
           productId: line.productId,
-          type: 'SALE',
-          delta: -line.quantity,
-          quantityBefore: row.quantity,
-          quantityAfter,
-          reason: null,
-          referenceId: null,
-          actorUserId: params.actorUserId,
-        },
-      });
+          requested: line.quantity,
+          available:
+            row && row.merchantId === ctx.merchantId ? row.quantity : 0,
+        });
+        continue;
+      }
 
-      results.push({
+      const updated = await this.inventoryRepository.updateQuantityConditional(
+        ctx.tx,
+        { inventoryId: row.id, delta: -line.quantity },
+      );
+      if (!updated) {
+        insufficient.push({
+          productId: line.productId,
+          requested: line.quantity,
+          available: row.quantity,
+        });
+        continue;
+      }
+
+      await this.stockMovementRepository.create(ctx.tx, {
+        merchantId: ctx.merchantId,
+        outletId: ctx.outletId,
         productId: line.productId,
-        quantityBefore: row.quantity,
-        quantityAfter,
+        type: 'SALE',
+        delta: -line.quantity,
+        quantityBefore: updated.quantityBefore,
+        quantityAfter: updated.quantityAfter,
+        reason: null,
+        transactionId: ctx.transactionId,
+        actorUserId: ctx.actorUserId,
       });
     }
 
-    return results;
+    if (insufficient.length > 0) {
+      return { ok: false, insufficient };
+    }
+    return { ok: true };
   }
 }
