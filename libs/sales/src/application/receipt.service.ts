@@ -1,51 +1,51 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { AuthenticatedUser, PrismaWriteService } from '@app/platform';
+import { ApiError, AuthUser, PrismaWriteService } from '@app/platform';
 import { CheckoutResultDto, ReceiptDto } from '../web/dto/checkout-result.dto';
-import { ForbiddenError, NotFoundError } from '@app/platform';
 
 type DbClient = Prisma.TransactionClient | PrismaWriteService;
 
+const TRANSACTION_DETAIL_INCLUDE = {
+  items: true,
+  operator: { select: { id: true, name: true, role: true } },
+  merchant: { select: { name: true } },
+  outlet: { select: { name: true, address: true } },
+} satisfies Prisma.TransactionInclude;
+
+// komposisi respons dari snapshot transaksi (bukan re-query katalog — 07 §5.2).
 @Injectable()
 export class ReceiptService {
-  /** Komposisi respons dari snapshot transaksi (bukan re-query katalog — 07 §5.2). */
+  constructor(private readonly prisma: PrismaWriteService) {}
+
   async compose(
     client: DbClient,
     transactionId: string,
-    actor: AuthenticatedUser,
+    actor: AuthUser,
     withBusinessInfo = false,
   ): Promise<CheckoutResultDto | ReceiptDto> {
-    const db = client as unknown as PrismaWriteService;
-
-    const tx = await db.transaction.findUnique({
+    const tx = await client.transaction.findUnique({
       where: { id: transactionId },
-      include: { lines: true, payment: true },
+      include: TRANSACTION_DETAIL_INCLUDE,
     });
 
     if (!tx || tx.merchantId !== actor.merchantId) {
-      throw new NotFoundError('Transaction not found.');
+      throw ApiError.notFound('Transaction tidak ditemukan.');
     }
-    if (actor.role === 'CASHIER' && tx.cashierUserId !== actor.userId) {
-      throw new ForbiddenError('You cannot access this transaction.');
+    if (actor.role === 'CASHIER' && tx.operatorUserId !== actor.userId) {
+      throw ApiError.forbidden('Anda tidak dapat mengakses transaksi ini.');
     }
 
-    const cashier = await db.user.findUnique({
-      where: { id: tx.cashierUserId },
-    });
-    const merchant = withBusinessInfo
-      ? await db.merchant.findUnique({ where: { id: tx.merchantId } })
-      : null;
-    const outlet = withBusinessInfo
-      ? await db.outlet.findUnique({ where: { id: tx.outletId } })
-      : null;
-
-    const result: CheckoutResultDto = {
+    const base: CheckoutResultDto = {
       transaction_id: tx.id,
-      receipt_number: tx.receiptNumber,
+      transaction_number: tx.transactionNumber,
       status: tx.status,
       outlet_id: tx.outletId,
-      cashier: cashier ? { user_id: cashier.id, name: cashier.fullName } : null,
-      items: tx.lines.map((l) => ({
+      operator: {
+        user_id: tx.operator.id,
+        role: tx.operator.role,
+        name: tx.operator.name,
+      },
+      items: tx.items.map((l) => ({
         product_id: l.productId,
         name: l.productNameSnapshot,
         unit_price: l.unitPriceSnapshot.toFixed(2),
@@ -54,29 +54,33 @@ export class ReceiptService {
       })),
       subtotal: tx.subtotal.toFixed(2),
       total: tx.total.toFixed(2),
-      payment: tx.payment
-        ? {
-            method: tx.payment.method,
-            amount: tx.payment.amount.toFixed(2),
-            status: tx.payment.status,
-          }
-        : null,
+      payment: {
+        method: tx.paymentMethod,
+        status: tx.paymentStatus,
+        paid_at: tx.paidAt.toISOString(),
+      },
       created_at: tx.createdAt.toISOString(),
     };
 
-    if (!withBusinessInfo) return result;
+    if (!withBusinessInfo) return base;
 
     return {
-      ...result,
-      merchant_name: merchant?.name ?? '',
-      outlet_name: outlet?.name ?? '',
-      outlet_address: outlet?.address ?? null,
+      ...base,
+      merchant_name: tx.merchant.name,
+      outlet_name: tx.outlet.name,
+      outlet_address: tx.outlet.address,
     };
   }
 
-  async getReceipt(actor: AuthenticatedUser, transactionId: string) {
-    return this.compose(this.prisma, transactionId, actor, true);
+  async getReceipt(
+    actor: AuthUser,
+    transactionId: string,
+  ): Promise<ReceiptDto> {
+    return this.compose(
+      this.prisma,
+      transactionId,
+      actor,
+      true,
+    ) as Promise<ReceiptDto>;
   }
-
-  constructor(private readonly prisma: PrismaWriteService) {}
 }
