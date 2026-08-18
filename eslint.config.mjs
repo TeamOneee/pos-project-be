@@ -49,6 +49,13 @@ export default tseslint.config(
     },
   },
   {
+    files: ['libs/platform/src/web/http-metrics.interceptor.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+    },
+  },
+  {
     files: ['libs/platform/src/web/success-response.interceptor.ts'],
     rules: {
       'sonarjs/function-return-type': 'off',

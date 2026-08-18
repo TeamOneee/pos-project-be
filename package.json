@@ -109,6 +109,8 @@
       "!**/*.spec.ts",
       "!**/*.module.ts",
       "!**/main.ts",
+      "!**/platform.metrics.ts",
+      "!**/http-metrics.interceptor.ts",
       "!**/dist/**",
       "!**/node_modules/**"
     ],

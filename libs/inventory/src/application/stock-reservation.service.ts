@@ -2,6 +2,7 @@
 // dalam transaksi checkout yang sama (05 §6.1, AT-004). Mengembalikan ok:false
 // bila ada line yang tidak terpenuhi, tidak melempar (06 §5.4).
 import { Injectable } from '@nestjs/common';
+import { posStockMovementsTotal } from '@app/platform/platform.metrics';
 import { InventoryRepository } from '../infrastructure/inventory.repository';
 import { StockMovementRepository } from '../infrastructure/stock-movement.repository';
 import {
@@ -83,6 +84,8 @@ export class StockReservationService implements StockReservationPort {
         actorUserId: ctx.actorUserId,
       })),
     );
+
+    posStockMovementsTotal.inc({ type: 'SALE' }, updated.length);
 
     return { ok: true };
   }

@@ -5,6 +5,7 @@ import {
   ErrorCode,
   PrismaWriteService,
 } from '@app/platform';
+import { posStockMovementsTotal } from '@app/platform/platform.metrics';
 import { ProductReadPort } from '@app/catalog';
 import { TenantAuthorizationService } from '@app/tenant';
 import { InventoryRepository } from '../infrastructure/inventory.repository';
@@ -102,6 +103,8 @@ export class StockAdjustmentService {
         reason: command.reason,
         actorUserId: actor.userId,
       });
+
+      posStockMovementsTotal.inc({ type: 'ADJUSTMENT' });
 
       return {
         movementId: movement.id,
