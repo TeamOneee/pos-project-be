@@ -2,12 +2,12 @@ import { ReportingDataset, ReportingDatasetRequest } from '../reporting.models';
 
 export abstract class ReportingReadPort {
   /**
-   * Menyediakan dataset agregasi bisnis terstruktur untuk konsumsi AI LLM.
+   * menyediakan dataset agregasi bisnis terstruktur untuk konsumsi ai llm.
    *
-   * Digunakan oleh:
-   * - Modul Insight AI untuk menghasilkan rekomendasi bisnis Owner.
+   * digunakan oleh:
+   * - modul insight ai untuk menghasilkan rekomendasi bisnis owner.
    *
-   * ReportingReadPort
+   * reportingreadport mencakup:
    * ├── agregasi total omzet, transaksi, dan AOV
    * ├── deret waktu tren penjualan & AOV kronologis
    * ├── ranking produk terlaris & kurang laku
