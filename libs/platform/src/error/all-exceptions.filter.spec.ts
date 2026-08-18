@@ -281,4 +281,170 @@ describe('AllExceptionsFilter', () => {
     filter.catch(error, host);
     expect(responseStatus).toHaveBeenCalledWith(503);
   });
+
+  it('HttpException object tanpa key message menghasilkan default', () => {
+    const error = new HttpException(
+      { statusCode: 400 },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.message).toBe('Terjadi kesalahan.');
+  });
+
+  it('HttpException object dengan message string menggunakannya', () => {
+    const error = new HttpException(
+      { message: 'custom msg' },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.message).toBe('custom msg');
+  });
+
+  it('500 error menghasilkan statusCode 500', () => {
+    const error = new Error('crash');
+    const cls = makeMockCls();
+    const { host, responseStatus } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    expect(responseStatus).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
+  });
+
+  it('ApiError tanpa details menghasilkan errors undefined', () => {
+    const error = ApiError.notFound('not found');
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.errors).toBeUndefined();
+  });
+
+  it('toError menangani item non-object', () => {
+    const error = new HttpException(
+      { message: ['simple string error'] },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.errors).toHaveLength(1);
+    expect(body.errors[0].message).toBe('"simple string error"');
+  });
+
+  it('toError menangani item object dengan property dan constraints', () => {
+    const error = new HttpException(
+      {
+        message: [
+          { property: 'email', constraints: { isEmail: 'email tidak valid' } },
+        ],
+      },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.errors).toHaveLength(1);
+    expect(body.errors[0]).toEqual({
+      field: 'email',
+      message: '"email tidak valid"',
+    });
+  });
+
+  it('toError menangani object tanpa property', () => {
+    const error = new HttpException(
+      { message: [{ constraints: { isString: 'must be string' } }] },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.errors[0]).toEqual({
+      message: '"must be string"',
+    });
+  });
+
+  it('toError menangani object tanpa constraints', () => {
+    const error = new HttpException(
+      { message: [{ property: 'name' }] },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.errors[0]).toEqual({
+      field: 'name',
+      message: 'Nilai tidak valid.',
+    });
+  });
+
+  it('errorsFromResponse membatasi 10 error', () => {
+    const messages = Array.from({ length: 15 }, (_, i) => `err-${i}`);
+    const error = new HttpException(
+      { message: messages },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.errors).toHaveLength(10);
+  });
+
+  it('errorsFromResponse mengembalikan undefined jika message bukan array', () => {
+    const error = new HttpException(
+      { message: 'single string' },
+      HttpStatus.BAD_REQUEST,
+    );
+    const cls = makeMockCls();
+    const { host, responseJson } = makeMockHost();
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+    const body = responseJson.mock.calls[0][0] as ErrorBody;
+    expect(body.errors).toBeUndefined();
+  });
+
+  it('correlation-id header kosong dianggap tidak ada', () => {
+    const error = ApiError.notFound();
+    const cls = makeMockCls();
+    const { host, responseSetHeader } = makeMockHost({
+      correlationIdHeader: '',
+    });
+    const filter = new AllExceptionsFilter(cls);
+
+    filter.catch(error, host);
+
+    const call = responseSetHeader.mock.calls.find(
+      (c: unknown[]) => c[0] === 'X-Correlation-Id',
+    );
+    expect(call![1]).toMatch(/^c-[a-f0-9]{8}$/);
+  });
 });
