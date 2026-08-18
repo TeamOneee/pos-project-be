@@ -35,7 +35,7 @@ describe('MetricsAuthGuard', () => {
     delete process.env.METRICS_AUTH_USER;
     delete process.env.METRICS_AUTH_PASSWORD;
     const guard = new MetricsAuthGuard();
-    expect(guard.canActivate(makeContext('/api/v1/metrics'))).toBe(true);
+    expect(guard.canActivate(makeContext('/metrics'))).toBe(true);
   });
 
   it('route /metrics lolos dengan credential benar', () => {
@@ -43,9 +43,9 @@ describe('MetricsAuthGuard', () => {
     process.env.METRICS_AUTH_PASSWORD = 'secret';
     const encoded = Buffer.from('monitor:secret').toString('base64');
     const guard = new MetricsAuthGuard();
-    expect(
-      guard.canActivate(makeContext('/api/v1/metrics', `Basic ${encoded}`)),
-    ).toBe(true);
+    expect(guard.canActivate(makeContext('/metrics', `Basic ${encoded}`))).toBe(
+      true,
+    );
   });
 
   it('route /metrics tolak jika credential salah', () => {
@@ -54,7 +54,7 @@ describe('MetricsAuthGuard', () => {
     const encoded = Buffer.from('monitor:wrong').toString('base64');
     const guard = new MetricsAuthGuard();
     expect(() =>
-      guard.canActivate(makeContext('/api/v1/metrics', `Basic ${encoded}`)),
+      guard.canActivate(makeContext('/metrics', `Basic ${encoded}`)),
     ).toThrow(UnauthorizedException);
   });
 
@@ -62,7 +62,7 @@ describe('MetricsAuthGuard', () => {
     process.env.METRICS_AUTH_USER = 'monitor';
     process.env.METRICS_AUTH_PASSWORD = 'secret';
     const guard = new MetricsAuthGuard();
-    expect(() => guard.canActivate(makeContext('/api/v1/metrics'))).toThrow(
+    expect(() => guard.canActivate(makeContext('/metrics'))).toThrow(
       UnauthorizedException,
     );
   });
@@ -72,7 +72,7 @@ describe('MetricsAuthGuard', () => {
     process.env.METRICS_AUTH_PASSWORD = 'secret';
     const guard = new MetricsAuthGuard();
     expect(() =>
-      guard.canActivate(makeContext('/api/v1/metrics', 'Bearer some-token')),
+      guard.canActivate(makeContext('/metrics', 'Bearer some-token')),
     ).toThrow(UnauthorizedException);
   });
 });
