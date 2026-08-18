@@ -3,7 +3,10 @@ import { Reflector } from '@nestjs/core';
 import { lastValueFrom, of } from 'rxjs';
 import { SuccessResponseInterceptor } from './success-response.interceptor';
 
-function makeContext(statusCode: number, path = '/api/v1/products'): ExecutionContext {
+function makeContext(
+  statusCode: number,
+  path = '/api/v1/products',
+): ExecutionContext {
   return {
     getType: () => 'http',
     getHandler: () => undefined,
