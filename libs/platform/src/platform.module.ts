@@ -32,10 +32,7 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
         },
       ],
     }),
-    PrometheusModule.register({
-      path: '/metrics',
-      defaultMetrics: { enabled: false },
-    }),
+    PrometheusModule.register({ path: '/metrics' }),
   ],
   controllers: [HealthController],
   providers: [
