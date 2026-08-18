@@ -12,6 +12,13 @@ const TRANSACTION_DETAIL_INCLUDE = {
   outlet: { select: { name: true, address: true } },
 } satisfies Prisma.TransactionInclude;
 
+// untuk respons checkout (withBusinessInfo=false) merchant/outlet tidak dipakai —
+// include leaner untuk mengurangi query re-read setelah transaksi commit.
+const CHECKOUT_INCLUDE = {
+  items: true,
+  operator: { select: { id: true, name: true, role: true } },
+} satisfies Prisma.TransactionInclude;
+
 // komposisi respons dari snapshot transaksi (bukan re-query katalog — 07 §5.2).
 @Injectable()
 export class ReceiptService {
@@ -23,10 +30,14 @@ export class ReceiptService {
     actor: AuthUser,
     withBusinessInfo = false,
   ): Promise<CheckoutResultDto | ReceiptDto> {
-    const tx = await client.transaction.findUnique({
+    const tx = (await client.transaction.findUnique({
       where: { id: transactionId },
-      include: TRANSACTION_DETAIL_INCLUDE,
-    });
+      include: withBusinessInfo ? TRANSACTION_DETAIL_INCLUDE : CHECKOUT_INCLUDE,
+      // merchant/outlet hanya diakses saat withBusinessInfo=true; kolom mentah
+      // selalu tersedia dari baris transaction, sehingga cast aman.
+    })) as Prisma.TransactionGetPayload<{
+      include: typeof TRANSACTION_DETAIL_INCLUDE;
+    }> | null;
 
     if (!tx || tx.merchantId !== actor.merchantId) {
       throw ApiError.notFound('Transaction tidak ditemukan.');

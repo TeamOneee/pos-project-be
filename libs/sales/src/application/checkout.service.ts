@@ -200,7 +200,7 @@ export class CheckoutService {
     const MAX_ATTEMPTS = 5;
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       try {
-        return await this.prisma.$transaction(
+        const { id } = await this.prisma.$transaction(
           async (tx) => {
             const created = await this.createOrReplay(
               tx,
@@ -213,7 +213,7 @@ export class CheckoutService {
               lines,
             );
             if (created.__replayed) {
-              return this.receiptService.compose(tx, created.id, actor);
+              return { id: created.id };
             }
 
             const reservation = await this.stockReservationPort.reserveForSale({
@@ -238,8 +238,7 @@ export class CheckoutService {
               );
             }
 
-            // commit -> return receipt tersimpan (tanpa outbox/event, FR-CHK-014/015)
-            return this.receiptService.compose(tx, created.id, actor);
+            return { id: created.id };
           },
           {
             // remote Neon ~0.5-1s/query; transaksi checkout hanya berisi write pendek,
@@ -249,6 +248,10 @@ export class CheckoutService {
             isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
           },
         );
+
+        // transaksi sudah commit -> compose receipt di LUAR transaksi (read via pool).
+        // Koneksi transaksi dilepas sesegera mungkin; hanya id yang dibawa keluar.
+        return this.receiptService.compose(this.prisma, id, actor);
       } catch (err) {
         // P2034 (write conflict/deadlock) atau 40P01 dari raw query ($queryRaw tidak
         // selalu dipetakan Prisma ke kode P2034) -> percobaan ulang aman karena

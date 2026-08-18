@@ -53,8 +53,10 @@ export class TransactionRepository {
     return `INV-${year}-${String(seq).padStart(6, '0')}`;
   }
 
-  createTransaction(tx: Db, data: CreateTransactionData) {
-    return tx.transaction.create({
+  async createTransaction(tx: Db, data: CreateTransactionData) {
+    // batch insert items via createMany (1 multi-row INSERT) alih-alih nested
+    // create (1 query/item) agar transaksi checkout sesingkat mungkin.
+    const transaction = await tx.transaction.create({
       data: {
         id: data.id,
         merchantId: data.merchantId,
@@ -69,9 +71,19 @@ export class TransactionRepository {
         paidAt: data.paidAt,
         subtotal: data.subtotal,
         total: data.total,
-        items: { create: data.items },
       },
     });
+    await tx.transactionItem.createMany({
+      data: data.items.map((i) => ({
+        transactionId: transaction.id,
+        productId: i.productId,
+        productNameSnapshot: i.productNameSnapshot,
+        unitPriceSnapshot: i.unitPriceSnapshot,
+        quantity: i.quantity,
+        subtotal: i.subtotal,
+      })),
+    });
+    return transaction;
   }
 
   findTransactionByNumber(merchantId: string, transactionNumber: string) {
