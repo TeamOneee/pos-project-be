@@ -3,17 +3,16 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { PlatformModule } from '@app/platform';
-import { ReportingModule } from '@app/reporting';
-import { InsightModule } from '@app/insight';
+import { InsightWorkerModule } from '@app/insight';
 
+// deployable tanpa http server yang hanya menjalankan consumer job background.
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     LoggerModule.forRoot(),
     ScheduleModule.forRoot(),
     PlatformModule,
-    ReportingModule,
-    InsightModule,
+    InsightWorkerModule,
   ],
 })
 export class WorkerModule {}
