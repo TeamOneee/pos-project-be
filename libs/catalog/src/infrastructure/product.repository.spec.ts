@@ -4,7 +4,13 @@ import { ProductRepository, ProductListFilter } from './product.repository';
 
 function makeMockPrisma() {
   return {
-    product: { create: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), update: jest.fn() },
+    product: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      update: jest.fn(),
+    },
   } as unknown as PrismaWriteService;
 }
 
@@ -20,8 +26,17 @@ describe('ProductRepository', () => {
 
   describe('create', () => {
     it('membuat produk baru dengan include category', async () => {
-      const data = { merchantId: 'mch-001', name: 'Kopi Susu', categoryId: 'cat-001', basePrice: '25000' };
-      const created = { id: 'p-001', ...data, category: { id: 'cat-001', name: 'Minuman' } };
+      const data = {
+        merchantId: 'mch-001',
+        name: 'Kopi Susu',
+        categoryId: 'cat-001',
+        basePrice: '25000',
+      };
+      const created = {
+        id: 'p-001',
+        ...data,
+        category: { id: 'cat-001', name: 'Minuman' },
+      };
       (mockPrisma.product.create as jest.Mock).mockResolvedValue(created);
 
       const result = await repo.create(data as never);
@@ -36,7 +51,11 @@ describe('ProductRepository', () => {
 
   describe('findByIdInMerchant', () => {
     it('mengembalikan produk dengan category jika milik merchant', async () => {
-      const product = { id: 'p-001', merchantId: 'mch-001', category: { id: 'cat-001' } };
+      const product = {
+        id: 'p-001',
+        merchantId: 'mch-001',
+        category: { id: 'cat-001' },
+      };
       (mockPrisma.product.findFirst as jest.Mock).mockResolvedValue(product);
 
       const result = await repo.findByIdInMerchant('p-001', 'mch-001');
@@ -59,7 +78,10 @@ describe('ProductRepository', () => {
     it('mengembalikan produk berdasarkan array id', async () => {
       (mockPrisma.product.findMany as jest.Mock).mockResolvedValue([]);
 
-      const result = await repo.findByIdsInMerchant(['p-001', 'p-002'], 'mch-001');
+      const result = await repo.findByIdsInMerchant(
+        ['p-001', 'p-002'],
+        'mch-001',
+      );
 
       expect(mockPrisma.product.findMany).toHaveBeenCalledWith({
         where: { id: { in: ['p-001', 'p-002'] }, merchantId: 'mch-001' },
@@ -77,7 +99,11 @@ describe('ProductRepository', () => {
 
   describe('find', () => {
     it('mengembalikan daftar produk dengan filter search dan categoryId', async () => {
-      const filter: ProductListFilter = { search: 'kopi', categoryId: 'cat-001', isActive: true };
+      const filter: ProductListFilter = {
+        search: 'kopi',
+        categoryId: 'cat-001',
+        isActive: true,
+      };
       (mockPrisma.product.findMany as jest.Mock).mockResolvedValue([]);
 
       const result = await repo.find('mch-001', filter, 0, 10);
@@ -128,10 +154,14 @@ describe('ProductRepository', () => {
   describe('update', () => {
     it('mengupdate produk berdasarkan id dengan include category', async () => {
       const data = { name: 'Kopi Susu V2' };
-      const updated = { id: 'p-001', name: 'Kopi Susu V2', category: { id: 'cat-001' } };
+      const updated = {
+        id: 'p-001',
+        name: 'Kopi Susu V2',
+        category: { id: 'cat-001' },
+      };
       (mockPrisma.product.update as jest.Mock).mockResolvedValue(updated);
 
-      const result = await repo.update('p-001', data as never);
+      const result = await repo.update('p-001', data);
 
       expect(mockPrisma.product.update).toHaveBeenCalledWith({
         where: { id: 'p-001' },

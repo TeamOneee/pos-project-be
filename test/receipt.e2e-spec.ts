@@ -30,7 +30,9 @@ describe('E2E — Receipt (AT-013)', () => {
         {
           provide: APP_GUARD,
           useValue: {
-            canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+            canActivate: (ctx: {
+              switchToHttp: () => { getRequest: () => { user: unknown } };
+            }) => {
               ctx.switchToHttp().getRequest().user = cashierUser;
               return true;
             },
@@ -41,9 +43,15 @@ describe('E2E — Receipt (AT-013)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -64,7 +72,14 @@ describe('E2E — Receipt (AT-013)', () => {
         taxableAmount: '25000',
         taxTotal: '2750',
         grandTotal: '27500',
-        items: [{ name: 'Kopi Susu', quantity: 1, unitPrice: '25000', lineTotal: '25000' }],
+        items: [
+          {
+            name: 'Kopi Susu',
+            quantity: 1,
+            unitPrice: '25000',
+            lineTotal: '25000',
+          },
+        ],
         createdAt: new Date('2026-08-17T10:00:00Z'),
       });
 

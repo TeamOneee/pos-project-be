@@ -20,10 +20,17 @@ import { PageResponseDto } from '@app/platform/web/page-response.dto';
 import { ApiError } from '@app/platform/error/api-error';
 
 const mockMerchantService = { getProfile: jest.fn(), updateProfile: jest.fn() };
-const mockOutletService = { create: jest.fn(), list: jest.fn(), update: jest.fn() };
+const mockOutletService = {
+  create: jest.fn(),
+  list: jest.fn(),
+  update: jest.fn(),
+};
 const mockInventoryQueryService = { list: jest.fn() };
 const mockStockAdjustmentService = { adjust: jest.fn() };
-const mockLowStockThresholdService = { setThreshold: jest.fn(), deleteThreshold: jest.fn() };
+const mockLowStockThresholdService = {
+  setThreshold: jest.fn(),
+  deleteThreshold: jest.fn(),
+};
 const mockStockMovementQueryService = { list: jest.fn() };
 
 const ownerUser = {
@@ -44,7 +51,9 @@ function makeGuard(user: typeof ownerUser) {
   return {
     provide: APP_GUARD,
     useValue: {
-      canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+      canActivate: (ctx: {
+        switchToHttp: () => { getRequest: () => { user: unknown } };
+      }) => {
         ctx.switchToHttp().getRequest().user = user;
         return true;
       },
@@ -62,18 +71,33 @@ describe('E2E — Security & Tenant Isolation (AT-002, AT-014, AT-020, AT-030)',
         { provide: MerchantService, useValue: mockMerchantService },
         { provide: OutletService, useValue: mockOutletService },
         { provide: InventoryQueryService, useValue: mockInventoryQueryService },
-        { provide: StockAdjustmentService, useValue: mockStockAdjustmentService },
-        { provide: LowStockThresholdService, useValue: mockLowStockThresholdService },
-        { provide: StockMovementQueryService, useValue: mockStockMovementQueryService },
+        {
+          provide: StockAdjustmentService,
+          useValue: mockStockAdjustmentService,
+        },
+        {
+          provide: LowStockThresholdService,
+          useValue: mockLowStockThresholdService,
+        },
+        {
+          provide: StockMovementQueryService,
+          useValue: mockStockMovementQueryService,
+        },
         makeGuard(ownerUser),
       ],
     }).compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -104,9 +128,7 @@ describe('E2E — Security & Tenant Isolation (AT-002, AT-014, AT-020, AT-030)',
         ApiError.unauthenticated('Akun tidak aktif'),
       );
 
-      await request(app.getHttpServer())
-        .get('/api/v1/merchant')
-        .expect(401);
+      await request(app.getHttpServer()).get('/api/v1/merchant').expect(401);
     });
   });
 
@@ -119,19 +141,39 @@ describe('E2E — Security & Tenant Isolation (AT-002, AT-014, AT-020, AT-030)',
       const moduleAdmin = await Test.createTestingModule({
         controllers: [InventoryController],
         providers: [
-          { provide: InventoryQueryService, useValue: mockInventoryQueryService },
-          { provide: StockAdjustmentService, useValue: mockStockAdjustmentService },
-          { provide: LowStockThresholdService, useValue: mockLowStockThresholdService },
-          { provide: StockMovementQueryService, useValue: mockStockMovementQueryService },
+          {
+            provide: InventoryQueryService,
+            useValue: mockInventoryQueryService,
+          },
+          {
+            provide: StockAdjustmentService,
+            useValue: mockStockAdjustmentService,
+          },
+          {
+            provide: LowStockThresholdService,
+            useValue: mockLowStockThresholdService,
+          },
+          {
+            provide: StockMovementQueryService,
+            useValue: mockStockMovementQueryService,
+          },
           makeGuard(adminUser),
         ],
       }).compile();
 
       const adminApp = moduleAdmin.createNestApplication();
       adminApp.setGlobalPrefix('api/v1');
-      adminApp.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-      adminApp.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-      adminApp.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+      adminApp.useGlobalPipes(
+        new ValidationPipe({ whitelist: true, transform: true }),
+      );
+      adminApp.useGlobalInterceptors(
+        new SuccessResponseInterceptor(new Reflector()),
+      );
+      adminApp.useGlobalFilters(
+        new AllExceptionsFilter({
+          get: jest.fn().mockReturnValue('test-corr-id'),
+        } as never),
+      );
       await adminApp.init();
 
       const res = await request(adminApp.getHttpServer())
@@ -156,7 +198,10 @@ describe('E2E — Security & Tenant Isolation (AT-002, AT-014, AT-020, AT-030)',
         .send({ name: 'Outlet Baru', address: 'Jl. Test' })
         .expect(201);
 
-      expect(res.body.data).toMatchObject({ name: 'Outlet Baru', status: 'ACTIVE' });
+      expect(res.body.data).toMatchObject({
+        name: 'Outlet Baru',
+        status: 'ACTIVE',
+      });
     });
 
     it('Owner dapat melihat daftar outlet', async () => {
@@ -164,9 +209,7 @@ describe('E2E — Security & Tenant Isolation (AT-002, AT-014, AT-020, AT-030)',
         PageResponseDto.from([], 1, 10, 0),
       );
 
-      await request(app.getHttpServer())
-        .get('/api/v1/outlets')
-        .expect(200);
+      await request(app.getHttpServer()).get('/api/v1/outlets').expect(200);
     });
 
     it('Owner dapat mengupdate profil merchant', async () => {

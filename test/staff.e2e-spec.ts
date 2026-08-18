@@ -10,7 +10,11 @@ import { AllExceptionsFilter } from '@app/platform/error/all-exceptions.filter';
 import { SuccessResponseInterceptor } from '@app/platform/web/success-response.interceptor';
 import { PageResponseDto } from '@app/platform/web/page-response.dto';
 
-const mockStaffService = { list: jest.fn(), create: jest.fn(), update: jest.fn() };
+const mockStaffService = {
+  list: jest.fn(),
+  create: jest.fn(),
+  update: jest.fn(),
+};
 
 const ownerUser = {
   userId: 'owner-1',
@@ -30,7 +34,9 @@ describe('E2E — Staff Management (AT-016)', () => {
         {
           provide: APP_GUARD,
           useValue: {
-            canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+            canActivate: (ctx: {
+              switchToHttp: () => { getRequest: () => { user: unknown } };
+            }) => {
               ctx.switchToHttp().getRequest().user = ownerUser;
               return true;
             },
@@ -41,9 +47,15 @@ describe('E2E — Staff Management (AT-016)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -65,7 +77,9 @@ describe('E2E — Staff Management (AT-016)', () => {
               createdAt: new Date(),
             },
           ],
-          1, 10, 1,
+          1,
+          10,
+          1,
         ),
       );
 

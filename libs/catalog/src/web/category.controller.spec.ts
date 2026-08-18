@@ -24,16 +24,22 @@ describe('CategoryController', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockService = makeMockCategoryService();
-    controller = new CategoryController(mockService as unknown as CategoryService);
+    controller = new CategoryController(
+      mockService as unknown as CategoryService,
+    );
   });
 
   describe('POST /categories', () => {
     it('mendelegasikan ke CategoryService.create', async () => {
       mockService.create.mockResolvedValue({ id: 'cat-001', name: 'Minuman' });
 
-      const result = await controller.create(makeActor(), { name: 'Minuman' } as never);
+      const result = await controller.create(makeActor(), {
+        name: 'Minuman',
+      });
 
-      expect(mockService.create).toHaveBeenCalledWith(makeActor(), { name: 'Minuman' });
+      expect(mockService.create).toHaveBeenCalledWith(makeActor(), {
+        name: 'Minuman',
+      });
       expect(result).toMatchObject({ id: 'cat-001', name: 'Minuman' });
     });
   });
@@ -47,9 +53,17 @@ describe('CategoryController', () => {
         total_elements: 0,
       });
 
-      const result = await controller.list(makeActor(), { is_active: 'true' } as never, { page: 1, size: 10, skip: 0, take: 10 } as never);
+      const result = await controller.list(
+        makeActor(),
+        { is_active: 'true' } as never,
+        { page: 1, size: 10, skip: 0, take: 10 },
+      );
 
-      expect(mockService.list).toHaveBeenCalledWith(makeActor(), { isActive: 'true' }, expect.anything());
+      expect(mockService.list).toHaveBeenCalledWith(
+        makeActor(),
+        { isActive: 'true' },
+        expect.anything(),
+      );
       expect(result).toMatchObject({ total_elements: 0 });
     });
   });

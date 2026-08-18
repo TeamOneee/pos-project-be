@@ -22,7 +22,9 @@ describe('TenantReportingRepository', () => {
   describe('findActiveMerchant', () => {
     it('mengembalikan merchant berstatus ACTIVE', async () => {
       const merchant = { id: 'mch-001', status: 'ACTIVE', name: 'Warung Budi' };
-      (mockPrismaRead.merchant.findFirst as jest.Mock).mockResolvedValue(merchant);
+      (mockPrismaRead.merchant.findFirst as jest.Mock).mockResolvedValue(
+        merchant,
+      );
 
       const result = await repo.findActiveMerchant('mch-001');
 
@@ -42,7 +44,10 @@ describe('TenantReportingRepository', () => {
 
   describe('findOutlets', () => {
     it('mengembalikan semua outlet merchant (tanpa filter status)', async () => {
-      const outlets = [{ id: 'out-001', name: 'Outlet A' }, { id: 'out-002', name: 'Outlet B' }];
+      const outlets = [
+        { id: 'out-001', name: 'Outlet A' },
+        { id: 'out-002', name: 'Outlet B' },
+      ];
       (mockPrismaRead.outlet.findMany as jest.Mock).mockResolvedValue(outlets);
 
       const result = await repo.findOutlets('mch-001');

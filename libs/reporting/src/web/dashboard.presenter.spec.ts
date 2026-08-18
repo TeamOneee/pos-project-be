@@ -49,8 +49,16 @@ describe('DashboardPresenter', () => {
         bucket: 'DAY',
         meta: makeMeta(),
         points: [
-          { bucketStart: new Date('2026-08-01T00:00:00Z'), omzet: '500000', transactionCount: 25 },
-          { bucketStart: new Date('2026-08-02T00:00:00Z'), omzet: '500000', transactionCount: 25 },
+          {
+            bucketStart: new Date('2026-08-01T00:00:00Z'),
+            omzet: '500000',
+            transactionCount: 25,
+          },
+          {
+            bucketStart: new Date('2026-08-02T00:00:00Z'),
+            omzet: '500000',
+            transactionCount: 25,
+          },
         ],
       });
 
@@ -72,7 +80,10 @@ describe('DashboardPresenter', () => {
         bucket: 'HOUR',
         meta: makeMeta(),
         points: [
-          { bucketStart: new Date('2026-08-01T08:00:00Z'), averageTransactionValue: '22000' },
+          {
+            bucketStart: new Date('2026-08-01T08:00:00Z'),
+            averageTransactionValue: '22000',
+          },
         ],
       });
 
@@ -107,10 +118,20 @@ describe('DashboardPresenter', () => {
       const result = toTopProductsDto({
         meta: makeMeta(),
         topSelling: [
-          { productId: 'p-001', name: 'Kopi Susu', unitsSold: 100, omzet: '2500000' },
+          {
+            productId: 'p-001',
+            name: 'Kopi Susu',
+            unitsSold: 100,
+            omzet: '2500000',
+          },
         ],
         leastSelling: [
-          { productId: 'p-002', name: 'Teh Pahit', unitsSold: 2, omzet: '20000' },
+          {
+            productId: 'p-002',
+            name: 'Teh Pahit',
+            unitsSold: 2,
+            omzet: '20000',
+          },
         ],
       });
 
@@ -136,7 +157,12 @@ describe('DashboardPresenter', () => {
       const result = toOutletComparisonDto({
         meta: makeMeta(),
         items: [
-          { outletId: 'out-001', outletName: 'Outlet Margonda', omzet: '800000', transactionCount: 40 },
+          {
+            outletId: 'out-001',
+            outletName: 'Outlet Margonda',
+            omzet: '800000',
+            transactionCount: 40,
+          },
         ],
       });
 
@@ -185,8 +211,13 @@ describe('DashboardPresenter', () => {
       const result = toLowStockResultDto({
         items: [
           {
-            productId: 'p-001', name: 'Kopi', outletId: 'out-001', outletName: 'Outlet A',
-            quantity: 2, baseLowStockThreshold: 5, lowStockThresholdOverride: null,
+            productId: 'p-001',
+            name: 'Kopi',
+            outletId: 'out-001',
+            outletName: 'Outlet A',
+            quantity: 2,
+            baseLowStockThreshold: 5,
+            lowStockThresholdOverride: null,
             effectiveLowStockThreshold: 5,
           },
         ],

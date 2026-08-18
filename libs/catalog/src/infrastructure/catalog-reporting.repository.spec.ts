@@ -21,13 +21,22 @@ describe('CatalogReportingRepository', () => {
 
   describe('findSellableProducts', () => {
     it('mengembalikan produk aktif dengan kategori aktif milik merchant', async () => {
-      const products = [{ id: 'p-1', name: 'Kopi Susu' }, { id: 'p-2', name: 'Teh Manis' }];
-      (mockPrismaRead.product.findMany as jest.Mock).mockResolvedValue(products);
+      const products = [
+        { id: 'p-1', name: 'Kopi Susu' },
+        { id: 'p-2', name: 'Teh Manis' },
+      ];
+      (mockPrismaRead.product.findMany as jest.Mock).mockResolvedValue(
+        products,
+      );
 
       const result = await repo.findSellableProducts('mch-001');
 
       expect(mockPrismaRead.product.findMany).toHaveBeenCalledWith({
-        where: { merchantId: 'mch-001', isActive: true, category: { isActive: true } },
+        where: {
+          merchantId: 'mch-001',
+          isActive: true,
+          category: { isActive: true },
+        },
         select: { id: true, name: true },
         orderBy: { id: 'asc' },
       });
@@ -45,7 +54,7 @@ describe('CatalogReportingRepository', () => {
   describe('findCatalogSummary', () => {
     it('menghitung activeProductCount, inactiveProductCount, inactiveCategoryCount', async () => {
       (mockPrismaRead.product.count as jest.Mock)
-        .mockResolvedValueOnce(5)  // active
+        .mockResolvedValueOnce(5) // active
         .mockResolvedValueOnce(2); // inactive
       (mockPrismaRead.category.count as jest.Mock).mockResolvedValue(1);
 

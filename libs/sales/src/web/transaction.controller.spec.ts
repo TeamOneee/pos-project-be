@@ -4,7 +4,11 @@ import { TransactionQueryService } from '../application/transaction-query.servic
 import { TransactionController } from './transaction.controller';
 
 function makeMockTransactionQueryService() {
-  return { list: jest.fn(), searchByTransactionNumber: jest.fn(), detail: jest.fn() };
+  return {
+    list: jest.fn(),
+    searchByTransactionNumber: jest.fn(),
+    detail: jest.fn(),
+  };
 }
 
 function makeActor(overrides?: Partial<AuthUser>): AuthUser {
@@ -46,11 +50,16 @@ describe('TransactionController', () => {
     it('mendelegasikan ke searchByTransactionNumber dengan actor dan transaction_number', async () => {
       const actor = makeActor();
       const query = { transaction_number: 'INV-2026-000001' };
-      mockQueryService.searchByTransactionNumber.mockResolvedValue({ id: 'txn-001' });
+      mockQueryService.searchByTransactionNumber.mockResolvedValue({
+        id: 'txn-001',
+      });
 
-      const result = await controller.search(actor, query as never);
+      const result = await controller.search(actor, query);
 
-      expect(mockQueryService.searchByTransactionNumber).toHaveBeenCalledWith(actor, 'INV-2026-000001');
+      expect(mockQueryService.searchByTransactionNumber).toHaveBeenCalledWith(
+        actor,
+        'INV-2026-000001',
+      );
       expect(result).toEqual({ id: 'txn-001' });
     });
   });

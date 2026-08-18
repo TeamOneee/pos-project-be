@@ -22,9 +22,7 @@ describe('E2E — Auth (AT-001, AT-022, AT-023)', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: mockAuthService },
-      ],
+      providers: [{ provide: AuthService, useValue: mockAuthService }],
     })
       .overrideGuard(LoginThrottlerGuard)
       .useValue({ canActivate: () => true })
@@ -32,9 +30,15 @@ describe('E2E — Auth (AT-001, AT-022, AT-023)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -74,7 +78,10 @@ describe('E2E — Auth (AT-001, AT-022, AT-023)', () => {
 
     it('AT-001: email duplikat mengembalikan 409 EMAIL_ALREADY_REGISTERED', async () => {
       mockAuthService.register.mockRejectedValue(
-        ApiError.conflict(ErrorCode.EMAIL_ALREADY_REGISTERED, 'Email sudah terdaftar'),
+        ApiError.conflict(
+          ErrorCode.EMAIL_ALREADY_REGISTERED,
+          'Email sudah terdaftar',
+        ),
       );
 
       const res = await request(app.getHttpServer())
@@ -92,10 +99,11 @@ describe('E2E — Auth (AT-001, AT-022, AT-023)', () => {
     });
 
     it('body kosong mengembalikan 400 validation error', async () => {
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post('/api/v1/auth/register')
         .send({})
         .expect(400);
+      expect(res.body.success).toBe(false);
     });
   });
 
@@ -127,10 +135,11 @@ describe('E2E — Auth (AT-001, AT-022, AT-023)', () => {
         ApiError.unauthenticated('Akun tidak aktif atau kredensial salah'),
       );
 
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
         .send({ email: 'budi@test.com', password: 'salah' })
         .expect(401);
+      expect(res.body.success).toBe(false);
     });
   });
 });

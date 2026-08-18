@@ -15,7 +15,10 @@ import { PageResponseDto } from '@app/platform/web/page-response.dto';
 
 const mockInventoryQueryService = { list: jest.fn() };
 const mockStockAdjustmentService = { adjust: jest.fn() };
-const mockLowStockThresholdService = { setThreshold: jest.fn(), deleteThreshold: jest.fn() };
+const mockLowStockThresholdService = {
+  setThreshold: jest.fn(),
+  deleteThreshold: jest.fn(),
+};
 const mockStockMovementQueryService = { list: jest.fn() };
 
 const ownerUser = {
@@ -36,13 +39,24 @@ describe('E2E — Inventory Threshold (AT-019)', () => {
       controllers: [InventoryController],
       providers: [
         { provide: InventoryQueryService, useValue: mockInventoryQueryService },
-        { provide: StockAdjustmentService, useValue: mockStockAdjustmentService },
-        { provide: LowStockThresholdService, useValue: mockLowStockThresholdService },
-        { provide: StockMovementQueryService, useValue: mockStockMovementQueryService },
+        {
+          provide: StockAdjustmentService,
+          useValue: mockStockAdjustmentService,
+        },
+        {
+          provide: LowStockThresholdService,
+          useValue: mockLowStockThresholdService,
+        },
+        {
+          provide: StockMovementQueryService,
+          useValue: mockStockMovementQueryService,
+        },
         {
           provide: APP_GUARD,
           useValue: {
-            canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+            canActivate: (ctx: {
+              switchToHttp: () => { getRequest: () => { user: unknown } };
+            }) => {
               ctx.switchToHttp().getRequest().user = ownerUser;
               return true;
             },
@@ -53,9 +67,15 @@ describe('E2E — Inventory Threshold (AT-019)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -74,7 +94,9 @@ describe('E2E — Inventory Threshold (AT-019)', () => {
       });
 
       const res = await request(app.getHttpServer())
-        .put(`/api/v1/inventory/${VALID_PRODUCT_UUID}/outlets/${VALID_OUTLET_UUID}/low-stock-threshold`)
+        .put(
+          `/api/v1/inventory/${VALID_PRODUCT_UUID}/outlets/${VALID_OUTLET_UUID}/low-stock-threshold`,
+        )
         .send({ threshold: 2 })
         .expect(200);
 
@@ -97,7 +119,9 @@ describe('E2E — Inventory Threshold (AT-019)', () => {
       mockLowStockThresholdService.deleteThreshold.mockResolvedValue(undefined);
 
       await request(app.getHttpServer())
-        .delete(`/api/v1/inventory/${VALID_PRODUCT_UUID}/outlets/${VALID_OUTLET_UUID}/low-stock-threshold`)
+        .delete(
+          `/api/v1/inventory/${VALID_PRODUCT_UUID}/outlets/${VALID_OUTLET_UUID}/low-stock-threshold`,
+        )
         .expect(204);
 
       expect(mockLowStockThresholdService.deleteThreshold).toHaveBeenCalledWith(

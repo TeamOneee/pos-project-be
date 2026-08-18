@@ -1,10 +1,20 @@
 // memverifikasi operasi CRUD OutletRepository pada tenant module (DR-007, FR-TEN-004/008).
 import { PrismaWriteService } from '@app/platform';
-import { OutletRepository, CreateOutletData, OutletListFilter } from './outlet.repository';
+import {
+  OutletRepository,
+  CreateOutletData,
+  OutletListFilter,
+} from './outlet.repository';
 
 function makeMockPrisma() {
   return {
-    outlet: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn() },
+    outlet: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
   } as unknown as PrismaWriteService;
 }
 
@@ -41,7 +51,10 @@ describe('OutletRepository', () => {
 
   describe('findByNameInMerchant', () => {
     it('mencari outlet berdasarkan nama dalam merchant', async () => {
-      (mockPrisma.outlet.findFirst as jest.Mock).mockResolvedValue({ id: 'out-001', name: 'Outlet A' });
+      (mockPrisma.outlet.findFirst as jest.Mock).mockResolvedValue({
+        id: 'out-001',
+        name: 'Outlet A',
+      });
 
       await repo.findByNameInMerchant('Outlet A', 'mch-001');
 
@@ -56,14 +69,22 @@ describe('OutletRepository', () => {
       await repo.findByNameInMerchant('Outlet A', 'mch-001', 'out-001');
 
       expect(mockPrisma.outlet.findFirst).toHaveBeenCalledWith({
-        where: { merchantId: 'mch-001', name: 'Outlet A', id: { not: 'out-001' } },
+        where: {
+          merchantId: 'mch-001',
+          name: 'Outlet A',
+          id: { not: 'out-001' },
+        },
       });
     });
   });
 
   describe('create', () => {
     it('membuat outlet baru', async () => {
-      const data: CreateOutletData = { merchantId: 'mch-001', name: 'Outlet A', address: null };
+      const data: CreateOutletData = {
+        merchantId: 'mch-001',
+        name: 'Outlet A',
+        address: null,
+      };
       const created = { id: 'out-001', ...data };
       (mockPrisma.outlet.create as jest.Mock).mockResolvedValue(created);
 
@@ -111,7 +132,7 @@ describe('OutletRepository', () => {
       const updated = { id: 'out-001', name: 'Outlet Baru' };
       (mockPrisma.outlet.update as jest.Mock).mockResolvedValue(updated);
 
-      const result = await repo.update('out-001', data as never);
+      const result = await repo.update('out-001', data);
 
       expect(mockPrisma.outlet.update).toHaveBeenCalledWith({
         where: { id: 'out-001' },

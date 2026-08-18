@@ -1,7 +1,11 @@
 // memverifikasi operasi CRUD dan query UserRepository pada identity.
 import { AccountStatus, UserRole } from '@prisma/client';
 import { PrismaWriteService } from '@app/platform';
-import { UserRepository, CreateUserData, StaffListFilter } from './user.repository';
+import {
+  UserRepository,
+  CreateUserData,
+  StaffListFilter,
+} from './user.repository';
 
 function makeMockPrisma() {
   return {
@@ -46,7 +50,9 @@ describe('UserRepository', () => {
 
       const result = await repo.findByEmail('budi@test.com');
 
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({ where: { email: 'budi@test.com' } });
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: 'budi@test.com' },
+      });
       expect(result).toBe(user);
     });
 
@@ -60,34 +66,50 @@ describe('UserRepository', () => {
 
   describe('findById', () => {
     it('mengembalikan user berdasarkan id', async () => {
-      (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({ id: 'u-1' });
+      (mockPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+        id: 'u-1',
+      });
 
       const result = await repo.findById('u-1');
 
-      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({ where: { id: 'u-1' } });
+      expect(mockPrisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+      });
       expect(result).toEqual({ id: 'u-1' });
     });
   });
 
   describe('findByIdInMerchant', () => {
     it('mengembalikan user jika milik merchant', async () => {
-      (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 'u-1', merchantId: 'mch-001' });
+      (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({
+        id: 'u-1',
+        merchantId: 'mch-001',
+      });
 
       const result = await repo.findByIdInMerchant('u-1', 'mch-001');
 
-      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({ where: { id: 'u-1', merchantId: 'mch-001' } });
+      expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
+        where: { id: 'u-1', merchantId: 'mch-001' },
+      });
       expect(result).toBeTruthy();
     });
   });
 
   describe('findStaffById', () => {
     it('hanya mencari user dengan role ADMIN atau CASHIER', async () => {
-      (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 'u-1', role: 'ADMIN' });
+      (mockPrisma.user.findFirst as jest.Mock).mockResolvedValue({
+        id: 'u-1',
+        role: 'ADMIN',
+      });
 
       await repo.findStaffById('u-1', 'mch-001');
 
       expect(mockPrisma.user.findFirst).toHaveBeenCalledWith({
-        where: { id: 'u-1', merchantId: 'mch-001', role: { in: ['ADMIN', 'CASHIER'] } },
+        where: {
+          id: 'u-1',
+          merchantId: 'mch-001',
+          role: { in: ['ADMIN', 'CASHIER'] },
+        },
       });
     });
   });
@@ -126,11 +148,17 @@ describe('UserRepository', () => {
   describe('updateStaff', () => {
     it('mengupdate user berdasarkan id', async () => {
       const data = { name: 'Budi Baru' };
-      (mockPrisma.user.update as jest.Mock).mockResolvedValue({ id: 'u-1', name: 'Budi Baru' });
+      (mockPrisma.user.update as jest.Mock).mockResolvedValue({
+        id: 'u-1',
+        name: 'Budi Baru',
+      });
 
-      const result = await repo.updateStaff('u-1', data as never);
+      const result = await repo.updateStaff('u-1', data);
 
-      expect(mockPrisma.user.update).toHaveBeenCalledWith({ where: { id: 'u-1' }, data });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'u-1' },
+        data,
+      });
       expect(result).toMatchObject({ name: 'Budi Baru' });
     });
   });

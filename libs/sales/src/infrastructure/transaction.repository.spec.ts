@@ -1,20 +1,43 @@
 // memverifikasi query dan pembuatan data pada TransactionRepository (OD-012, DR-003).
 import { Prisma, TransactionStatus, PaymentMethod } from '@prisma/client';
 import { PrismaWriteService } from '@app/platform';
-import { TransactionRepository, CreateTransactionData } from './transaction.repository';
+import {
+  TransactionRepository,
+  CreateTransactionData,
+} from './transaction.repository';
 
 function makeMockPrisma() {
-  return { transaction: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), create: jest.fn() }, $queryRaw: jest.fn() } as unknown as PrismaWriteService;
+  return {
+    transaction: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+    },
+    $queryRaw: jest.fn(),
+  } as unknown as PrismaWriteService;
 }
 
 function makeMockTx() {
   return {
-    transaction: { findUnique: jest.fn(), findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), create: jest.fn() },
+    transaction: {
+      findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+    },
     $queryRaw: jest.fn(),
-  } as { transaction: { findUnique: jest.Mock; create: jest.Mock }; $queryRaw: jest.Mock };
+  } as {
+    transaction: { findUnique: jest.Mock; create: jest.Mock };
+    $queryRaw: jest.Mock;
+  };
 }
 
-function makeTransactionData(overrides?: Partial<CreateTransactionData>): CreateTransactionData {
+function makeTransactionData(
+  overrides?: Partial<CreateTransactionData>,
+): CreateTransactionData {
   return {
     id: 'txn-001',
     merchantId: 'mch-001',
@@ -62,15 +85,24 @@ describe('TransactionRepository', () => {
   describe('findByCheckoutRequest', () => {
     it('mengembalikan id dan requestHash jika transaksi ditemukan', async () => {
       const mockTx = makeMockTx();
-      (mockTx.transaction.findUnique as jest.Mock).mockResolvedValue({
+      mockTx.transaction.findUnique.mockResolvedValue({
         id: 'txn-001',
         requestHash: 'hash-abc',
       });
 
-      const result = await repo.findByCheckoutRequest(mockTx as never, 'mch-001', 'chk-001');
+      const result = await repo.findByCheckoutRequest(
+        mockTx as never,
+        'mch-001',
+        'chk-001',
+      );
 
       expect(mockTx.transaction.findUnique).toHaveBeenCalledWith({
-        where: { merchantId_checkoutRequestId: { merchantId: 'mch-001', checkoutRequestId: 'chk-001' } },
+        where: {
+          merchantId_checkoutRequestId: {
+            merchantId: 'mch-001',
+            checkoutRequestId: 'chk-001',
+          },
+        },
         select: { id: true, requestHash: true },
       });
       expect(result).toEqual({ id: 'txn-001', requestHash: 'hash-abc' });
@@ -78,9 +110,13 @@ describe('TransactionRepository', () => {
 
     it('mengembalikan null jika transaksi tidak ditemukan', async () => {
       const mockTx = makeMockTx();
-      (mockTx.transaction.findUnique as jest.Mock).mockResolvedValue(null);
+      mockTx.transaction.findUnique.mockResolvedValue(null);
 
-      const result = await repo.findByCheckoutRequest(mockTx as never, 'mch-001', 'chk-999');
+      const result = await repo.findByCheckoutRequest(
+        mockTx as never,
+        'mch-001',
+        'chk-999',
+      );
 
       expect(result).toBeNull();
     });
@@ -89,7 +125,7 @@ describe('TransactionRepository', () => {
   describe('nextTransactionNumber', () => {
     it('menghasilkan nomor transaksi format INV-{year}-{6-digit} (DR-003/BR-018)', async () => {
       const mockTx = makeMockTx();
-      (mockTx.$queryRaw as jest.Mock).mockResolvedValue([{ seq: 42n }]);
+      mockTx.$queryRaw.mockResolvedValue([{ seq: 42n }]);
 
       const result = await repo.nextTransactionNumber(mockTx as never);
 
@@ -100,7 +136,7 @@ describe('TransactionRepository', () => {
 
     it('memformat angka sequence dengan padStart 6 digit', async () => {
       const mockTx = makeMockTx();
-      (mockTx.$queryRaw as jest.Mock).mockResolvedValue([{ seq: 1n }]);
+      mockTx.$queryRaw.mockResolvedValue([{ seq: 1n }]);
 
       const result = await repo.nextTransactionNumber(mockTx as never);
       const year = new Date().getFullYear();
@@ -113,7 +149,7 @@ describe('TransactionRepository', () => {
       const mockTx = makeMockTx();
       const data = makeTransactionData();
       const created = { id: 'txn-001', transactionNumber: 'INV-2026-000001' };
-      (mockTx.transaction.create as jest.Mock).mockResolvedValue(created);
+      mockTx.transaction.create.mockResolvedValue(created);
 
       const result = await repo.createTransaction(mockTx as never, data);
 
@@ -141,9 +177,14 @@ describe('TransactionRepository', () => {
 
   describe('findTransactionByNumber', () => {
     it('mengembalikan id transaksi berdasarkan merchantId dan nomor', async () => {
-      (mockPrisma.transaction.findFirst as jest.Mock).mockResolvedValue({ id: 'txn-001' });
+      (mockPrisma.transaction.findFirst as jest.Mock).mockResolvedValue({
+        id: 'txn-001',
+      });
 
-      const result = await repo.findTransactionByNumber('mch-001', 'INV-2026-000001');
+      const result = await repo.findTransactionByNumber(
+        'mch-001',
+        'INV-2026-000001',
+      );
 
       expect(mockPrisma.transaction.findFirst).toHaveBeenCalledWith({
         where: { merchantId: 'mch-001', transactionNumber: 'INV-2026-000001' },
@@ -173,7 +214,10 @@ describe('TransactionRepository', () => {
 
   describe('countTransactions', () => {
     it('menghitung jumlah transaksi berdasarkan where', async () => {
-      const where = { merchantId: 'mch-001', status: 'COMPLETED' } as Prisma.TransactionWhereInput;
+      const where = {
+        merchantId: 'mch-001',
+        status: 'COMPLETED',
+      } as Prisma.TransactionWhereInput;
       (mockPrisma.transaction.count as jest.Mock).mockResolvedValue(5);
 
       const result = await repo.countTransactions(where);

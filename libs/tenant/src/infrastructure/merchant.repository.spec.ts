@@ -25,7 +25,9 @@ describe('MerchantRepository', () => {
 
       const result = await repo.findById('mch-001');
 
-      expect(mockPrisma.merchant.findUnique).toHaveBeenCalledWith({ where: { id: 'mch-001' } });
+      expect(mockPrisma.merchant.findUnique).toHaveBeenCalledWith({
+        where: { id: 'mch-001' },
+      });
       expect(result).toBe(merchant);
     });
 
@@ -43,7 +45,7 @@ describe('MerchantRepository', () => {
       const updated = { id: 'mch-001', name: 'Warung Baru' };
       (mockPrisma.merchant.update as jest.Mock).mockResolvedValue(updated);
 
-      const result = await repo.update('mch-001', data as never);
+      const result = await repo.update('mch-001', data);
 
       expect(mockPrisma.merchant.update).toHaveBeenCalledWith({
         where: { id: 'mch-001' },

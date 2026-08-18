@@ -49,7 +49,9 @@ describe('E2E — Dashboard (AT-011, AT-017, AT-020, AT-024–028)', () => {
         {
           provide: APP_GUARD,
           useValue: {
-            canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+            canActivate: (ctx: {
+              switchToHttp: () => { getRequest: () => { user: unknown } };
+            }) => {
               ctx.switchToHttp().getRequest().user = ownerUser;
               return true;
             },
@@ -60,9 +62,15 @@ describe('E2E — Dashboard (AT-011, AT-017, AT-020, AT-024–028)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -116,7 +124,11 @@ describe('E2E — Dashboard (AT-011, AT-017, AT-020, AT-024–028)', () => {
         bucket: 'DAY',
         meta: makeMeta(),
         points: [
-          { bucketStart: new Date('2026-08-01T00:00:00Z'), omzet: '500000', transactionCount: 25 },
+          {
+            bucketStart: new Date('2026-08-01T00:00:00Z'),
+            omzet: '500000',
+            transactionCount: 25,
+          },
         ],
       });
 
@@ -162,7 +174,14 @@ describe('E2E — Dashboard (AT-011, AT-017, AT-020, AT-024–028)', () => {
     it('AT-017: top products mengembalikan top_selling dan least_selling', async () => {
       mockDashboardQuery.getTopProducts.mockResolvedValue({
         meta: makeMeta(),
-        topSelling: [{ productId: 'p-001', name: 'Kopi', unitsSold: 100, omzet: '2500000' }],
+        topSelling: [
+          {
+            productId: 'p-001',
+            name: 'Kopi',
+            unitsSold: 100,
+            omzet: '2500000',
+          },
+        ],
         leastSelling: [],
       });
 
@@ -180,7 +199,12 @@ describe('E2E — Dashboard (AT-011, AT-017, AT-020, AT-024–028)', () => {
       mockDashboardQuery.getOutletComparison.mockResolvedValue({
         meta: makeMeta(),
         items: [
-          { outletId: 'out-001', outletName: 'Outlet A', omzet: '500000', transactionCount: 25 },
+          {
+            outletId: 'out-001',
+            outletName: 'Outlet A',
+            omzet: '500000',
+            transactionCount: 25,
+          },
         ],
       });
 
@@ -243,12 +267,18 @@ describe('E2E — Dashboard (AT-011, AT-017, AT-020, AT-024–028)', () => {
   describe('AT-024/025: cache behavior (verified via service call count)', () => {
     it('AT-024: dua request berurutan ke summary memanggil service dua kali (cache per-request)', async () => {
       mockDashboardQuery.getSummary.mockResolvedValue({
-        omzet: '1000000', transactionCount: 50, averageTransactionValue: '20000',
+        omzet: '1000000',
+        transactionCount: 50,
+        averageTransactionValue: '20000',
         ...makeMeta(),
       });
 
-      await request(app.getHttpServer()).get(`/api/v1/dashboard/summary?${periodQuery}`);
-      await request(app.getHttpServer()).get(`/api/v1/dashboard/summary?${periodQuery}`);
+      await request(app.getHttpServer()).get(
+        `/api/v1/dashboard/summary?${periodQuery}`,
+      );
+      await request(app.getHttpServer()).get(
+        `/api/v1/dashboard/summary?${periodQuery}`,
+      );
 
       expect(mockDashboardQuery.getSummary).toHaveBeenCalledTimes(2);
     });
@@ -257,11 +287,15 @@ describe('E2E — Dashboard (AT-011, AT-017, AT-020, AT-024–028)', () => {
   describe('AT-027: cache key isolation (verified via merchantId)', () => {
     it('setiap merchant mendapat service call terpisah', async () => {
       mockDashboardQuery.getSummary.mockResolvedValue({
-        omzet: '0', transactionCount: 0, averageTransactionValue: '0',
+        omzet: '0',
+        transactionCount: 0,
+        averageTransactionValue: '0',
         ...makeMeta(),
       });
 
-      await request(app.getHttpServer()).get(`/api/v1/dashboard/summary?${periodQuery}`);
+      await request(app.getHttpServer()).get(
+        `/api/v1/dashboard/summary?${periodQuery}`,
+      );
 
       expect(mockDashboardQuery.getSummary).toHaveBeenCalledWith(
         expect.objectContaining({ merchantId: 'mch-001' }),

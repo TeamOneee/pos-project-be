@@ -4,7 +4,13 @@ import { CategoryRepository, CategoryListFilter } from './category.repository';
 
 function makeMockPrisma() {
   return {
-    category: { findFirst: jest.fn(), findMany: jest.fn(), count: jest.fn(), create: jest.fn(), update: jest.fn() },
+    category: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
+      create: jest.fn(),
+      update: jest.fn(),
+    },
   } as unknown as PrismaWriteService;
 }
 
@@ -34,7 +40,10 @@ describe('CategoryRepository', () => {
 
   describe('findByNameInMerchant', () => {
     it('mencari category berdasarkan nama dalam merchant', async () => {
-      (mockPrisma.category.findFirst as jest.Mock).mockResolvedValue({ id: 'cat-001', name: 'Minuman' });
+      (mockPrisma.category.findFirst as jest.Mock).mockResolvedValue({
+        id: 'cat-001',
+        name: 'Minuman',
+      });
 
       await repo.findByNameInMerchant('mch-001', 'Minuman');
 
@@ -95,7 +104,7 @@ describe('CategoryRepository', () => {
       const updated = { id: 'cat-001', name: 'Makanan' };
       (mockPrisma.category.update as jest.Mock).mockResolvedValue(updated);
 
-      const result = await repo.update('cat-001', data as never);
+      const result = await repo.update('cat-001', data);
 
       expect(mockPrisma.category.update).toHaveBeenCalledWith({
         where: { id: 'cat-001' },

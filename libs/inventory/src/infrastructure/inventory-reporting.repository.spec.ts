@@ -7,7 +7,9 @@ function makeMockPrismaRead() {
   return { inventory: { findMany: jest.fn() } } as unknown as PrismaReadService;
 }
 
-function makeQuery(overrides?: Partial<InventoryReportingQuery>): InventoryReportingQuery {
+function makeQuery(
+  overrides?: Partial<InventoryReportingQuery>,
+): InventoryReportingQuery {
   return {
     merchantId: 'mch-001',
     ...overrides,
@@ -27,10 +29,26 @@ describe('InventoryReportingRepository', () => {
   describe('getOperationalData', () => {
     it('menghitung inventoryItemCount, lowStockItemCount, outOfStockItemCount', async () => {
       (mockPrismaRead.inventory.findMany as jest.Mock).mockResolvedValue([
-        { quantity: 0, lowStockThresholdOverride: null, product: { lowStockThreshold: 5 } },    // out of stock
-        { quantity: 2, lowStockThresholdOverride: null, product: { lowStockThreshold: 5 } },     // low stock
-        { quantity: 10, lowStockThresholdOverride: null, product: { lowStockThreshold: 5 } },    // normal
-        { quantity: 3, lowStockThresholdOverride: 10, product: { lowStockThreshold: 5 } },       // low stock (override 10)
+        {
+          quantity: 0,
+          lowStockThresholdOverride: null,
+          product: { lowStockThreshold: 5 },
+        }, // out of stock
+        {
+          quantity: 2,
+          lowStockThresholdOverride: null,
+          product: { lowStockThreshold: 5 },
+        }, // low stock
+        {
+          quantity: 10,
+          lowStockThresholdOverride: null,
+          product: { lowStockThreshold: 5 },
+        }, // normal
+        {
+          quantity: 3,
+          lowStockThresholdOverride: 10,
+          product: { lowStockThreshold: 5 },
+        }, // low stock (override 10)
       ]);
 
       const result = await repo.getOperationalData(makeQuery());
@@ -44,7 +62,11 @@ describe('InventoryReportingRepository', () => {
 
     it('menghitung benar jika semua stok aman', async () => {
       (mockPrismaRead.inventory.findMany as jest.Mock).mockResolvedValue([
-        { quantity: 20, lowStockThresholdOverride: null, product: { lowStockThreshold: 5 } },
+        {
+          quantity: 20,
+          lowStockThresholdOverride: null,
+          product: { lowStockThreshold: 5 },
+        },
       ]);
 
       const result = await repo.getOperationalData(makeQuery());
@@ -73,16 +95,28 @@ describe('InventoryReportingRepository', () => {
     it('mengembalikan item low stock diurutkan dari stok terendah (FR-INV-007)', async () => {
       (mockPrismaRead.inventory.findMany as jest.Mock).mockResolvedValue([
         {
-          quantity: 3, lowStockThresholdOverride: null, outletId: 'out-001', productId: 'p-001',
-          outlet: { name: 'Outlet A' }, product: { name: 'Kopi', lowStockThreshold: 5 },
+          quantity: 3,
+          lowStockThresholdOverride: null,
+          outletId: 'out-001',
+          productId: 'p-001',
+          outlet: { name: 'Outlet A' },
+          product: { name: 'Kopi', lowStockThreshold: 5 },
         },
         {
-          quantity: 1, lowStockThresholdOverride: null, outletId: 'out-001', productId: 'p-002',
-          outlet: { name: 'Outlet A' }, product: { name: 'Teh', lowStockThreshold: 5 },
+          quantity: 1,
+          lowStockThresholdOverride: null,
+          outletId: 'out-001',
+          productId: 'p-002',
+          outlet: { name: 'Outlet A' },
+          product: { name: 'Teh', lowStockThreshold: 5 },
         },
         {
-          quantity: 20, lowStockThresholdOverride: null, outletId: 'out-001', productId: 'p-003',
-          outlet: { name: 'Outlet A' }, product: { name: 'Roti', lowStockThreshold: 5 },
+          quantity: 20,
+          lowStockThresholdOverride: null,
+          outletId: 'out-001',
+          productId: 'p-003',
+          outlet: { name: 'Outlet A' },
+          product: { name: 'Roti', lowStockThreshold: 5 },
         },
       ]);
 
@@ -91,20 +125,26 @@ describe('InventoryReportingRepository', () => {
       expect(result).toHaveLength(2);
       expect(result[0].quantity).toBe(1);
       expect(result[1].quantity).toBe(3);
-      expect(result[0]).toEqual(expect.objectContaining({
-        productId: 'p-002',
-        name: 'Teh',
-        outletName: 'Outlet A',
-        baseLowStockThreshold: 5,
-        effectiveLowStockThreshold: 5,
-      }));
+      expect(result[0]).toEqual(
+        expect.objectContaining({
+          productId: 'p-002',
+          name: 'Teh',
+          outletName: 'Outlet A',
+          baseLowStockThreshold: 5,
+          effectiveLowStockThreshold: 5,
+        }),
+      );
     });
 
     it('menggunakan override threshold jika ada', async () => {
       (mockPrismaRead.inventory.findMany as jest.Mock).mockResolvedValue([
         {
-          quantity: 8, lowStockThresholdOverride: 10, outletId: 'out-001', productId: 'p-001',
-          outlet: { name: 'Outlet A' }, product: { name: 'Kopi', lowStockThreshold: 5 },
+          quantity: 8,
+          lowStockThresholdOverride: 10,
+          outletId: 'out-001',
+          productId: 'p-001',
+          outlet: { name: 'Outlet A' },
+          product: { name: 'Kopi', lowStockThreshold: 5 },
         },
       ]);
 
@@ -118,8 +158,12 @@ describe('InventoryReportingRepository', () => {
     it('mengembalikan array kosong jika tidak ada low stock', async () => {
       (mockPrismaRead.inventory.findMany as jest.Mock).mockResolvedValue([
         {
-          quantity: 20, lowStockThresholdOverride: null, outletId: 'out-001', productId: 'p-001',
-          outlet: { name: 'Outlet A' }, product: { name: 'Kopi', lowStockThreshold: 5 },
+          quantity: 20,
+          lowStockThresholdOverride: null,
+          outletId: 'out-001',
+          productId: 'p-001',
+          outlet: { name: 'Outlet A' },
+          product: { name: 'Kopi', lowStockThreshold: 5 },
         },
       ]);
 

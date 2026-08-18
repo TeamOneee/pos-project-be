@@ -5,10 +5,14 @@ import { SalesReportingQuery } from '../application/ports/sales-reporting-read.p
 import { SalesReportingRepository } from './sales-reporting.repository';
 
 function makeMockPrismaRead() {
-  return { transaction: { findMany: jest.fn() } } as unknown as PrismaReadService;
+  return {
+    transaction: { findMany: jest.fn() },
+  } as unknown as PrismaReadService;
 }
 
-function makeQuery(overrides?: Partial<SalesReportingQuery>): SalesReportingQuery {
+function makeQuery(
+  overrides?: Partial<SalesReportingQuery>,
+): SalesReportingQuery {
   return {
     merchantId: 'mch-001',
     dateFrom: new Date('2026-08-01T00:00:00Z'),
@@ -38,11 +42,18 @@ describe('SalesReportingRepository', () => {
           createdAt: new Date('2026-08-10T14:25:00Z'),
           total: new Prisma.Decimal('50000'),
           items: [
-            { productId: 'prod-001', productNameSnapshot: 'Kopi Susu', quantity: 2, subtotal: new Prisma.Decimal('50000') },
+            {
+              productId: 'prod-001',
+              productNameSnapshot: 'Kopi Susu',
+              quantity: 2,
+              subtotal: new Prisma.Decimal('50000'),
+            },
           ],
         },
       ];
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue(mockResult);
+      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue(
+        mockResult,
+      );
 
       const result = await repo.findCompletedTransactionFacts(makeQuery());
 
@@ -53,7 +64,12 @@ describe('SalesReportingRepository', () => {
           occurredAt: new Date('2026-08-10T14:30:00Z'),
           total: '50000.00',
           items: [
-            { productId: 'prod-001', productNameSnapshot: 'Kopi Susu', quantity: 2, subtotal: '50000.00' },
+            {
+              productId: 'prod-001',
+              productNameSnapshot: 'Kopi Susu',
+              quantity: 2,
+              subtotal: '50000.00',
+            },
           ],
         },
       ]);
@@ -71,7 +87,9 @@ describe('SalesReportingRepository', () => {
           items: [],
         },
       ];
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue(mockResult);
+      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue(
+        mockResult,
+      );
 
       const result = await repo.findCompletedTransactionFacts(makeQuery());
 
@@ -81,7 +99,9 @@ describe('SalesReportingRepository', () => {
     it('menerapkan filter outletId jika disediakan', async () => {
       (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue([]);
 
-      await repo.findCompletedTransactionFacts(makeQuery({ outletId: 'out-002' }));
+      await repo.findCompletedTransactionFacts(
+        makeQuery({ outletId: 'out-002' }),
+      );
 
       expect(mockPrismaRead.transaction.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -93,7 +113,9 @@ describe('SalesReportingRepository', () => {
     it('tidak menerapkan filter outletId jika undefined', async () => {
       (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue([]);
 
-      await repo.findCompletedTransactionFacts(makeQuery({ outletId: undefined }));
+      await repo.findCompletedTransactionFacts(
+        makeQuery({ outletId: undefined }),
+      );
 
       expect(mockPrismaRead.transaction.findMany).toHaveBeenCalledWith(
         expect.objectContaining({

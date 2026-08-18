@@ -8,7 +8,9 @@ import { ErrorCode } from './error-code';
 import { AllExceptionsFilter, ErrorBody } from './all-exceptions.filter';
 
 function makeMockCls(overrides: Record<string, unknown> = {}) {
-  return { get: jest.fn().mockImplementation((k: string) => overrides[k]) } as unknown as ClsService;
+  return {
+    get: jest.fn().mockImplementation((k: string) => overrides[k]),
+  } as unknown as ClsService;
 }
 
 interface MockHostResult {
@@ -49,7 +51,12 @@ function makeMockHost(
     }),
   };
 
-  return { host: host as unknown as ArgumentsHost, responseJson, responseSetHeader, responseStatus };
+  return {
+    host: host as unknown as ArgumentsHost,
+    responseJson,
+    responseSetHeader,
+    responseStatus,
+  };
 }
 
 describe('AllExceptionsFilter', () => {
@@ -58,12 +65,16 @@ describe('AllExceptionsFilter', () => {
   it('ApiError memetakan ke status code dan body yang sesuai (FR-000)', () => {
     const error = ApiError.notFound('Produk tidak ditemukan');
     const cls = makeMockCls();
-    const { host, responseJson, responseSetHeader, responseStatus } = makeMockHost();
+    const { host, responseJson, responseSetHeader, responseStatus } =
+      makeMockHost();
     const filter = new AllExceptionsFilter(cls);
 
     filter.catch(error, host);
 
-    expect(responseSetHeader).toHaveBeenCalledWith('X-Correlation-Id', expect.any(String));
+    expect(responseSetHeader).toHaveBeenCalledWith(
+      'X-Correlation-Id',
+      expect.any(String),
+    );
     expect(responseStatus).toHaveBeenCalledWith(404);
     expect(responseJson).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -75,7 +86,9 @@ describe('AllExceptionsFilter', () => {
   });
 
   it('ApiError VALIDATION_ERROR menghasilkan 400', () => {
-    const error = ApiError.validation('Input tidak valid', [{ field: 'name', reason: 'wajib' }]);
+    const error = ApiError.validation('Input tidak valid', [
+      { field: 'name', reason: 'wajib' },
+    ]);
     const cls = makeMockCls();
     const { host, responseJson, responseStatus } = makeMockHost();
     const filter = new AllExceptionsFilter(cls);
@@ -120,8 +133,14 @@ describe('AllExceptionsFilter', () => {
 
     const body = responseJson.mock.calls[0][0] as ErrorBody;
     expect(body.errors).toHaveLength(2);
-    expect(body.errors![0]).toEqual({ field: 'email', message: 'sudah terdaftar' });
-    expect(body.errors![1]).toEqual({ field: 'phone', message: 'format salah' });
+    expect(body.errors[0]).toEqual({
+      field: 'email',
+      message: 'sudah terdaftar',
+    });
+    expect(body.errors[1]).toEqual({
+      field: 'phone',
+      message: 'format salah',
+    });
   });
 
   it('ThrottlerException menghasilkan 429', () => {
@@ -175,7 +194,9 @@ describe('AllExceptionsFilter', () => {
 
     filter.catch(error, host);
 
-    expect(responseStatus).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+    expect(responseStatus).toHaveBeenCalledWith(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+    );
     const body = responseJson.mock.calls[0][0] as ErrorBody;
     expect(body.message).toBe('Terjadi kesalahan internal');
   });
@@ -188,18 +209,26 @@ describe('AllExceptionsFilter', () => {
 
     filter.catch(error, host);
 
-    expect(responseSetHeader).toHaveBeenCalledWith('X-Correlation-Id', 'cls-corr-123');
+    expect(responseSetHeader).toHaveBeenCalledWith(
+      'X-Correlation-Id',
+      'cls-corr-123',
+    );
   });
 
   it('X-Correlation-Id diambil dari header jika cls kosong', () => {
     const error = ApiError.notFound();
     const cls = makeMockCls();
-    const { host, responseSetHeader } = makeMockHost({ correlationIdHeader: 'hdr-456' });
+    const { host, responseSetHeader } = makeMockHost({
+      correlationIdHeader: 'hdr-456',
+    });
     const filter = new AllExceptionsFilter(cls);
 
     filter.catch(error, host);
 
-    expect(responseSetHeader).toHaveBeenCalledWith('X-Correlation-Id', 'hdr-456');
+    expect(responseSetHeader).toHaveBeenCalledWith(
+      'X-Correlation-Id',
+      'hdr-456',
+    );
   });
 
   it('X-Correlation-Id di-generate otomatis jika cls dan header kosong', () => {
@@ -210,7 +239,9 @@ describe('AllExceptionsFilter', () => {
 
     filter.catch(error, host);
 
-    const call = responseSetHeader.mock.calls.find((c: unknown[]) => c[0] === 'X-Correlation-Id');
+    const call = responseSetHeader.mock.calls.find(
+      (c: unknown[]) => c[0] === 'X-Correlation-Id',
+    );
     expect(call![1]).toMatch(/^c-[a-f0-9]{8}$/);
   });
 
@@ -218,12 +249,17 @@ describe('AllExceptionsFilter', () => {
     const longId = 'a'.repeat(100);
     const error = ApiError.notFound();
     const cls = makeMockCls();
-    const { host, responseSetHeader } = makeMockHost({ correlationIdHeader: longId });
+    const { host, responseSetHeader } = makeMockHost({
+      correlationIdHeader: longId,
+    });
     const filter = new AllExceptionsFilter(cls);
 
     filter.catch(error, host);
 
-    expect(responseSetHeader).toHaveBeenCalledWith('X-Correlation-Id', 'a'.repeat(64));
+    expect(responseSetHeader).toHaveBeenCalledWith(
+      'X-Correlation-Id',
+      'a'.repeat(64),
+    );
   });
 
   it('ApiError RATE_LIMITED menghasilkan 429', () => {

@@ -34,7 +34,9 @@ describe('E2E — Merchant & Outlet (AT-030)', () => {
         {
           provide: APP_GUARD,
           useValue: {
-            canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+            canActivate: (ctx: {
+              switchToHttp: () => { getRequest: () => { user: unknown } };
+            }) => {
               ctx.switchToHttp().getRequest().user = ownerUser;
               return true;
             },
@@ -45,9 +47,15 @@ describe('E2E — Merchant & Outlet (AT-030)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -99,7 +107,9 @@ describe('E2E — Merchant & Outlet (AT-030)', () => {
       mockOutletService.list.mockResolvedValue(
         PageResponseDto.from(
           [{ outletId: 'out-001', name: 'Outlet A', isActive: true }],
-          1, 10, 1,
+          1,
+          10,
+          1,
         ),
       );
 

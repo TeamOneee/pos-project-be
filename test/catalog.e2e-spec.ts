@@ -29,11 +29,16 @@ describe('E2E — POS Catalog (AT-018, AT-021)', () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [CatalogController],
       providers: [
-        { provide: OutletCatalogQueryService, useValue: mockCatalogQueryService },
+        {
+          provide: OutletCatalogQueryService,
+          useValue: mockCatalogQueryService,
+        },
         {
           provide: APP_GUARD,
           useValue: {
-            canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+            canActivate: (ctx: {
+              switchToHttp: () => { getRequest: () => { user: unknown } };
+            }) => {
               ctx.switchToHttp().getRequest().user = cashierUser;
               return true;
             },
@@ -44,9 +49,15 @@ describe('E2E — POS Catalog (AT-018, AT-021)', () => {
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -58,7 +69,9 @@ describe('E2E — POS Catalog (AT-018, AT-021)', () => {
       mockCatalogQueryService.catalog.mockResolvedValue(
         PageResponseDto.from(
           [{ id: 'p-001', name: 'Kopi Susu', effectivePrice: '25000' }],
-          1, 10, 1,
+          1,
+          10,
+          1,
         ),
       );
 
@@ -83,7 +96,10 @@ describe('E2E — POS Catalog (AT-018, AT-021)', () => {
 
       await request(app.getHttpServer())
         .get('/api/v1/products/catalog')
-        .query({ outlet_id: VALID_OUTLET_UUID, category_id: VALID_CATEGORY_UUID })
+        .query({
+          outlet_id: VALID_OUTLET_UUID,
+          category_id: VALID_CATEGORY_UUID,
+        })
         .expect(200);
 
       expect(mockCatalogQueryService.catalog).toHaveBeenCalledWith(
@@ -95,10 +111,7 @@ describe('E2E — POS Catalog (AT-018, AT-021)', () => {
 
     it('AT-018: produk dengan category inactive tidak muncul di katalog', async () => {
       mockCatalogQueryService.catalog.mockResolvedValue(
-        PageResponseDto.from(
-          [{ id: 'p-001', name: 'Kopi Susu' }],
-          1, 10, 1,
-        ),
+        PageResponseDto.from([{ id: 'p-001', name: 'Kopi Susu' }], 1, 10, 1),
       );
 
       const res = await request(app.getHttpServer())

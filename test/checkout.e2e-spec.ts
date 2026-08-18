@@ -37,16 +37,25 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      controllers: [CheckoutController, TransactionController, ReceiptController],
+      controllers: [
+        CheckoutController,
+        TransactionController,
+        ReceiptController,
+      ],
       providers: [
         { provide: CheckoutService, useValue: mockCheckoutService },
         { provide: IdempotencyQueryService, useValue: mockIdempotencyService },
-        { provide: TransactionQueryService, useValue: mockTransactionQueryService },
+        {
+          provide: TransactionQueryService,
+          useValue: mockTransactionQueryService,
+        },
         { provide: ReceiptService, useValue: mockReceiptService },
         {
           provide: APP_GUARD,
           useValue: {
-            canActivate: (ctx: { switchToHttp: () => { getRequest: () => { user: unknown } } }) => {
+            canActivate: (ctx: {
+              switchToHttp: () => { getRequest: () => { user: unknown } };
+            }) => {
               ctx.switchToHttp().getRequest().user = cashierUser;
               return true;
             },
@@ -57,9 +66,15 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     app.useGlobalInterceptors(new SuccessResponseInterceptor(new Reflector()));
-    app.useGlobalFilters(new AllExceptionsFilter({ get: jest.fn().mockReturnValue('test-corr-id') } as never));
+    app.useGlobalFilters(
+      new AllExceptionsFilter({
+        get: jest.fn().mockReturnValue('test-corr-id'),
+      } as never),
+    );
     await app.init();
   });
 
@@ -81,7 +96,9 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
           checkout_request_id: 'idem-001',
           outlet_id: '550e8400-e29b-41d4-a716-446655440000',
           payment_method: 'CASH',
-          items: [{ product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 2 }],
+          items: [
+            { product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 2 },
+          ],
         })
         .expect(201);
 
@@ -104,7 +121,9 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
           checkout_request_id: 'idem-001',
           outlet_id: '550e8400-e29b-41d4-a716-446655440000',
           payment_method: 'CASH',
-          items: [{ product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 }],
+          items: [
+            { product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 },
+          ],
         })
         .expect(201);
 
@@ -114,7 +133,9 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
           checkout_request_id: 'idem-001',
           outlet_id: '550e8400-e29b-41d4-a716-446655440000',
           payment_method: 'CASH',
-          items: [{ product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 }],
+          items: [
+            { product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 },
+          ],
         })
         .expect(201);
 
@@ -124,7 +145,10 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
 
     it('AT-006: checkout_request_id sama tetapi payload berbeda mengembalikan IDEMPOTENCY_CONFLICT', async () => {
       mockCheckoutService.checkout.mockRejectedValue(
-        ApiError.conflict(ErrorCode.IDEMPOTENCY_CONFLICT, 'Konflik idempotensi'),
+        ApiError.conflict(
+          ErrorCode.IDEMPOTENCY_CONFLICT,
+          'Konflik idempotensi',
+        ),
       );
 
       const res = await request(app.getHttpServer())
@@ -133,7 +157,9 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
           checkout_request_id: 'idem-002',
           outlet_id: '550e8400-e29b-41d4-a716-446655440000',
           payment_method: 'CASH',
-          items: [{ product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 5 }],
+          items: [
+            { product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 5 },
+          ],
         })
         .expect(409);
 
@@ -144,7 +170,10 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
     it('AT-007: harga berubah mengembalikan PRICE_CHANGED', async () => {
       mockCheckoutService.checkout.mockRejectedValue(
         ApiError.conflict(ErrorCode.PRICE_CHANGED, 'Harga berubah', [
-          { field: 'items[0].expectedUnitPrice', reason: 'Harga berubah dari 25000 menjadi 30000' },
+          {
+            field: 'items[0].expectedUnitPrice',
+            reason: 'Harga berubah dari 25000 menjadi 30000',
+          },
         ]),
       );
 
@@ -154,12 +183,18 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
           checkout_request_id: 'idem-003',
           outlet_id: '550e8400-e29b-41d4-a716-446655440000',
           payment_method: 'CASH',
-          items: [{ product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1, expected_unit_price: '25000' }],
+          items: [
+            {
+              product_id: '550e8400-e29b-41d4-a716-446655440001',
+              quantity: 1,
+              expected_unit_price: '25000',
+            },
+          ],
         })
         .expect(409);
 
       expect(res.body.statusCode).toBe(409);
-      expect(res.body.errors).toBeDefined();
+      expect(res.body.message).toBe('Harga berubah');
     });
 
     it('AT-008: produk nonaktif mengembalikan PRODUCT_INACTIVE', async () => {
@@ -167,27 +202,38 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
         ApiError.conflict(ErrorCode.PRODUCT_INACTIVE, 'Produk tidak aktif'),
       );
 
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post('/api/v1/checkout')
         .send({
           checkout_request_id: 'idem-004',
           outlet_id: '550e8400-e29b-41d4-a716-446655440000',
           payment_method: 'CASH',
-          items: [{ product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 }],
+          items: [
+            { product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 },
+          ],
         })
         .expect(409);
+      expect(res.body.message).toBe('Produk tidak aktif');
     });
 
     it('AT-029: checkout_request_id berbeda menghasilkan dua transaksi', async () => {
       mockCheckoutService.checkout
-        .mockResolvedValueOnce({ transaction_id: 'txn-001', status: 'COMPLETED' })
-        .mockResolvedValueOnce({ transaction_id: 'txn-002', status: 'COMPLETED' });
+        .mockResolvedValueOnce({
+          transaction_id: 'txn-001',
+          status: 'COMPLETED',
+        })
+        .mockResolvedValueOnce({
+          transaction_id: 'txn-002',
+          status: 'COMPLETED',
+        });
 
       const body1 = {
         checkout_request_id: 'idem-a',
         outlet_id: '550e8400-e29b-41d4-a716-446655440000',
         payment_method: 'CASH',
-        items: [{ product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 }],
+        items: [
+          { product_id: '550e8400-e29b-41d4-a716-446655440001', quantity: 1 },
+        ],
       };
       const body2 = { ...body1, checkout_request_id: 'idem-b' };
 
@@ -251,7 +297,9 @@ describe('E2E — Checkout & Transactions (AT-003, 005–008, 010, 029)', () => 
         .query({ transaction_number: 'INV-2026-000001' })
         .expect(200);
 
-      expect(res.body.data).toMatchObject({ transactionNumber: 'INV-2026-000001' });
+      expect(res.body.data).toMatchObject({
+        transactionNumber: 'INV-2026-000001',
+      });
     });
   });
 

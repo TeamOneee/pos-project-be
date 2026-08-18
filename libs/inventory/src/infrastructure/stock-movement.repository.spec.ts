@@ -1,7 +1,10 @@
 // memverifikasi operasi CRUD StockMovementRepository pada inventory module (FR-INV-003).
 import { StockMovementType } from '@prisma/client';
 import { PrismaWriteService } from '@app/platform';
-import { StockMovementRepository, StockMovementListFilter } from './stock-movement.repository';
+import {
+  StockMovementRepository,
+  StockMovementListFilter,
+} from './stock-movement.repository';
 
 function makeMockPrisma() {
   return {
@@ -12,7 +15,7 @@ function makeMockPrisma() {
 function makeMockTx() {
   return {
     stockMovement: { create: jest.fn(), createMany: jest.fn() },
-  } as { stockMovement: { create: jest.Mock; createMany: jest.Mock } };
+  };
 }
 
 describe('StockMovementRepository', () => {
@@ -28,9 +31,16 @@ describe('StockMovementRepository', () => {
   describe('create', () => {
     it('membuat stock movement baru dari tx client', async () => {
       const mockTx = makeMockTx();
-      const data = { merchantId: 'mch-001', outletId: 'out-001', productId: 'p-001', type: 'SALE' as StockMovementType, quantity: -2, referenceId: 'txn-001' };
+      const data = {
+        merchantId: 'mch-001',
+        outletId: 'out-001',
+        productId: 'p-001',
+        type: 'SALE' as StockMovementType,
+        quantity: -2,
+        referenceId: 'txn-001',
+      };
       const created = { id: 'sm-001', ...data };
-      (mockTx.stockMovement.create as jest.Mock).mockResolvedValue(created);
+      mockTx.stockMovement.create.mockResolvedValue(created);
 
       const result = await repo.create(mockTx as never, data as never);
 
@@ -43,10 +53,26 @@ describe('StockMovementRepository', () => {
     it('membuat beberapa stock movement sekaligus', async () => {
       const mockTx = makeMockTx();
       const data = [
-        { merchantId: 'mch-001', outletId: 'out-001', productId: 'p-001', type: 'SALE' as StockMovementType, quantity: -2, referenceId: 'txn-001' },
-        { merchantId: 'mch-001', outletId: 'out-001', productId: 'p-002', type: 'SALE' as StockMovementType, quantity: -1, referenceId: 'txn-001' },
+        {
+          merchantId: 'mch-001',
+          outletId: 'out-001',
+          productId: 'p-001',
+          type: 'SALE' as StockMovementType,
+          quantity: -2,
+          referenceId: 'txn-001',
+        },
+        {
+          merchantId: 'mch-001',
+          outletId: 'out-001',
+          productId: 'p-002',
+          type: 'SALE' as StockMovementType,
+          quantity: -1,
+          referenceId: 'txn-001',
+        },
       ];
-      (mockTx.stockMovement.createMany as jest.Mock).mockResolvedValue({ count: 2 });
+      mockTx.stockMovement.createMany.mockResolvedValue({
+        count: 2,
+      });
 
       const result = await repo.createMany(mockTx as never, data as never);
 
@@ -57,7 +83,10 @@ describe('StockMovementRepository', () => {
 
   describe('findByMerchant', () => {
     it('mengembalikan daftar stock movement dengan filter dan order by desc', async () => {
-      const filter: StockMovementListFilter = { outletId: 'out-001', type: 'SALE' };
+      const filter: StockMovementListFilter = {
+        outletId: 'out-001',
+        type: 'SALE',
+      };
       (mockPrisma.stockMovement.findMany as jest.Mock).mockResolvedValue([]);
 
       const result = await repo.findByMerchant('mch-001', filter, 0, 10);
@@ -72,7 +101,10 @@ describe('StockMovementRepository', () => {
     });
 
     it('menerapkan filter dateFrom dan dateTo', async () => {
-      const filter: StockMovementListFilter = { dateFrom: '2026-08-01', dateTo: '2026-08-31' };
+      const filter: StockMovementListFilter = {
+        dateFrom: '2026-08-01',
+        dateTo: '2026-08-31',
+      };
       (mockPrisma.stockMovement.findMany as jest.Mock).mockResolvedValue([]);
 
       await repo.findByMerchant('mch-001', filter, 0, 10);

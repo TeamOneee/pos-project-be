@@ -25,7 +25,9 @@ function makeActor(overrides?: Partial<AuthUser>): AuthUser {
 describe('CheckoutController', () => {
   let controller: CheckoutController;
   let mockCheckoutService: ReturnType<typeof makeMockCheckoutService>;
-  let mockIdempotencyQueryService: ReturnType<typeof makeMockIdempotencyQueryService>;
+  let mockIdempotencyQueryService: ReturnType<
+    typeof makeMockIdempotencyQueryService
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -60,11 +62,16 @@ describe('CheckoutController', () => {
     it('mendelegasikan ke IdempotencyQueryService.getStatus dengan actor dan query', async () => {
       const actor = makeActor();
       const query = { idempotency_key: 'idem-001' };
-      mockIdempotencyQueryService.getStatus.mockResolvedValue({ status: 'COMPLETED' });
+      mockIdempotencyQueryService.getStatus.mockResolvedValue({
+        status: 'COMPLETED',
+      });
 
       const result = await controller.status(actor, query as never);
 
-      expect(mockIdempotencyQueryService.getStatus).toHaveBeenCalledWith(actor, query);
+      expect(mockIdempotencyQueryService.getStatus).toHaveBeenCalledWith(
+        actor,
+        query,
+      );
       expect(result).toEqual({ status: 'COMPLETED' });
     });
   });
