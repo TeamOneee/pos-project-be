@@ -5,14 +5,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-const METRICS_PATH = '/metrics';
-
 @Injectable()
 export class MetricsAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
     const req = context.switchToHttp().getRequest();
-    if (req.path !== METRICS_PATH) {
+    if (!req.url?.endsWith('/metrics')) {
       return true;
     }
 
@@ -35,7 +33,7 @@ export class MetricsAuthGuard implements CanActivate {
     if (user !== expectedUser || pass !== expectedPass) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
     return true;
   }
 }

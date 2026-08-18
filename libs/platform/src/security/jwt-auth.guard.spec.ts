@@ -40,7 +40,7 @@ describe('JwtAuthGuard', () => {
       getHandler: ctx.getHandler,
       getClass: ctx.getClass,
       switchToHttp: jest.fn().mockReturnValue({
-        getRequest: jest.fn().mockReturnValue({ path: '/api/v1/checkout' }),
+        getRequest: jest.fn().mockReturnValue({ url: '/api/v1/checkout' }),
       }),
     } as unknown as ExecutionContext);
     expect(result).toBe(true);
@@ -53,7 +53,7 @@ describe('JwtAuthGuard', () => {
       getHandler: ctx.getHandler,
       getClass: ctx.getClass,
       switchToHttp: jest.fn().mockReturnValue({
-        getRequest: jest.fn().mockReturnValue({ path: '/metrics' }),
+        getRequest: jest.fn().mockReturnValue({ url: '/metrics' }),
       }),
     } as unknown as ExecutionContext);
     expect(result).toBe(true);
