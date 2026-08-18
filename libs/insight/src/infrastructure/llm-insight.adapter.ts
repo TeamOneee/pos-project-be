@@ -182,7 +182,7 @@ export class LlmInsightAdapter extends AiProviderPort {
             {
               role: 'system',
               content:
-                'Anda menulis narasi singkat insight bisnis. Jangan membuat angka, type, atau evidence baru. Kembalikan JSON tunggal: {"insights":[{"type":"...","content":"..."}]}.',
+                'Anda akan menulis insight mendalam dan komprehensif namun sesuai data insight bisnis. Jangan membuat angka, type, atau evidence baru. Kembalikan JSON tunggal: {"insights":[{"type":"...","content":"..."}]}.',
             },
             {
               role: 'user',
