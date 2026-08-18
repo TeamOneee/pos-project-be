@@ -12,7 +12,9 @@ async function bootstrap() {
   app.useLogger(app.get(Logger));
 
   // Judoscale: first middleware for Railway autoscaling metrics
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call
   const judoscale = new Judoscale();
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
   app.use(judoscaleMiddleware(judoscale));
 
   app.setGlobalPrefix('api/v1');
