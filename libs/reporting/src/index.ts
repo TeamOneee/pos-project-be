@@ -1,3 +1,7 @@
-// entry point modul reporting dan ekspor reporting-read port untuk modul insight ai.
-export * from './reporting.module';
-export * from './application/ports/reporting-read.port';
+// public surface reporting hanya menyediakan composition module serta kontrak baca lintas modul.
+export { ReportingModule } from './reporting.module';
+export { ReportingReadPort } from './application/ports/reporting-read.port';
+export type {
+  ReportingDataset,
+  ReportingDatasetRequest,
+} from './application/reporting.models';
