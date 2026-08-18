@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 
-const METRICS_PATH = '/api/v1/metrics';
+const METRICS_PATH = '/metrics';
 
 @Injectable()
 export class MetricsAuthGuard implements CanActivate {

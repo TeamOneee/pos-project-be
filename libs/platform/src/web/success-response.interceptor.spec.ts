@@ -65,7 +65,7 @@ describe('SuccessResponseInterceptor', () => {
     const raw = '# HELP http_requests_total total\n';
     await expect(
       lastValueFrom(
-        interceptor.intercept(makeContext(200, '/api/v1/metrics'), {
+        interceptor.intercept(makeContext(200, '/metrics'), {
           handle: () => of(raw),
         }),
       ),
