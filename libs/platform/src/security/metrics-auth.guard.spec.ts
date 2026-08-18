@@ -1,11 +1,11 @@
 import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { MetricsAuthGuard } from './metrics-auth.guard';
 
-function makeContext(path: string, authHeader?: string) {
+function makeContext(url: string, authHeader?: string) {
   return {
     switchToHttp: () => ({
       getRequest: () => ({
-        path,
+        url,
         headers: authHeader ? { authorization: authHeader } : {},
       }),
     }),

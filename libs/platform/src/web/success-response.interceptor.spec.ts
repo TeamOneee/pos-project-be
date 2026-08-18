@@ -13,7 +13,7 @@ function makeContext(
     getClass: () => undefined,
     switchToHttp: () => ({
       getResponse: () => ({ statusCode }),
-      getRequest: () => ({ path }),
+      getRequest: () => ({ url: path }),
     }),
   } as unknown as ExecutionContext;
 }

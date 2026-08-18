@@ -22,12 +22,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       return true;
     }
 
-    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
     const req = context.switchToHttp().getRequest();
-    if (req.path === '/metrics') {
+    if (req.url?.endsWith('/metrics')) {
       return true;
     }
-    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call */
 
     return super.canActivate(context);
   }
