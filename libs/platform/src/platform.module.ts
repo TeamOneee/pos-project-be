@@ -11,6 +11,7 @@ import { PrismaWriteService } from './prisma/prisma-write.service';
 import { CorrelationIdMiddleware } from './security/correlation-id.middleware';
 import { JwtAuthGuard } from './security/jwt-auth.guard';
 import { JwtStrategy } from './security/jwt.strategy';
+import { MetricsAuthGuard } from './security/metrics-auth.guard';
 import { RolesGuard } from './security/roles.guard';
 import { HealthController } from './web/health.controller';
 import { HttpMetricsInterceptor } from './web/http-metrics.interceptor';
@@ -32,10 +33,7 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
         },
       ],
     }),
-    PrometheusModule.register({
-      path: '/metrics',
-      defaultMetrics: { enabled: false },
-    }),
+    PrometheusModule.register({ path: '/metrics' }),
   ],
   controllers: [HealthController],
   providers: [
@@ -46,6 +44,7 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
     RolesGuard,
     ReportingCacheService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: MetricsAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },

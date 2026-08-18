@@ -3,13 +3,17 @@ import { Reflector } from '@nestjs/core';
 import { lastValueFrom, of } from 'rxjs';
 import { SuccessResponseInterceptor } from './success-response.interceptor';
 
-function makeContext(statusCode: number): ExecutionContext {
+function makeContext(
+  statusCode: number,
+  path = '/api/v1/products',
+): ExecutionContext {
   return {
     getType: () => 'http',
     getHandler: () => undefined,
     getClass: () => undefined,
     switchToHttp: () => ({
       getResponse: () => ({ statusCode }),
+      getRequest: () => ({ path }),
     }),
   } as unknown as ExecutionContext;
 }
@@ -50,5 +54,21 @@ describe('SuccessResponseInterceptor', () => {
       ),
     ).resolves.toBeUndefined();
     expect(reflector.getAllAndOverride).not.toHaveBeenCalled();
+  });
+
+  it('route /metrics melewati interceptor tanpa wrapping', async () => {
+    const reflector = { getAllAndOverride: jest.fn() };
+    const interceptor = new SuccessResponseInterceptor(
+      reflector as unknown as Reflector,
+    );
+
+    const raw = '# HELP http_requests_total total\n';
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(makeContext(200, '/metrics'), {
+          handle: () => of(raw),
+        }),
+      ),
+    ).resolves.toBe(raw);
   });
 });

@@ -39,6 +39,22 @@ describe('JwtAuthGuard', () => {
     const result = guard.canActivate({
       getHandler: ctx.getHandler,
       getClass: ctx.getClass,
+      switchToHttp: jest.fn().mockReturnValue({
+        getRequest: jest.fn().mockReturnValue({ path: '/api/v1/checkout' }),
+      }),
+    } as unknown as ExecutionContext);
+    expect(result).toBe(true);
+  });
+
+  it('route /metrics melewati autentikasi', () => {
+    const ctx = makeContext({ isPublic: false });
+    const guard = new JwtAuthGuard(ctx.reflector);
+    const result = guard.canActivate({
+      getHandler: ctx.getHandler,
+      getClass: ctx.getClass,
+      switchToHttp: jest.fn().mockReturnValue({
+        getRequest: jest.fn().mockReturnValue({ path: '/metrics' }),
+      }),
     } as unknown as ExecutionContext);
     expect(result).toBe(true);
   });

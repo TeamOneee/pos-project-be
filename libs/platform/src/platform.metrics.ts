@@ -1,10 +1,4 @@
-import { Counter, Histogram, collectDefaultMetrics } from 'prom-client';
-
-try {
-  collectDefaultMetrics();
-} catch {
-  // metric sudah terdaftar dari worker Jest lain — aman diabaikan
-}
+import { Counter, Histogram } from 'prom-client';
 
 export const httpRequestDuration = new Histogram({
   name: 'http_request_duration_seconds',

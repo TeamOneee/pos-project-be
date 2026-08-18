@@ -32,6 +32,13 @@ export class SuccessResponseInterceptor<T> implements NestInterceptor<
       return next.handle();
     }
 
+    /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+    const req = context.switchToHttp().getRequest();
+    if (req.path === '/metrics') {
+      return next.handle();
+    }
+    /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+
     return next.handle().pipe(
       map((data) => {
         const response = context.switchToHttp().getResponse<Response>();
