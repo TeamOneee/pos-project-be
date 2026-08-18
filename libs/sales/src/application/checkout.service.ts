@@ -7,6 +7,11 @@ import {
   ErrorCode,
   PrismaWriteService,
 } from '@app/platform';
+import {
+  posCheckoutTotal,
+  posRevenueTotal,
+  posItemsSoldTotal,
+} from '@app/platform/platform.metrics';
 import { ProductReadPort } from '@app/catalog';
 import { StockReservationPort } from '@app/inventory';
 import { TenantAuthorizationService } from '@app/tenant';
@@ -176,6 +181,14 @@ export class CheckoutService {
       lines,
     );
 
+    const soldQty = lines.reduce((s, l) => s + l.quantity, 0);
+    posCheckoutTotal.inc({
+      payment_method: dto.payment_method,
+      status: 'success',
+    });
+    posRevenueTotal.inc({ payment_method: dto.payment_method }, Number(total));
+    posItemsSoldTotal.inc(soldQty);
+
     return transaction;
   }
 
@@ -228,6 +241,10 @@ export class CheckoutService {
               })),
             });
             if (reservation.ok === false) {
+              posCheckoutTotal.inc({
+                payment_method: dto.payment_method,
+                status: 'insufficient_stock',
+              });
               throw ApiError.conflict(
                 ErrorCode.INSUFFICIENT_STOCK,
                 'Stok tidak mencukupi.',
@@ -259,6 +276,10 @@ export class CheckoutService {
             (typeof err.message === 'string' &&
               /deadlock|40P01/i.test(err.message)));
         if (!isDeadlock || attempt === MAX_ATTEMPTS - 1) {
+          posCheckoutTotal.inc({
+            payment_method: dto.payment_method,
+            status: 'error',
+          });
           throw err;
         }
         await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));

@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
+import { posUserLoginsTotal } from '../platform.metrics';
 import { UserRole } from './user-role';
 
 export interface JwtClaims {
@@ -32,6 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!payload.sub || !payload.merchant_id || !payload.role) {
       throw new UnauthorizedException('Token tidak valid.');
     }
+    posUserLoginsTotal.inc({ role: payload.role });
     return {
       userId: payload.sub,
       merchantId: payload.merchant_id,

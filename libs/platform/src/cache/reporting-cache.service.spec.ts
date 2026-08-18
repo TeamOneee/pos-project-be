@@ -29,4 +29,57 @@ describe('ReportingCacheService', () => {
       data: { omzet: '1.00' },
     });
   });
+
+  it('getFresh mengembalikan undefined jika key belum ada', async () => {
+    const cache = new ReportingCacheService(config as never);
+    await expect(cache.getFresh('missing-key')).resolves.toBeUndefined();
+  });
+
+  it('getStale mengembalikan undefined jika key belum ada', async () => {
+    const cache = new ReportingCacheService(config as never);
+    await expect(cache.getStale('missing-key')).resolves.toBeUndefined();
+  });
+
+  it('getOrLoad mengembalikan CACHE saat fresh hit', async () => {
+    const cache = new ReportingCacheService(config as never);
+    const loader = jest.fn(() => Promise.resolve({ value: 1 }));
+
+    await cache.getOrLoad('key-1', loader);
+    const second = await cache.getOrLoad('key-1', loader);
+
+    expect(second.source).toBe('CACHE');
+    expect(loader).toHaveBeenCalledTimes(1);
+  });
+
+  it('memory cache expired mengembalikan undefined', async () => {
+    const cache = new ReportingCacheService(config as never);
+    await cache.getOrLoad('key-1', () => Promise.resolve({ v: 1 }));
+
+    // Simulate expiry by manipulating internal state
+    const memory = (
+      cache as unknown as {
+        memory: Map<string, { value: string; expiresAt: number }>;
+      }
+    ).memory;
+    const entry = memory.get('reporting:fresh:key-1');
+    if (entry) {
+      entry.expiresAt = Date.now() - 1000;
+    }
+
+    await expect(cache.getFresh('key-1')).resolves.toBeUndefined();
+  });
+
+  it('onModuleDestroy tidak melempar error jika tidak ada redis', async () => {
+    const cache = new ReportingCacheService(config as never);
+    await expect(cache.onModuleDestroy()).resolves.toBeUndefined();
+  });
+
+  it('source adalah COMPUTED saat cache miss pertama kali', async () => {
+    const cache = new ReportingCacheService(config as never);
+    const result = await cache.getOrLoad('key-new', () =>
+      Promise.resolve({ data: 'fresh' }),
+    );
+    expect(result.source).toBe('COMPUTED');
+    expect(result.entry.data).toEqual({ data: 'fresh' });
+  });
 });

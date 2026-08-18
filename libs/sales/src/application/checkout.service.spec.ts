@@ -229,7 +229,7 @@ describe('CheckoutService', () => {
     const result = await service.checkout(actor, dto);
 
     expect(result).toMatchObject({ transaction_id: 'txn-0' });
-    expect(receiptService.compose).toHaveBeenCalledWith({}, 'txn-0', actor);
+    expect(receiptService.compose).toHaveBeenCalledWith(prisma, 'txn-0', actor);
     expect(repository.createTransaction).not.toHaveBeenCalled();
     expect(reservation.reserveForSale).not.toHaveBeenCalled();
   });

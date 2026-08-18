@@ -13,6 +13,7 @@ import { JwtAuthGuard } from './security/jwt-auth.guard';
 import { JwtStrategy } from './security/jwt.strategy';
 import { RolesGuard } from './security/roles.guard';
 import { HealthController } from './web/health.controller';
+import { HttpMetricsInterceptor } from './web/http-metrics.interceptor';
 import { SuccessResponseInterceptor } from './web/success-response.interceptor';
 
 // Shared kernel (primitif infrastruktur): error, security, money, cache, prisma.
@@ -31,7 +32,10 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
         },
       ],
     }),
-    PrometheusModule.register({ path: '/metrics' }),
+    PrometheusModule.register({
+      path: '/metrics',
+      defaultMetrics: { enabled: false },
+    }),
   ],
   controllers: [HealthController],
   providers: [
@@ -45,6 +49,7 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: HttpMetricsInterceptor },
     { provide: APP_INTERCEPTOR, useClass: SuccessResponseInterceptor },
   ],
   exports: [

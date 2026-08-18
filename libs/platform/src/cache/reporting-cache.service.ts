@@ -1,6 +1,7 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { posCacheOperationsTotal } from '../platform.metrics';
 
 export const REPORTING_CACHE_TTL_MS = 30 * 60_000;
 const STALE_CACHE_TTL_MS = 2 * 60 * 60_000;
@@ -64,7 +65,9 @@ export class ReportingCacheService
   }
 
   async getStale<T>(key: string): Promise<ReportingCacheEntry<T> | undefined> {
-    return this.read<T>(this.staleKey(key));
+    const entry = await this.read<T>(this.staleKey(key));
+    posCacheOperationsTotal.inc({ operation: entry ? 'hit' : 'miss' });
+    return entry;
   }
 
   // mengembalikan data dari cache atau memuat dari loader dengan perlindungan stampede:
@@ -76,7 +79,11 @@ export class ReportingCacheService
     loader: () => Promise<T>,
   ): Promise<ReportingCacheLoadResult<T>> {
     const cached = await this.getFresh<T>(key);
-    if (cached) return { entry: cached, source: 'CACHE' };
+    if (cached) {
+      posCacheOperationsTotal.inc({ operation: 'hit' });
+      return { entry: cached, source: 'CACHE' };
+    }
+    posCacheOperationsTotal.inc({ operation: 'miss' });
 
     const current = this.inFlight.get(key) as
       Promise<ReportingCacheLoadResult<T>> | undefined;

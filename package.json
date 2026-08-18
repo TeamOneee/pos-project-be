@@ -47,6 +47,7 @@
     "class-validator": "^0.15.1",
     "cockatiel": "^4.0.0",
     "ioredis": "^6.0.0",
+    "judoscale-express": "^2.3.3",
     "nestjs-cls": "^6.2.1",
     "nestjs-pino": "^4.6.1",
     "passport": "^0.7.0",
@@ -108,6 +109,8 @@
       "!**/*.spec.ts",
       "!**/*.module.ts",
       "!**/main.ts",
+      "!**/platform.metrics.ts",
+      "!**/http-metrics.interceptor.ts",
       "!**/dist/**",
       "!**/node_modules/**"
     ],

@@ -5,7 +5,7 @@ import { StockReservationResult } from './stock-reservation.port';
 import { StockReservationService } from './stock-reservation.service';
 
 const tx = {
-  inventory: { findUnique: jest.fn() },
+  inventory: { findMany: jest.fn() },
 } as unknown as Prisma.TransactionClient;
 
 const baseCtx = {
@@ -36,10 +36,10 @@ const asFailure = (
   };
 
 // memverifikasi reservasi stok saat checkout (FR-INV-004, AT-004):
-// pengurangan atomik per line dan pencatatan movement SALE.
+// pengurangan atomik batch dan pencatatan movement SALE.
 describe('StockReservationService', () => {
-  const inventoryRepo = { updateQuantityConditional: jest.fn() };
-  const movementRepo = { create: jest.fn() };
+  const inventoryRepo = { bulkUpdateQuantityConditional: jest.fn() };
+  const movementRepo = { createMany: jest.fn() };
   let service: StockReservationService;
 
   beforeEach(() => {
@@ -50,8 +50,9 @@ describe('StockReservationService', () => {
     );
   });
 
-  it('mengembalikan insufficient saat Inventory tidak ada', async () => {
-    (tx.inventory.findUnique as jest.Mock).mockResolvedValue(null);
+  it('mengembalikan insufficient saat semua line gagal', async () => {
+    inventoryRepo.bulkUpdateQuantityConditional.mockResolvedValue([]);
+    (tx.inventory.findMany as jest.Mock).mockResolvedValue([]);
     const result = await service.reserveForSale({
       ...baseCtx,
       lines: [{ productId: 'product-1', quantity: 3 }],
@@ -60,15 +61,22 @@ describe('StockReservationService', () => {
       ok: false,
       insufficient: [{ productId: 'product-1', requested: 3, available: 0 }],
     });
-    expect(inventoryRepo.updateQuantityConditional).not.toHaveBeenCalled();
+    expect(inventoryRepo.bulkUpdateQuantityConditional).toHaveBeenCalledWith(
+      tx,
+      {
+        merchantId: 'merchant-1',
+        outletId: 'outlet-1',
+        lines: [{ productId: 'product-1', delta: -3 }],
+      },
+    );
+    expect(movementRepo.createMany).not.toHaveBeenCalled();
   });
 
   it('mengembalikan insufficient saat stok tidak mencukupi', async () => {
-    (tx.inventory.findUnique as jest.Mock).mockResolvedValue({
-      id: 'inv-1',
-      merchantId: 'merchant-1',
-      quantity: 2,
-    });
+    inventoryRepo.bulkUpdateQuantityConditional.mockResolvedValue([]);
+    (tx.inventory.findMany as jest.Mock).mockResolvedValue([
+      { productId: 'product-1', quantity: 2 },
+    ]);
     const result = await service.reserveForSale({
       ...baseCtx,
       lines: [{ productId: 'product-1', quantity: 3 }],
@@ -81,16 +89,10 @@ describe('StockReservationService', () => {
   });
 
   it('FR-INV-004: mengurangi stok dan mencatat movement SALE saat cukup', async () => {
-    (tx.inventory.findUnique as jest.Mock).mockResolvedValue({
-      id: 'inv-1',
-      merchantId: 'merchant-1',
-      quantity: 10,
-    });
-    inventoryRepo.updateQuantityConditional.mockResolvedValue({
-      quantityBefore: 10,
-      quantityAfter: 7,
-    });
-    movementRepo.create.mockResolvedValue({ id: 'move-1' });
+    inventoryRepo.bulkUpdateQuantityConditional.mockResolvedValue([
+      { productId: 'product-1', quantityBefore: 10, quantityAfter: 7 },
+    ]);
+    movementRepo.createMany.mockResolvedValue({ count: 1 });
 
     const result = await service.reserveForSale({
       ...baseCtx,
@@ -98,54 +100,49 @@ describe('StockReservationService', () => {
     });
 
     expect(result).toEqual({ ok: true });
-    expect(inventoryRepo.updateQuantityConditional).toHaveBeenCalledWith(tx, {
-      inventoryId: 'inv-1',
-      delta: -3,
-    });
-    expect(movementRepo.create).toHaveBeenCalledWith(
+    expect(inventoryRepo.bulkUpdateQuantityConditional).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({
-        type: 'SALE',
-        delta: -3,
-        quantityBefore: 10,
-        quantityAfter: 7,
-        transactionId: 'txn-1',
-        actorUserId: 'cashier-1',
-      }),
+      {
+        merchantId: 'merchant-1',
+        outletId: 'outlet-1',
+        lines: [{ productId: 'product-1', delta: -3 }],
+      },
+    );
+    expect(movementRepo.createMany).toHaveBeenCalledWith(
+      tx,
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'SALE',
+          delta: -3,
+          quantityBefore: 10,
+          quantityAfter: 7,
+          transactionId: 'txn-1',
+          actorUserId: 'cashier-1',
+        }),
+      ]),
     );
   });
 
   it('menolak line yang gagal update atomik', async () => {
-    (tx.inventory.findUnique as jest.Mock).mockResolvedValue({
-      id: 'inv-1',
-      merchantId: 'merchant-1',
-      quantity: 10,
-    });
-    inventoryRepo.updateQuantityConditional.mockResolvedValue(null);
+    inventoryRepo.bulkUpdateQuantityConditional.mockResolvedValue([]);
+    (tx.inventory.findMany as jest.Mock).mockResolvedValue([
+      { productId: 'product-1', quantity: 10 },
+    ]);
     const result = await service.reserveForSale({
       ...baseCtx,
       lines: [{ productId: 'product-1', quantity: 3 }],
     });
     expect(asFailure(result).insufficient[0]).toMatchObject({ available: 10 });
-    expect(movementRepo.create).not.toHaveBeenCalled();
+    expect(movementRepo.createMany).not.toHaveBeenCalled();
   });
 
   it('menggabungkan hasil beberapa line dengan stok parsial', async () => {
-    (tx.inventory.findUnique as jest.Mock)
-      .mockResolvedValueOnce({
-        id: 'inv-1',
-        merchantId: 'merchant-1',
-        quantity: 10,
-      })
-      .mockResolvedValueOnce({
-        id: 'inv-2',
-        merchantId: 'merchant-1',
-        quantity: 2,
-      });
-    inventoryRepo.updateQuantityConditional.mockResolvedValue({
-      quantityBefore: 10,
-      quantityAfter: 9,
-    });
+    inventoryRepo.bulkUpdateQuantityConditional.mockResolvedValue([
+      { productId: 'product-1', quantityBefore: 10, quantityAfter: 9 },
+    ]);
+    (tx.inventory.findMany as jest.Mock).mockResolvedValue([
+      { productId: 'product-2', quantity: 2 },
+    ]);
     const result = await service.reserveForSale({
       ...baseCtx,
       lines: [
@@ -156,6 +153,6 @@ describe('StockReservationService', () => {
     expect(asFailure(result).insufficient).toEqual([
       { productId: 'product-2', requested: 99, available: 2 },
     ]);
-    expect(movementRepo.create).toHaveBeenCalledTimes(1);
+    expect(movementRepo.createMany).not.toHaveBeenCalled();
   });
 });

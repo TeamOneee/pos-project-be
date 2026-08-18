@@ -48,10 +48,19 @@ describe('TokenService', () => {
     );
   });
 
-  it('mendukung kustomisasi durasi token dari konfigurasi (mis. 30m)', () => {
+  it.each([
+    ['30m', 1800],
+    ['60s', 60],
+    ['2h', 7200],
+    ['1d', 86400],
+    ['invalid', 900],
+    [undefined, 900],
+    ['120', 120],
+    [300, 300],
+  ])('parseExpiresInSeconds(%j) menghasilkan %d', (input, expected) => {
     const customConfig = {
       get: jest.fn((key: string) =>
-        key === 'JWT_ACCESS_EXPIRES_IN' ? '30m' : undefined,
+        key === 'JWT_ACCESS_EXPIRES_IN' ? input : undefined,
       ),
       getOrThrow: jest.fn(() => 'test-access-secret'),
     };
@@ -60,6 +69,6 @@ describe('TokenService', () => {
       customConfig as unknown as ConfigService,
     );
     const { expiresInSeconds } = customService.signAccessToken(claims);
-    expect(expiresInSeconds).toBe(1800);
+    expect(expiresInSeconds).toBe(expected);
   });
 });
