@@ -71,6 +71,7 @@ jobs:
     name: SonarCloud analysis
     needs: ci
     runs-on: ubuntu-latest
+    environment: staging
     steps:
       - uses: actions/checkout@v4
         with:
