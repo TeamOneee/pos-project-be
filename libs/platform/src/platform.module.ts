@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { PrometheusModule } from '@willsoto/nestjs-prometheus';
@@ -12,6 +13,7 @@ import { JwtAuthGuard } from './security/jwt-auth.guard';
 import { JwtStrategy } from './security/jwt.strategy';
 import { RolesGuard } from './security/roles.guard';
 import { HealthController } from './web/health.controller';
+import { HttpMetricsInterceptor } from './web/http-metrics.interceptor';
 import { SuccessResponseInterceptor } from './web/success-response.interceptor';
 
 // Shared kernel (primitif infrastruktur): error, security, money, cache, prisma.
@@ -19,8 +21,21 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
 @Module({
   imports: [
     ClsModule.forRoot({ global: true }),
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 300 }]),
-    PrometheusModule.register({ path: '/metrics' }),
+    // TTL/limit throttler via env agar dapat dikendalikan pada environment
+    // load test tanpa mengubah kode (default mengikuti konvensi: 300/60s).
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>('THROTTLE_TTL_MS', 60_000),
+          limit: config.get<number>('THROTTLE_LIMIT', 300),
+        },
+      ],
+    }),
+    PrometheusModule.register({
+      path: '/metrics',
+      defaultMetrics: { enabled: false },
+    }),
   ],
   controllers: [HealthController],
   providers: [
@@ -34,6 +49,7 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: HttpMetricsInterceptor },
     { provide: APP_INTERCEPTOR, useClass: SuccessResponseInterceptor },
   ],
   exports: [

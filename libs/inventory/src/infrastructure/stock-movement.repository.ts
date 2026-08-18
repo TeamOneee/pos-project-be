@@ -22,6 +22,15 @@ export class StockMovementRepository {
     return tx.stockMovement.create({ data });
   }
 
+  // batch insert riwayat stok untuk seluruh line checkout (type=SALE) dalam
+  // satu statement, mengurangi round-trip transaksi checkout.
+  createMany(
+    tx: Prisma.TransactionClient,
+    data: Prisma.StockMovementUncheckedCreateInput[],
+  ): Promise<Prisma.BatchPayload> {
+    return tx.stockMovement.createMany({ data });
+  }
+
   findByMerchant(
     merchantId: string,
     filter: StockMovementListFilter,

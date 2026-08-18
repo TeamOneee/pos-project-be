@@ -1,4 +1,5 @@
 // memverifikasi orkestrasi cache-aside, isolasi tenant, dan fallback stale dashboard query service.
+import { ApiError } from '@app/platform';
 import { DashboardQueryService } from './dashboard-query.service';
 
 const request = {
@@ -139,5 +140,136 @@ describe('DashboardQueryService', () => {
       inventoryItemCount: 0,
     });
     expect(sales.listCompletedTransactionFacts).not.toHaveBeenCalled();
+  });
+
+  it('validasi menolak bucket yang tidak valid', async () => {
+    await expect(
+      service.getSummary({
+        ...request,
+        bucket: 'WEEK' as never,
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('validasi menerima bucket HOUR', async () => {
+    await expect(
+      service.getSummary({
+        ...request,
+        bucket: 'HOUR',
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('validasi menolak limit < 1', async () => {
+    await expect(
+      service.getSummary({
+        ...request,
+        limit: 0,
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('validasi menolak limit > 100', async () => {
+    await expect(
+      service.getSummary({
+        ...request,
+        limit: 101,
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('validasi menolak limit non-integer', async () => {
+    await expect(
+      service.getSummary({
+        ...request,
+        limit: 5.5,
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
+  });
+
+  it('source dan stale keduanya gagal melempar DEPENDENCY_UNAVAILABLE', async () => {
+    cache.getStale.mockResolvedValue(undefined);
+    cache.getOrLoad.mockRejectedValue(new Error('total failure'));
+    await expect(service.getSummary(request)).rejects.toMatchObject({
+      code: 'DEPENDENCY_UNAVAILABLE',
+    });
+  });
+
+  it('source gagal dengan ApiError melempar ulang ApiError', async () => {
+    cache.getStale.mockResolvedValue(undefined);
+    const apiErr = ApiError.validation('bad request');
+    cache.getOrLoad.mockRejectedValue(apiErr);
+    await expect(service.getSummary(request)).rejects.toMatchObject({
+      code: 'VALIDATION_ERROR',
+    });
+  });
+
+  it('getSalesTrend mengembalikan meta, bucket, dan points', async () => {
+    const result = await service.getSalesTrend(request);
+    expect(result).toHaveProperty('meta');
+    expect(result).toHaveProperty('bucket');
+    expect(result).toHaveProperty('points');
+  });
+
+  it('getAovTrend mengembalikan meta, bucket, dan points', async () => {
+    const result = await service.getAovTrend(request);
+    expect(result).toHaveProperty('meta');
+    expect(result).toHaveProperty('bucket');
+    expect(result).toHaveProperty('points');
+  });
+
+  it('getTimePattern mengembalikan meta dan points', async () => {
+    const result = await service.getTimePattern(request);
+    expect(result).toHaveProperty('meta');
+    expect(result).toHaveProperty('points');
+  });
+
+  it('getTopProducts mengembalikan topSelling dan leastSelling', async () => {
+    const result = await service.getTopProducts(request);
+    expect(result).toHaveProperty('meta');
+    expect(result).toHaveProperty('topSelling');
+    expect(result).toHaveProperty('leastSelling');
+  });
+
+  it('getOutletComparison mengembalikan items', async () => {
+    const result = await service.getOutletComparison(request);
+    expect(result).toHaveProperty('meta');
+    expect(result).toHaveProperty('items');
+  });
+
+  it('getLowStock mengembalikan items, dataUpdatedAt, freshnessStatus, timezone', async () => {
+    const result = await service.getLowStock({ merchantId: 'merchant-1' });
+    expect(result).toHaveProperty('items');
+    expect(result).toHaveProperty('dataUpdatedAt');
+    expect(result.freshnessStatus).toBe('FRESH');
+    expect(result.timezone).toBe('Asia/Jakarta');
+  });
+
+  it('getDataset mengembalikan summary, series, byOutlet, topProducts', async () => {
+    const result = await service.getDataset({
+      merchantId: 'merchant-1',
+      dateFrom: new Date('2026-08-01'),
+      dateTo: new Date('2026-08-31'),
+      granularity: 'DAY',
+    });
+    expect(result).toHaveProperty('summary');
+    expect(result).toHaveProperty('series');
+    expect(result).toHaveProperty('byOutlet');
+    expect(result).toHaveProperty('topProducts');
+    expect(result).toHaveProperty('dataVersion');
+  });
+
+  it('getOperations mengembalikan operasional snapshot dengan timezone', async () => {
+    const result = await service.getOperations({ merchantId: 'm-1' });
+    expect(result.timezone).toBe('Asia/Jakarta');
+    expect(result.freshnessStatus).toBe('FRESH');
+  });
+
+  it('getSummary dengan outletId undefined menggunakan all-outlets di cache key', async () => {
+    await service.getSummary({
+      ...request,
+      outletId: undefined,
+    });
+    expect(tenant.getContext).toHaveBeenCalledWith('merchant-1', undefined);
   });
 });
