@@ -99,7 +99,13 @@ export class ReportingCacheService
   }
 
   async onModuleDestroy(): Promise<void> {
-    if (this.redis) await this.redis.quit();
+    if (this.redis) {
+      try {
+        await this.redis.quit();
+      } catch {
+        this.redis.disconnect();
+      }
+    }
   }
 
   // mencegah cache stampede thundering herd lintas instance:
@@ -183,7 +189,7 @@ export class ReportingCacheService
       }
       this.memory.set(key, { value: raw, expiresAt: Date.now() + ttlMs });
     } catch {
-      // source data sudah benar; kegagalan cache hanya membuat request berikutnya rebuild.
+      this.memory.set(key, { value: raw, expiresAt: Date.now() + ttlMs });
     }
   }
 
