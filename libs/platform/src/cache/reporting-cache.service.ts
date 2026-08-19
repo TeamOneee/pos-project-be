@@ -55,7 +55,7 @@ export class ReportingCacheService
         lazyConnect: true,
         enableOfflineQueue: false,
         maxRetriesPerRequest: 1,
-        connectTimeout: 500,
+        connectTimeout: 5000,
       });
     }
   }
