@@ -14,11 +14,6 @@ import { AiAnalysisJobRepository } from '../infrastructure/ai-analysis-job.repos
 import { AiInsightRepository } from '../infrastructure/ai-insight.repository';
 import { AiProviderError } from '../infrastructure/ai-provider.error';
 
-function readPositiveInteger(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function toErrorCategory(error: unknown): string {
   if (error instanceof AiProviderError) return error.category;
   if (error instanceof ApiError) return 'REPORTING_DEPENDENCY';
@@ -137,13 +132,12 @@ export class InsightGenerationService {
     job: ClaimedAiAnalysisJob,
     error: unknown,
   ): Promise<void> {
-    const maxAttempts = readPositiveInteger(process.env.AI_JOB_MAX_ATTEMPTS, 3);
+    const maxAttempts = Number(process.env.AI_JOB_MAX_ATTEMPTS ?? 3);
     const category = toErrorCategory(error);
     const canRetry = isRetryable(error) && job.attempts < maxAttempts;
     if (canRetry) {
-      const baseDelayMs = readPositiveInteger(
-        process.env.AI_JOB_RETRY_BASE_DELAY_MS,
-        60_000,
+      const baseDelayMs = Number(
+        process.env.AI_JOB_RETRY_BASE_DELAY_MS ?? 60_000,
       );
       const delayMs = baseDelayMs * 2 ** (job.attempts - 1);
       await this.jobs.scheduleRetry(
@@ -164,6 +158,10 @@ export class InsightGenerationService {
       merchantId: job.merchantId,
       attempts: job.attempts,
       category,
+      error:
+        error instanceof Error
+          ? { name: error.name, message: error.message }
+          : String(error),
       retryScheduled: canRetry,
     });
   }
