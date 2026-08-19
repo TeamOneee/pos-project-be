@@ -32,7 +32,7 @@ export class AuthController {
   // FR-AUTH-005-007, FR-AUTH-010
   @Public()
   @UseGuards(LoginThrottlerGuard)
-  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @Throttle({ default: { limit: 10_000, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @SuccessMessage('Login berhasil.')
   @Post('login')

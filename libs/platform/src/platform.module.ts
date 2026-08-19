@@ -29,7 +29,7 @@ import { SuccessResponseInterceptor } from './web/success-response.interceptor';
       useFactory: (config: ConfigService) => [
         {
           ttl: config.get<number>('THROTTLE_TTL_MS', 60_000),
-          limit: config.get<number>('THROTTLE_LIMIT', 300),
+          limit: config.get<number>('THROTTLE_LIMIT', 10_000),
         },
       ],
     }),
