@@ -161,7 +161,7 @@ export class InsightGenerationService {
       error:
         error instanceof Error
           ? { name: error.name, message: error.message }
-          : String(error),
+          : { value: error },
       retryScheduled: canRetry,
     });
   }
