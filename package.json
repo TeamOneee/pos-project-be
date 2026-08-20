@@ -26,7 +26,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "semgrep": "semgrep scan --config .semgrep.yml apps libs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
