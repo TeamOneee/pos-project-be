@@ -72,12 +72,20 @@ export class AiAnalysisJobRepository {
   }
 
   async claimNextDue(): Promise<ClaimedAiAnalysisJob | null> {
+    // PROCESSING yang tidak berubah melewati lease dianggap ditinggalkan worker
+    // yang crash; worker lain boleh mengambilnya kembali tanpa tabel recovery baru.
+    const leaseMilliseconds = Number(
+      process.env.AI_JOB_LEASE_TIMEOUT_MS ?? 15 * 60 * 1_000,
+    );
+    const leaseSeconds = Math.max(1, Math.ceil(leaseMilliseconds / 1_000));
     const rows = await this.prisma.$queryRaw<ClaimedRow[]>`
       WITH candidate AS (
         SELECT id
         FROM ai_analysis_job
         WHERE (state = 'PENDING' AND next_retry_at IS NULL)
            OR (state = 'RETRY_SCHEDULED' AND next_retry_at <= NOW())
+           OR (state = 'PROCESSING'
+               AND updated_at < NOW() - (${leaseSeconds} * INTERVAL '1 second'))
         ORDER BY created_at ASC, id ASC
         FOR UPDATE SKIP LOCKED
         LIMIT 1

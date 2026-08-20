@@ -1,14 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InsightGenerationService } from '../application/insight-generation.service';
+import { ClaimedAiAnalysisJob } from '../application/insight.models';
 import { AiAnalysisJobRepository } from '../infrastructure/ai-analysis-job.repository';
 
-function readPositiveInteger(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-// mengambil job due satu per satu secara bounded; claim database menjaga job tidak diproses dua worker.
+// mengambil job due secara bounded setiap lima detik; claim database menjaga job tidak diproses dua worker.
 @Injectable()
 export class AiAnalysisScheduler {
   private readonly logger = new Logger(AiAnalysisScheduler.name);
@@ -19,19 +15,45 @@ export class AiAnalysisScheduler {
     private readonly generation: InsightGenerationService,
   ) {}
 
-  @Cron(CronExpression.EVERY_MINUTE)
+  // polling lima detik agar job Owner mulai diproses cepat tanpa menunggu satu menit.
+  @Cron(CronExpression.EVERY_5_SECONDS)
   async tick(): Promise<void> {
     if (this.running) return;
     this.running = true;
     try {
-      const maxJobs = readPositiveInteger(
-        process.env.AI_WORKER_MAX_JOBS_PER_TICK,
-        5,
+      const maxJobs = Number(process.env.AI_WORKER_MAX_JOBS_PER_TICK ?? 5);
+      const concurrency = Math.min(
+        maxJobs,
+        Number(process.env.AI_WORKER_CONCURRENCY ?? 5),
       );
+      const claimed: ClaimedAiAnalysisJob[] = [];
       for (let index = 0; index < maxJobs; index += 1) {
         const job = await this.jobs.claimNextDue();
         if (!job) break;
-        await this.generation.process(job);
+        claimed.push(job);
+      }
+
+      // LLM call dijalankan paralel dalam batch kecil; batas ini mencegah satu
+      // tick membuka request tak terbatas ketika banyak Owner menekan Analyze.
+      for (let index = 0; index < claimed.length; index += concurrency) {
+        const batch = claimed.slice(index, index + concurrency);
+        const results = await Promise.allSettled(
+          batch.map((job) => this.generation.process(job)),
+        );
+        results
+          .filter(
+            (result): result is PromiseRejectedResult =>
+              result.status === 'rejected',
+          )
+          .forEach((result) => {
+            this.logger.error({
+              message: 'ai insight job unexpectedly rejected',
+              error:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : 'unknown error',
+            });
+          });
       }
     } catch (error: unknown) {
       this.logger.error({

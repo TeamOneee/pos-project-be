@@ -11,7 +11,7 @@ export interface AdjustStockCommand {
   outletId: string;
   productId: string;
   delta: number;
-  reason: string;
+  reason?: string;
 }
 
 export interface StockMovementListFilter {

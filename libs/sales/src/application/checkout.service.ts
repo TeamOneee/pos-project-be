@@ -267,6 +267,24 @@ export class CheckoutService {
           },
         );
       } catch (err) {
+        // PostgreSQL aborts the interactive transaction after a unique violation.
+        // Therefore the competing row must be read with the root Prisma client,
+        // outside the failed transaction; querying through `tx` would turn a
+        // successful concurrent checkout into a 500 response.
+        if (this.isCheckoutRequestUniqueConflict(err)) {
+          const replayed = await this.repository.findByCheckoutRequest(
+            this.prisma,
+            actor.merchantId,
+            dto.checkout_request_id,
+          );
+          if (replayed) {
+            if (replayed.requestHash !== requestHash) {
+              throw this.idempotencyConflict();
+            }
+            return this.receiptService.compose(this.prisma, replayed.id, actor);
+          }
+        }
+
         // P2034 (write conflict/deadlock) atau 40P01 dari raw query ($queryRaw tidak
         // selalu dipetakan Prisma ke kode P2034) -> percobaan ulang aman karena
         // transaksi korban sudah di-rollback oleh Postgres.
@@ -288,8 +306,9 @@ export class CheckoutService {
     throw new Error('checkout: unreachable');
   }
 
-  // create transaction dengan menangani race idempotency via unique
-  // (merchant_id + checkout_request_id): submit bersamaan hanya satu yang commit.
+  // create transaction; unique (merchant_id + checkout_request_id) menjaga hanya
+  // satu request yang commit. Race replay ditangani di luar interactive transaction
+  // karena PostgreSQL menandai transaksi sebagai failed setelah P2002.
   private async createOrReplay(
     tx: Prisma.TransactionClient,
     actor: AuthUser,
@@ -305,68 +324,51 @@ export class CheckoutService {
       quantity: number;
       subtotal: Prisma.Decimal;
     }[],
-    attempt = 0,
   ): Promise<{ id: string; __replayed?: boolean }> {
-    try {
-      const transaction = await this.repository.createTransaction(tx, {
-        id: transactionId,
-        merchantId: actor.merchantId,
-        outletId: dto.outlet_id,
-        operatorUserId: actor.userId,
-        transactionNumber: await this.repository.nextTransactionNumber(tx),
-        checkoutRequestId: dto.checkout_request_id,
-        requestHash,
-        status: TransactionStatus.COMPLETED,
-        paymentMethod: dto.payment_method,
-        paymentStatus: 'CONFIRMED',
-        paidAt: new Date(),
-        subtotal,
-        total,
-        items: lines.map((l) => ({
-          productId: l.productId,
-          productNameSnapshot: l.name,
-          unitPriceSnapshot: l.unitPrice,
-          quantity: l.quantity,
-          subtotal: l.subtotal,
-        })),
-      });
-      return { id: transaction.id };
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === 'P2002' &&
-        Array.isArray(err.meta?.target)
-      ) {
-        const target = err.meta.target as string[];
-        if (target.includes('checkout_request_id')) {
-          const replayed = await this.repository.findByCheckoutRequest(
-            tx,
-            actor.merchantId,
-            dto.checkout_request_id,
-          );
-          if (replayed && replayed.requestHash === requestHash) {
-            return { id: replayed.id, __replayed: true };
-          }
-          throw this.idempotencyConflict();
-        }
-        // Safety net: nomor transaksi collision (seharusnya tidak terjadi karena
-        // memakai sequence, tetapi retry dengan nomor baru bila tetap ada).
-        if (target.includes('transaction_number') && attempt < 3) {
-          return this.createOrReplay(
-            tx,
-            actor,
-            dto,
-            requestHash,
-            transactionId,
-            subtotal,
-            total,
-            lines,
-            attempt + 1,
-          );
-        }
-      }
-      throw err;
+    const transaction = await this.repository.createTransaction(tx, {
+      id: transactionId,
+      merchantId: actor.merchantId,
+      outletId: dto.outlet_id,
+      operatorUserId: actor.userId,
+      transactionNumber: await this.repository.nextTransactionNumber(tx),
+      checkoutRequestId: dto.checkout_request_id,
+      requestHash,
+      status: TransactionStatus.COMPLETED,
+      paymentMethod: dto.payment_method,
+      paymentStatus: 'CONFIRMED',
+      paidAt: new Date(),
+      subtotal,
+      total,
+      items: lines.map((l) => ({
+        productId: l.productId,
+        productNameSnapshot: l.name,
+        unitPriceSnapshot: l.unitPrice,
+        quantity: l.quantity,
+        subtotal: l.subtotal,
+      })),
+    });
+    return { id: transaction.id };
+  }
+
+  private isCheckoutRequestUniqueConflict(error: unknown): boolean {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
     }
+    const target = error.meta?.target;
+    let fields = '';
+    if (Array.isArray(target)) {
+      fields = target.join('_');
+    } else if (typeof target === 'string') {
+      fields = target;
+    }
+    const normalized = fields.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    return (
+      normalized.includes('checkout_request_id') ||
+      normalized.includes('checkoutrequestid')
+    );
   }
 
   private idempotencyConflict(): ApiError {
