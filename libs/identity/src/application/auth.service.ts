@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { ApiError, ErrorCode } from '@app/platform';
-import { PrismaWriteService } from '@app/platform';
+import { ApiError, ErrorCode, PrismaWriteService } from '@app/platform';
 import { UserRepository } from '../infrastructure/user.repository';
 import { normalizeEmail } from './email.util';
 import { PasswordService } from './password.service';

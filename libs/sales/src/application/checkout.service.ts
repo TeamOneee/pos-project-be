@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { createHash, randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, TransactionStatus } from '@prisma/client';
 import {
   ApiError,
@@ -27,6 +27,24 @@ interface NormalizedItem {
   productId: string;
   quantity: number;
   expectedUnitPrice?: string;
+}
+
+interface CheckoutLine {
+  productId: string;
+  name: string;
+  unitPrice: Prisma.Decimal;
+  quantity: number;
+  subtotal: Prisma.Decimal;
+}
+
+interface CheckoutContext {
+  actor: AuthUser;
+  dto: CheckoutDto;
+  requestHash: string;
+  transactionId: string;
+  subtotal: Prisma.Decimal;
+  total: Prisma.Decimal;
+  lines: CheckoutLine[];
 }
 
 @Injectable()
@@ -104,14 +122,198 @@ export class CheckoutService {
     }
 
     // validasi produk aktif + harga efektif (BR-012) — murni in-memory dari hasil read fase 1.
+    const lines = this.validateAndBuildLines(normalized, products);
+
+    // total = subtotal (OD-004/DR-013); tidak ada field payment amount (FR-PAY-003)
+    const subtotal = lines.reduce(
+      (acc, l) => acc.add(l.subtotal),
+      new Prisma.Decimal(0),
+    );
+    const total = subtotal;
+
+    const ctx: CheckoutContext = {
+      actor,
+      dto,
+      requestHash,
+      transactionId,
+      subtotal,
+      total,
+      lines,
+    };
+    const transaction = await this.commitCheckout(ctx);
+
+    const soldQty = lines.reduce((s, l) => s + l.quantity, 0);
+    posCheckoutTotal.inc({
+      payment_method: dto.payment_method,
+      status: 'success',
+    });
+    posRevenueTotal.inc({ payment_method: dto.payment_method }, Number(total));
+    posItemsSoldTotal.inc(soldQty);
+
+    return transaction;
+  }
+
+  // menjalankan interactive transaction checkout dengan retry pada write conflict /
+  // deadlock (Prisma P2034). Korban deadlock di-rollback otomatis oleh Postgres,
+  // sehingga percobaan ulang selalu aman dan tetap idempotent.
+  private async commitCheckout(
+    ctx: CheckoutContext,
+  ): Promise<CheckoutResultDto> {
+    const MAX_ATTEMPTS = 5;
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.executeCheckoutTransaction(ctx);
+      } catch (err) {
+        // PostgreSQL aborts the interactive transaction after a unique violation.
+        // Therefore the competing row must be read with the root Prisma client,
+        // outside the failed transaction; querying through `tx` would turn a
+        // successful concurrent checkout into a 500 response.
+        if (this.isCheckoutRequestUniqueConflict(err)) {
+          const replayed = await this.repository.findByCheckoutRequest(
+            this.prisma,
+            ctx.actor.merchantId,
+            ctx.dto.checkout_request_id,
+          );
+          if (replayed) {
+            if (replayed.requestHash !== ctx.requestHash) {
+              throw this.idempotencyConflict();
+            }
+            return this.receiptService.compose(
+              this.prisma,
+              replayed.id,
+              ctx.actor,
+            );
+          }
+        }
+
+        // P2034 (write conflict/deadlock) atau 40P01 dari raw query ($queryRaw tidak
+        // selalu dipetakan Prisma ke kode P2034) -> percobaan ulang aman karena
+        // transaksi korban sudah di-rollback oleh Postgres.
+        const isDeadlock =
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          (err.code === 'P2034' ||
+            (typeof err.message === 'string' &&
+              /deadlock|40P01/i.test(err.message)));
+        if (!isDeadlock || attempt === MAX_ATTEMPTS - 1) {
+          posCheckoutTotal.inc({
+            payment_method: ctx.dto.payment_method,
+            status: 'error',
+          });
+          throw err;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
+      }
+    }
+    throw new Error('checkout: unreachable');
+  }
+
+  private async executeCheckoutTransaction(
+    ctx: CheckoutContext,
+  ): Promise<CheckoutResultDto> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const created = await this.createOrReplay(tx, ctx);
+
+        const reservation = await this.stockReservationPort.reserveForSale({
+          merchantId: ctx.actor.merchantId,
+          outletId: ctx.dto.outlet_id,
+          transactionId: ctx.transactionId,
+          actorUserId: ctx.actor.userId,
+          tx,
+          lines: ctx.lines.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          })),
+        });
+        if (reservation.ok === false) {
+          posCheckoutTotal.inc({
+            payment_method: ctx.dto.payment_method,
+            status: 'insufficient_stock',
+          });
+          throw ApiError.conflict(
+            ErrorCode.INSUFFICIENT_STOCK,
+            'Stok tidak mencukupi.',
+            reservation.insufficient.map((i) => ({
+              field: `items[].product_id=${i.productId}`,
+              reason: `stock=${i.available}, requested=${i.requested}`,
+            })),
+          );
+        }
+
+        // commit -> return receipt tersimpan (tanpa outbox/event, FR-CHK-014/015)
+        return this.receiptService.compose(tx, created.id, ctx.actor);
+      },
+      {
+        // remote Neon ~0.5-1s/query; transaksi checkout hanya berisi write pendek,
+        // naikkan batas agar tidak kedaluwarsa pada DB dengan latensi tinggi.
+        maxWait: 10_000,
+        timeout: 30_000,
+        isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
+      },
+    );
+  }
+
+  // create transaction; unique (merchant_id + checkout_request_id) menjaga hanya
+  // satu request yang commit. Race replay ditangani di luar interactive transaction
+  // karena PostgreSQL menandai transaksi sebagai failed setelah P2002.
+  private async createOrReplay(
+    tx: Prisma.TransactionClient,
+    ctx: CheckoutContext,
+  ): Promise<{ id: string }> {
+    const transaction = await this.repository.createTransaction(tx, {
+      id: ctx.transactionId,
+      merchantId: ctx.actor.merchantId,
+      outletId: ctx.dto.outlet_id,
+      operatorUserId: ctx.actor.userId,
+      transactionNumber: await this.repository.nextTransactionNumber(tx),
+      checkoutRequestId: ctx.dto.checkout_request_id,
+      requestHash: ctx.requestHash,
+      status: TransactionStatus.COMPLETED,
+      paymentMethod: ctx.dto.payment_method,
+      paymentStatus: 'CONFIRMED',
+      paidAt: new Date(),
+      subtotal: ctx.subtotal,
+      total: ctx.total,
+      items: ctx.lines.map((l) => ({
+        productId: l.productId,
+        productNameSnapshot: l.name,
+        unitPriceSnapshot: l.unitPrice,
+        quantity: l.quantity,
+        subtotal: l.subtotal,
+      })),
+    });
+    return { id: transaction.id };
+  }
+
+  private isCheckoutRequestUniqueConflict(error: unknown): boolean {
+    if (
+      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+      error.code !== 'P2002'
+    ) {
+      return false;
+    }
+    const target = error.meta?.target;
+    let fields = '';
+    if (Array.isArray(target)) {
+      fields = target.join('_');
+    } else if (typeof target === 'string') {
+      fields = target;
+    }
+    const normalized = fields.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    return (
+      normalized.includes('checkout_request_id') ||
+      normalized.includes('checkoutrequestid')
+    );
+  }
+
+  private validateAndBuildLines(
+    normalized: NormalizedItem[],
+    products: Awaited<
+      ReturnType<typeof this.productReadPort.getProductsForSaleValidation>
+    >,
+  ): CheckoutLine[] {
     const productById = new Map(products.map((p) => [p.id, p]));
-    const lines: {
-      productId: string;
-      name: string;
-      unitPrice: Prisma.Decimal;
-      quantity: number;
-      subtotal: Prisma.Decimal;
-    }[] = [];
+    const lines: CheckoutLine[] = [];
 
     for (const item of normalized) {
       const product = productById.get(item.productId);
@@ -157,218 +359,7 @@ export class CheckoutService {
       });
     }
 
-    // total = subtotal (OD-004/DR-013); tidak ada field payment amount (FR-PAY-003)
-    const subtotal = lines.reduce(
-      (acc, l) => acc.add(l.subtotal),
-      new Prisma.Decimal(0),
-    );
-    const total = subtotal;
-
-    // FASE 2 — transaksi pendek: hanya write (create transaction + kurangi stok atomik).
-    // Race idempotency diselesaikan unique constraint; stok dijamin tidak negatif oleh
-    // UPDATE ... WHERE quantity + delta >= 0 (FR-INV-004, AT-004).
-    // Deadlock (P2034) mungkin terjadi karena transaksi konkuren mengunci baris
-    // inventory yang sama dalam urutan berbeda; korbannya di-rollback atomik sehingga
-    // retry aman (checkout_request_id menjamin idempotency). Lines sudah diurutkan
-    // by product_id untuk meminimalkan kemungkinan deadlock sejak awal.
-    const transaction = await this.commitCheckout(
-      actor,
-      dto,
-      requestHash,
-      transactionId,
-      subtotal,
-      total,
-      lines,
-    );
-
-    const soldQty = lines.reduce((s, l) => s + l.quantity, 0);
-    posCheckoutTotal.inc({
-      payment_method: dto.payment_method,
-      status: 'success',
-    });
-    posRevenueTotal.inc({ payment_method: dto.payment_method }, Number(total));
-    posItemsSoldTotal.inc(soldQty);
-
-    return transaction;
-  }
-
-  // menjalankan interactive transaction checkout dengan retry pada write conflict /
-  // deadlock (Prisma P2034). Korban deadlock di-rollback otomatis oleh Postgres,
-  // sehingga percobaan ulang selalu aman dan tetap idempotent.
-  private async commitCheckout(
-    actor: AuthUser,
-    dto: CheckoutDto,
-    requestHash: string,
-    transactionId: string,
-    subtotal: Prisma.Decimal,
-    total: Prisma.Decimal,
-    lines: {
-      productId: string;
-      name: string;
-      unitPrice: Prisma.Decimal;
-      quantity: number;
-      subtotal: Prisma.Decimal;
-    }[],
-  ): Promise<CheckoutResultDto> {
-    const MAX_ATTEMPTS = 5;
-    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-      try {
-        return await this.prisma.$transaction(
-          async (tx) => {
-            const created = await this.createOrReplay(
-              tx,
-              actor,
-              dto,
-              requestHash,
-              transactionId,
-              subtotal,
-              total,
-              lines,
-            );
-            if (created.__replayed) {
-              return this.receiptService.compose(tx, created.id, actor);
-            }
-
-            const reservation = await this.stockReservationPort.reserveForSale({
-              merchantId: actor.merchantId,
-              outletId: dto.outlet_id,
-              transactionId,
-              actorUserId: actor.userId,
-              tx,
-              lines: lines.map((i) => ({
-                productId: i.productId,
-                quantity: i.quantity,
-              })),
-            });
-            if (reservation.ok === false) {
-              posCheckoutTotal.inc({
-                payment_method: dto.payment_method,
-                status: 'insufficient_stock',
-              });
-              throw ApiError.conflict(
-                ErrorCode.INSUFFICIENT_STOCK,
-                'Stok tidak mencukupi.',
-                reservation.insufficient.map((i) => ({
-                  field: `items[].product_id=${i.productId}`,
-                  reason: `stock=${i.available}, requested=${i.requested}`,
-                })),
-              );
-            }
-
-            // commit -> return receipt tersimpan (tanpa outbox/event, FR-CHK-014/015)
-            return this.receiptService.compose(tx, created.id, actor);
-          },
-          {
-            // remote Neon ~0.5-1s/query; transaksi checkout hanya berisi write pendek,
-            // naikkan batas agar tidak kedaluwarsa pada DB dengan latensi tinggi.
-            maxWait: 10_000,
-            timeout: 30_000,
-            isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted,
-          },
-        );
-      } catch (err) {
-        // PostgreSQL aborts the interactive transaction after a unique violation.
-        // Therefore the competing row must be read with the root Prisma client,
-        // outside the failed transaction; querying through `tx` would turn a
-        // successful concurrent checkout into a 500 response.
-        if (this.isCheckoutRequestUniqueConflict(err)) {
-          const replayed = await this.repository.findByCheckoutRequest(
-            this.prisma,
-            actor.merchantId,
-            dto.checkout_request_id,
-          );
-          if (replayed) {
-            if (replayed.requestHash !== requestHash) {
-              throw this.idempotencyConflict();
-            }
-            return this.receiptService.compose(this.prisma, replayed.id, actor);
-          }
-        }
-
-        // P2034 (write conflict/deadlock) atau 40P01 dari raw query ($queryRaw tidak
-        // selalu dipetakan Prisma ke kode P2034) -> percobaan ulang aman karena
-        // transaksi korban sudah di-rollback oleh Postgres.
-        const isDeadlock =
-          err instanceof Prisma.PrismaClientKnownRequestError &&
-          (err.code === 'P2034' ||
-            (typeof err.message === 'string' &&
-              /deadlock|40P01/i.test(err.message)));
-        if (!isDeadlock || attempt === MAX_ATTEMPTS - 1) {
-          posCheckoutTotal.inc({
-            payment_method: dto.payment_method,
-            status: 'error',
-          });
-          throw err;
-        }
-        await new Promise((resolve) => setTimeout(resolve, 25 * (attempt + 1)));
-      }
-    }
-    throw new Error('checkout: unreachable');
-  }
-
-  // create transaction; unique (merchant_id + checkout_request_id) menjaga hanya
-  // satu request yang commit. Race replay ditangani di luar interactive transaction
-  // karena PostgreSQL menandai transaksi sebagai failed setelah P2002.
-  private async createOrReplay(
-    tx: Prisma.TransactionClient,
-    actor: AuthUser,
-    dto: CheckoutDto,
-    requestHash: string,
-    transactionId: string,
-    subtotal: Prisma.Decimal,
-    total: Prisma.Decimal,
-    lines: {
-      productId: string;
-      name: string;
-      unitPrice: Prisma.Decimal;
-      quantity: number;
-      subtotal: Prisma.Decimal;
-    }[],
-  ): Promise<{ id: string; __replayed?: boolean }> {
-    const transaction = await this.repository.createTransaction(tx, {
-      id: transactionId,
-      merchantId: actor.merchantId,
-      outletId: dto.outlet_id,
-      operatorUserId: actor.userId,
-      transactionNumber: await this.repository.nextTransactionNumber(tx),
-      checkoutRequestId: dto.checkout_request_id,
-      requestHash,
-      status: TransactionStatus.COMPLETED,
-      paymentMethod: dto.payment_method,
-      paymentStatus: 'CONFIRMED',
-      paidAt: new Date(),
-      subtotal,
-      total,
-      items: lines.map((l) => ({
-        productId: l.productId,
-        productNameSnapshot: l.name,
-        unitPriceSnapshot: l.unitPrice,
-        quantity: l.quantity,
-        subtotal: l.subtotal,
-      })),
-    });
-    return { id: transaction.id };
-  }
-
-  private isCheckoutRequestUniqueConflict(error: unknown): boolean {
-    if (
-      !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-      error.code !== 'P2002'
-    ) {
-      return false;
-    }
-    const target = error.meta?.target;
-    let fields = '';
-    if (Array.isArray(target)) {
-      fields = target.join('_');
-    } else if (typeof target === 'string') {
-      fields = target;
-    }
-    const normalized = fields.toLowerCase().replace(/[^a-z0-9_]/g, '_');
-    return (
-      normalized.includes('checkout_request_id') ||
-      normalized.includes('checkoutrequestid')
-    );
+    return lines;
   }
 
   private idempotencyConflict(): ApiError {

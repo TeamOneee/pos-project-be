@@ -136,7 +136,7 @@ export class StaffService {
     }
 
     const role = dto.role ?? user.role;
-    let outletId = dto.outlet_id !== undefined ? dto.outlet_id : user.outletId;
+    let outletId = dto.outlet_id ?? user.outletId;
 
     if (role === 'ADMIN') {
       if (outletId != null) {

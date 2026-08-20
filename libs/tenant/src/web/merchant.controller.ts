@@ -6,9 +6,7 @@ import {
   HttpStatus,
   Patch,
 } from '@nestjs/common';
-import { CurrentUser, SuccessMessage } from '@app/platform';
-import { AuthUser } from '@app/platform';
-import { Roles } from '@app/platform';
+import { AuthUser, CurrentUser, Roles, SuccessMessage } from '@app/platform';
 import { MerchantService } from '../application/merchant.service';
 import { MerchantDto } from './dto/merchant.dto';
 import { UpdateMerchantDto } from './dto/update-merchant.dto';

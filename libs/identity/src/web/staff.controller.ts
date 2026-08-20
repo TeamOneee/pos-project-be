@@ -11,13 +11,13 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  AuthUser,
   CurrentUser,
   PageRequestDto,
   PageResponseDto,
   Roles,
   SuccessMessage,
 } from '@app/platform';
-import { AuthUser } from '@app/platform';
 import { StaffService } from '../application/staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { StaffListQueryDto } from './dto/staff-list-query.dto';

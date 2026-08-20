@@ -22,6 +22,6 @@ export class CorrelationIdMiddleware implements NestMiddleware {
   }
 
   private generate(): string {
-    return `c-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
+    return `c-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
   }
 }
