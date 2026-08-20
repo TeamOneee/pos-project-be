@@ -270,8 +270,14 @@ export class DashboardQueryService extends ReportingReadPort {
         periodEnd: request.dateTo,
       },
       bucket: data.bucket,
-      salesTrend: data.salesTrend,
-      aovTrend: data.aovTrend,
+      salesTrend: data.salesTrend.map((point) => ({
+        ...point,
+        bucketStart: new Date(point.bucketStart),
+      })),
+      aovTrend: data.aovTrend.map((point) => ({
+        ...point,
+        bucketStart: new Date(point.bucketStart),
+      })),
       timePattern: data.timePattern,
       topSelling: data.topSelling,
       leastSelling: data.leastSelling,
