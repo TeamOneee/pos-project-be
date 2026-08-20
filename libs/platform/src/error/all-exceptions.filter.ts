@@ -56,7 +56,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     if (typeof header === 'string' && header.trim().length > 0) {
       return header.trim().slice(0, 64);
     }
-    return `c-${randomUUID().replace(/-/g, '').slice(0, 8)}`;
+    return `c-${randomUUID().replaceAll('-', '').slice(0, 8)}`;
   }
 
   private mapException(

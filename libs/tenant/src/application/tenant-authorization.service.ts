@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Outlet } from '@prisma/client';
-import { ApiError } from '@app/platform';
-import { AuthUser } from '@app/platform';
+import { ApiError, AuthUser } from '@app/platform';
 import { UserReadPort } from '@app/identity';
 import { OutletRepository } from '../infrastructure/outlet.repository';
 

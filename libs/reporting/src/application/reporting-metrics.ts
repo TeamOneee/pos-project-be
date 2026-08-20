@@ -157,7 +157,7 @@ function buildProductPerformance(
     toItem(productId, value),
   );
   const topSelling = soldItems
-    .sort(
+    .toSorted(
       (left, right) =>
         right.unitsSold - left.unitsSold ||
         Money.of(right.omzet)
@@ -175,7 +175,7 @@ function buildProductPerformance(
       };
       return toItem(product.id, { ...metric, name: product.name });
     })
-    .sort(
+    .toSorted(
       (left, right) =>
         left.unitsSold - right.unitsSold ||
         Money.of(left.omzet)

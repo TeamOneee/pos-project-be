@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Merchant, Prisma } from '@prisma/client';
-import { ApiError } from '@app/platform';
-import { AuthUser } from '@app/platform';
+import { ApiError, AuthUser } from '@app/platform';
 import { MerchantRepository } from '../infrastructure/merchant.repository';
 import { MerchantDto } from '../web/dto/merchant.dto';
 import { UpdateMerchantDto } from '../web/dto/update-merchant.dto';

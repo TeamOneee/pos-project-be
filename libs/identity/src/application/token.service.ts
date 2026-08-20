@@ -20,7 +20,7 @@ function parseExpiresInSeconds(val?: string | number): number {
   if (typeof val === 'number') return val;
   const match = /^(\d+)([smhd])?$/i.exec(String(val).trim());
   if (!match) return 900;
-  const num = parseInt(match[1], 10);
+  const num = Number.parseInt(match[1], 10);
   const unit = match[2]?.toLowerCase();
   switch (unit) {
     case 's':

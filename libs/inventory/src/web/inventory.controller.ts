@@ -69,7 +69,7 @@ export class InventoryController {
         outletId: dto.outlet_id,
         productId: dto.product_id,
         delta: dto.delta,
-        reason: dto.reason ?? "",
+        reason: dto.reason ?? '',
       }),
     );
   }

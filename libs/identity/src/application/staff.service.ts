@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
 import {
   ApiError,
@@ -33,6 +33,7 @@ export function toStaffDto(user: User): StaffDto {
 // FR-AUTH-011-014, FR-TEN-005-006, BR-011
 @Injectable()
 export class StaffService {
+  private readonly logger = new Logger(StaffService.name);
   constructor(
     private readonly userRepository: UserRepository,
     private readonly outletRepository: OutletRepository,
@@ -83,6 +84,17 @@ export class StaffService {
       role: dto.role,
       status: 'ACTIVE',
     });
+
+    this.logger.log(
+      {
+        userId: user.id,
+        email: emailNormalized,
+        role: dto.role,
+        outletId,
+        createdBy: actor.userId,
+      },
+      'staff created',
+    );
 
     return toStaffDto(user);
   }
@@ -177,6 +189,12 @@ export class StaffService {
     }
 
     const updated = await this.userRepository.updateStaff(user.id, data);
+
+    this.logger.log(
+      { userId: user.id, updatedBy: actor.userId, changes: Object.keys(data) },
+      'staff updated',
+    );
+
     return toStaffDto(updated);
   }
 }

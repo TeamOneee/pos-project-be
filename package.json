@@ -26,7 +26,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:generate": "prisma generate"
+    "db:generate": "prisma generate",
+    "semgrep": "semgrep scan --config p/typescript --config p/owasp-top-ten --config p/security-audit apps libs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -43,6 +44,7 @@
     "@willsoto/nestjs-prometheus": "^6.1.0",
     "argon2": "^0.45.1",
     "axios": "^1.19.0",
+    "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "cockatiel": "^4.0.0",
@@ -63,6 +65,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@types/bcrypt": "^6.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",

@@ -11,13 +11,13 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  AuthUser,
   CurrentUser,
   PageRequestDto,
   PageResponseDto,
   Roles,
   SuccessMessage,
 } from '@app/platform';
-import { AuthUser } from '@app/platform';
 import { OutletService } from '../application/outlet.service';
 import { CreateOutletDto } from './dto/create-outlet.dto';
 import { OutletDto } from './dto/outlet.dto';

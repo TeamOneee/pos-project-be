@@ -1,8 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { ApiError, ErrorCode } from '@app/platform';
-import { PrismaWriteService } from '@app/platform';
+import { ApiError, ErrorCode, PrismaWriteService } from '@app/platform';
 import { UserRepository } from '../infrastructure/user.repository';
 import { normalizeEmail } from './email.util';
 import { PasswordService } from './password.service';
@@ -17,6 +16,7 @@ const LOGIN_FAILED_MESSAGE =
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
   constructor(
     private readonly prisma: PrismaWriteService,
     private readonly userRepository: UserRepository,
@@ -30,6 +30,10 @@ export class AuthService {
 
     const existing = await this.userRepository.findByEmail(email);
     if (existing) {
+      this.logger.warn(
+        { email, reason: 'duplicate' },
+        'register attempt rejected',
+      );
       throw ApiError.conflict(
         ErrorCode.EMAIL_ALREADY_REGISTERED,
         'Email sudah terdaftar.',
@@ -42,13 +46,8 @@ export class AuthService {
     const merchantId = randomUUID();
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.merchant.create({
-        data: {
-          id: merchantId,
-          ownerUserId: userId,
-          name: dto.merchant_name,
-        },
-      });
+      await tx.$executeRaw`SET CONSTRAINTS ALL DEFERRED`;
+
       await tx.user.create({
         data: {
           id: userId,
@@ -61,7 +60,19 @@ export class AuthService {
           status: 'ACTIVE',
         },
       });
+      await tx.merchant.create({
+        data: {
+          id: merchantId,
+          ownerUserId: userId,
+          name: dto.merchant_name,
+        },
+      });
     });
+
+    this.logger.log(
+      { userId, merchantId, email, merchantName: dto.merchant_name },
+      'user registered',
+    );
 
     return {
       user_id: userId,
@@ -77,6 +88,10 @@ export class AuthService {
       normalizeEmail(dto.email),
     );
     if (!user) {
+      this.logger.warn(
+        { email: normalizeEmail(dto.email) },
+        'login failed: user not found',
+      );
       throw ApiError.unauthenticated(LOGIN_FAILED_MESSAGE);
     }
 
@@ -85,13 +100,30 @@ export class AuthService {
       dto.password,
     );
     if (!passwordValid) {
+      this.logger.warn(
+        { userId: user.id, email: user.email },
+        'login failed: invalid password',
+      );
       throw ApiError.unauthenticated(LOGIN_FAILED_MESSAGE);
     }
     if (user.status !== 'ACTIVE') {
+      this.logger.warn(
+        { userId: user.id, email: user.email, status: user.status },
+        'login failed: inactive account',
+      );
       throw ApiError.unauthenticated(LOGIN_FAILED_MESSAGE);
     }
 
     const access = this.tokenService.signAccessToken(this.toClaims(user));
+    this.logger.log(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role,
+        merchantId: user.merchantId,
+      },
+      'user logged in',
+    );
     return {
       access_token: access.token,
       expires_in: access.expiresInSeconds,

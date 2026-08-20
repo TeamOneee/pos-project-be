@@ -1,5 +1,6 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
 import Redis from 'ioredis';
 import { posCacheOperationsTotal } from '../platform.metrics';
 
@@ -119,7 +120,7 @@ export class ReportingCacheService
   ): Promise<ReportingCacheLoadResult<T>> {
     if (!this.redis) return this.loadAndStore(key, loader);
 
-    const lockToken = `${process.pid}:${Date.now()}:${Math.random()}`;
+    const lockToken = `${process.pid}:${Date.now()}:${randomUUID()}`;
     const acquired = await this.acquireLock(key, lockToken);
     if (acquired) {
       try {
