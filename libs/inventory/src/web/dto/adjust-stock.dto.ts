@@ -1,6 +1,7 @@
 import {
   IsInt,
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsUUID,
   NotEquals,
@@ -18,6 +19,6 @@ export class AdjustStockDto {
   delta!: number;
 
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   reason!: string;
 }

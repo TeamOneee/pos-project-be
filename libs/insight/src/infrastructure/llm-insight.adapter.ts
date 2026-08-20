@@ -26,11 +26,6 @@ interface OpenAiCompatibleResponse {
   choices?: Array<{ message?: { content?: string | null } }>;
 }
 
-function readPositiveInteger(value: unknown, fallback: number): number {
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
 function isInsightType(value: unknown): value is InsightType {
   return (
     typeof value === 'string' && INSIGHT_TYPES.includes(value as InsightType)
@@ -109,15 +104,11 @@ export class LlmInsightAdapter extends AiProviderPort {
     this.providerKey = config.get<string>('AI_PROVIDER_API_KEY');
     this.providerModel =
       config.get<string>('AI_PROVIDER_MODEL') ?? 'gpt-4.1-mini';
-    this.requestTimeoutMs = readPositiveInteger(
-      config.get('AI_PROVIDER_TIMEOUT_MS'),
-      15_000,
+    this.requestTimeoutMs = Number(
+      config.get('AI_PROVIDER_TIMEOUT_MS') ?? 15_000,
     );
     this.retryPolicy = retry(handleWhen(isRetryableProviderError), {
-      maxAttempts: readPositiveInteger(
-        config.get('AI_PROVIDER_MAX_ATTEMPTS'),
-        2,
-      ),
+      maxAttempts: Number(config.get('AI_PROVIDER_MAX_ATTEMPTS') ?? 2),
       backoff: new ExponentialBackoff({ initialDelay: 250, maxDelay: 2_000 }),
     });
     this.timeoutPolicy = timeout(
@@ -126,11 +117,10 @@ export class LlmInsightAdapter extends AiProviderPort {
     );
     this.breaker = circuitBreaker(handleWhen(isRetryableProviderError), {
       breaker: new ConsecutiveBreaker(
-        readPositiveInteger(config.get('AI_PROVIDER_BREAKER_THRESHOLD'), 3),
+        Number(config.get('AI_PROVIDER_BREAKER_THRESHOLD') ?? 3),
       ),
-      halfOpenAfter: readPositiveInteger(
-        config.get('AI_PROVIDER_BREAKER_COOLDOWN_MS'),
-        30_000,
+      halfOpenAfter: Number(
+        config.get('AI_PROVIDER_BREAKER_COOLDOWN_MS') ?? 30_000,
       ),
     });
   }
