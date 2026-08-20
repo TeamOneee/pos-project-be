@@ -31,12 +31,13 @@ describe('AuthService', () => {
     $transaction: jest.fn(
       async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
         fn({
-          merchant: {
+          $executeRaw: jest.fn().mockResolvedValue([]),
+          user: {
             create: jest.fn((a: { data: { id: string } }) =>
               Promise.resolve({ id: a.data.id }),
             ),
           },
-          user: {
+          merchant: {
             create: jest.fn((a: { data: { id: string } }) =>
               Promise.resolve({ id: a.data.id }),
             ),

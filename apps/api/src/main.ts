@@ -19,7 +19,10 @@ async function bootstrap() {
 
   app.setGlobalPrefix('api/v1');
   app.enableCors({
-    origin: process.env.CORS_ORIGINS?.split(',') ?? ['http://localhost:5173', 'https://kpos1.netlify.app'],
+    origin: process.env.CORS_ORIGINS?.split(',') ?? [
+      'http://localhost:5173',
+      'https://kpos1.netlify.app',
+    ],
     credentials: true,
   });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));

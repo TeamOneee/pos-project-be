@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { Prisma, TransactionStatus } from '@prisma/client';
 import {
@@ -49,6 +49,7 @@ interface CheckoutContext {
 
 @Injectable()
 export class CheckoutService {
+  private readonly logger = new Logger(CheckoutService.name);
   constructor(
     private readonly prisma: PrismaWriteService,
     private readonly repository: TransactionRepository,
@@ -118,6 +119,14 @@ export class CheckoutService {
       if (existing.requestHash !== requestHash) {
         throw this.idempotencyConflict();
       }
+      this.logger.log(
+        {
+          transactionId: existing.id,
+          checkoutRequestId: dto.checkout_request_id,
+          operatorId: actor.userId,
+        },
+        'checkout idempotent replay',
+      );
       return this.receiptService.compose(this.prisma, existing.id, actor);
     }
 
@@ -149,6 +158,20 @@ export class CheckoutService {
     });
     posRevenueTotal.inc({ payment_method: dto.payment_method }, Number(total));
     posItemsSoldTotal.inc(soldQty);
+
+    this.logger.log(
+      {
+        transactionId: transaction.transaction_id,
+        transactionNumber: transaction.transaction_number,
+        outletId: dto.outlet_id,
+        operatorId: actor.userId,
+        itemCount: lines.length,
+        totalSoldQty: soldQty,
+        total: total.toFixed(2),
+        paymentMethod: dto.payment_method,
+      },
+      'checkout completed',
+    );
 
     return transaction;
   }

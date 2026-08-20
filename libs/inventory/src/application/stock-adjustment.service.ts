@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   ApiError,
   AuthUser,
@@ -15,6 +15,7 @@ import { AdjustStockCommand, AdjustmentResult } from './inventory.models';
 // stock adjustment manual oleh ADMIN/OWNER (FR-INV-003, FR-INV-004, FR-INV-008).
 @Injectable()
 export class StockAdjustmentService {
+  private readonly logger = new Logger(StockAdjustmentService.name);
   constructor(
     private readonly prisma: PrismaWriteService,
     private readonly tenantAuth: TenantAuthorizationService,
@@ -105,6 +106,20 @@ export class StockAdjustmentService {
       });
 
       posStockMovementsTotal.inc({ type: 'ADJUSTMENT' });
+
+      this.logger.log(
+        {
+          movementId: movement.id,
+          outletId: command.outletId,
+          productId: command.productId,
+          delta: command.delta,
+          quantityBefore,
+          quantityAfter,
+          actorUserId: actor.userId,
+          reason: command.reason,
+        },
+        'stock adjusted',
+      );
 
       return {
         movementId: movement.id,

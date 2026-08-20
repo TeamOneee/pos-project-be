@@ -51,7 +51,7 @@ describe('UserRepository', () => {
   describe('findByEmail', () => {
     it('mengembalikan user berdasarkan email', async () => {
       const user = { id: 'u-1', email: 'budi@test.com' };
-      (mockReadPrisma.user.findUnique as jest.Mock).mockResolvedValue(user);
+      mockReadPrisma.user.findUnique.mockResolvedValue(user);
 
       const result = await repo.findByEmail('budi@test.com');
 
@@ -62,7 +62,7 @@ describe('UserRepository', () => {
     });
 
     it('mengembalikan null jika email tidak ditemukan', async () => {
-      (mockReadPrisma.user.findUnique as jest.Mock).mockResolvedValue(null);
+      mockReadPrisma.user.findUnique.mockResolvedValue(null);
 
       const result = await repo.findByEmail('unknown@test.com');
       expect(result).toBeNull();
@@ -71,7 +71,7 @@ describe('UserRepository', () => {
 
   describe('findById', () => {
     it('mengembalikan user berdasarkan id', async () => {
-      (mockReadPrisma.user.findUnique as jest.Mock).mockResolvedValue({
+      mockReadPrisma.user.findUnique.mockResolvedValue({
         id: 'u-1',
       });
 
@@ -86,7 +86,7 @@ describe('UserRepository', () => {
 
   describe('findByIdInMerchant', () => {
     it('mengembalikan user jika milik merchant', async () => {
-      (mockReadPrisma.user.findFirst as jest.Mock).mockResolvedValue({
+      mockReadPrisma.user.findFirst.mockResolvedValue({
         id: 'u-1',
         merchantId: 'mch-001',
       });
@@ -102,7 +102,7 @@ describe('UserRepository', () => {
 
   describe('findStaffById', () => {
     it('hanya mencari user dengan role ADMIN atau CASHIER', async () => {
-      (mockReadPrisma.user.findFirst as jest.Mock).mockResolvedValue({
+      mockReadPrisma.user.findFirst.mockResolvedValue({
         id: 'u-1',
         role: 'ADMIN',
       });
@@ -122,7 +122,7 @@ describe('UserRepository', () => {
   describe('findStaff', () => {
     it('mengembalikan daftar staff dengan order by desc', async () => {
       const filter: StaffListFilter = { role: 'CASHIER', status: 'ACTIVE' };
-      (mockReadPrisma.user.findMany as jest.Mock).mockResolvedValue([]);
+      mockReadPrisma.user.findMany.mockResolvedValue([]);
 
       const result = await repo.findStaff('mch-001', filter, 0, 10);
 
@@ -139,7 +139,7 @@ describe('UserRepository', () => {
   describe('countStaff', () => {
     it('menghitung jumlah staff berdasarkan filter', async () => {
       const filter: StaffListFilter = {};
-      (mockReadPrisma.user.count as jest.Mock).mockResolvedValue(5);
+      mockReadPrisma.user.count.mockResolvedValue(5);
 
       const result = await repo.countStaff('mch-001', filter);
 
@@ -153,7 +153,7 @@ describe('UserRepository', () => {
   describe('updateStaff', () => {
     it('mengupdate user berdasarkan id', async () => {
       const data = { name: 'Budi Baru' };
-      (mockWritePrisma.user.update as jest.Mock).mockResolvedValue({
+      mockWritePrisma.user.update.mockResolvedValue({
         id: 'u-1',
         name: 'Budi Baru',
       });
@@ -172,7 +172,7 @@ describe('UserRepository', () => {
     it('membuat user baru', async () => {
       const data = makeCreateData();
       const created = { id: 'u-1', ...data };
-      (mockWritePrisma.user.create as jest.Mock).mockResolvedValue(created);
+      mockWritePrisma.user.create.mockResolvedValue(created);
 
       const result = await repo.create(data);
 

@@ -35,7 +35,9 @@ export class UserRepository {
   }
 
   findByIdInMerchant(userId: string, merchantId: string): Promise<User | null> {
-    return this.readPrisma.user.findFirst({ where: { id: userId, merchantId } });
+    return this.readPrisma.user.findFirst({
+      where: { id: userId, merchantId },
+    });
   }
 
   findStaffById(userId: string, merchantId: string): Promise<User | null> {
