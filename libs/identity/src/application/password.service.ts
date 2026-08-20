@@ -1,15 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import * as argon2 from 'argon2';
+import * as bcrypt from 'bcrypt';
 
-// NFR-SEC-001: password hanya disimpan sebagai hash argon2.
+const SALT_ROUNDS = 10;
+
+// NFR-SEC-001: password hanya disimpan sebagai hash bcrypt.
 @Injectable()
 export class PasswordService {
   hash(plain: string): Promise<string> {
-    return argon2.hash(plain);
+    return bcrypt.hash(plain, SALT_ROUNDS);
   }
 
   verify(hash: string, plain: string): Promise<boolean> {
-    return argon2.verify(hash, plain);
+    return bcrypt.compare(plain, hash);
   }
 }
 

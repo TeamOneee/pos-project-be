@@ -1,9 +1,9 @@
 // memverifikasi query outlet aktif milik merchant pada identity module (FR-TEN-005/006).
-import { PrismaWriteService } from '@app/platform';
+import { PrismaReadService } from '@app/platform';
 import { OutletRepository } from './outlet.repository';
 
 function makeMockPrisma() {
-  return { outlet: { findFirst: jest.fn() } } as unknown as PrismaWriteService;
+  return { outlet: { findFirst: jest.fn() } } as unknown as PrismaReadService;
 }
 
 describe('OutletRepository', () => {

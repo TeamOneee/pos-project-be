@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AccountStatus, Prisma, User, UserRole } from '@prisma/client';
-import { PrismaWriteService } from '@app/platform';
+import { PrismaReadService, PrismaWriteService } from '@app/platform';
 
 export interface CreateUserData {
   merchantId: string;
@@ -19,24 +19,27 @@ export interface StaffListFilter {
 
 @Injectable()
 export class UserRepository {
-  constructor(private readonly prisma: PrismaWriteService) {}
+  constructor(
+    private readonly readPrisma: PrismaReadService,
+    private readonly writePrisma: PrismaWriteService,
+  ) {}
 
   findByEmail(email: string): Promise<User | null> {
-    return this.prisma.user.findUnique({
+    return this.readPrisma.user.findUnique({
       where: { email },
     });
   }
 
   findById(userId: string): Promise<User | null> {
-    return this.prisma.user.findUnique({ where: { id: userId } });
+    return this.readPrisma.user.findUnique({ where: { id: userId } });
   }
 
   findByIdInMerchant(userId: string, merchantId: string): Promise<User | null> {
-    return this.prisma.user.findFirst({ where: { id: userId, merchantId } });
+    return this.readPrisma.user.findFirst({ where: { id: userId, merchantId } });
   }
 
   findStaffById(userId: string, merchantId: string): Promise<User | null> {
-    return this.prisma.user.findFirst({
+    return this.readPrisma.user.findFirst({
       where: { id: userId, merchantId, role: { in: ['ADMIN', 'CASHIER'] } },
     });
   }
@@ -47,7 +50,7 @@ export class UserRepository {
     skip: number,
     take: number,
   ): Promise<User[]> {
-    return this.prisma.user.findMany({
+    return this.readPrisma.user.findMany({
       where: { merchantId, role: filter.role, status: filter.status },
       orderBy: { createdAt: 'desc' },
       skip,
@@ -56,7 +59,7 @@ export class UserRepository {
   }
 
   countStaff(merchantId: string, filter: StaffListFilter): Promise<number> {
-    return this.prisma.user.count({
+    return this.readPrisma.user.count({
       where: { merchantId, role: filter.role, status: filter.status },
     });
   }
@@ -65,10 +68,10 @@ export class UserRepository {
     userId: string,
     data: Prisma.UserUncheckedUpdateInput,
   ): Promise<User> {
-    return this.prisma.user.update({ where: { id: userId }, data });
+    return this.writePrisma.user.update({ where: { id: userId }, data });
   }
 
   create(data: CreateUserData): Promise<User> {
-    return this.prisma.user.create({ data });
+    return this.writePrisma.user.create({ data });
   }
 }
