@@ -1,0 +1,209 @@
+name: CI/CD
+
+# ============================================================
+# Persiapan sekali (di luar repo):
+#
+# 1) GitHub → Settings → Environments:
+#    buat environment `staging` dan `production`.
+#    Isi secret di MASING-MASING environment:
+#      - RAILWAY_TOKEN        (Railway → Account Settings → Tokens)
+#      - RAILWAY_PROJECT_ID   (project Railway utk env tsb, mis. pos-staging / pos-production)
+#      - DATABASE_URL_WRITE   (connection string Neon PRIMARY, pooled)
+#    (Opsional: aktifkan "Required reviewers" di production.)
+#
+# 2) Railway → tiap project (pos-staging & pos-production) buat 2 service:
+#      service `api`    → Build: `npm ci && npx prisma generate && npm run build`,
+#                         Start: `node dist/apps/api/apps/api/src/main.js`
+#      service `worker` → Build: `npm ci && npx prisma generate && npm run build`,
+#                         Start: `node dist/apps/worker/apps/worker/src/main.js`
+#    Set variabel service di Railway (BUKAN secret GitHub):
+#      api:    PORT, CORS_ORIGINS, NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ, JWT_*
+#      worker: NODE_ENV, DATABASE_URL_WRITE, DATABASE_URL_READ
+#
+# 3) Neon: 1 project, 2 database (`pos_staging`, `pos_production`).
+#    Tiap env ambil write URL + read-replica URL (pooled `-pooler`).
+#
+# Catatan: `prisma migrate deploy` butuh folder `prisma/migrations/` —
+# buat dulu lewat `npx prisma migrate dev` sebelum CI pertama.
+# ============================================================
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Hanya untuk `prisma validate`/`generate` (tidak konek DB).
+  # `prisma migrate deploy` memakai secret asli per environment.
+  DATABASE_URL_WRITE: postgresql://dummy:dummy@localhost:5432/dummy
+
+jobs:
+  ci:
+    name: CI (lint · prisma · jest · depcruise · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: ESLint
+        run: npm run lint:check
+      - name: Prisma validate
+        run: npx prisma validate
+      - name: Unit test (coverage)
+        run: npm run test:cov
+      - name: Dependency-cruiser
+        run: npm run depcruise
+      - name: Build
+        run: npm run build
+
+  sonarcloud:
+    name: SonarCloud analysis
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Test & coverage
+        run: npm run test:cov
+      - name: SonarCloud Scan
+        uses: sonarsource/sonarcloud-github-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  semgrep:
+    name: Semgrep SAST scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep
+        run: semgrep scan --config p/typescript --config p/owasp-top-ten --config p/security-audit --error --json --output semgrep-results.json apps libs
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-results
+          path: semgrep-results.json
+
+  migrate-staging:
+    name: Migrate DB (staging)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    needs: [ci, sonarcloud, semgrep]
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Prisma migrate deploy
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL_WRITE: ${{ secrets.DATABASE_URL_WRITE }}
+
+  migrate-production:
+    name: Migrate DB (production)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ci, sonarcloud, semgrep]
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Prisma migrate deploy
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL_WRITE: ${{ secrets.DATABASE_URL_WRITE }}
+
+  deploy-staging:
+    name: Deploy (staging)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    needs: migrate-staging
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Build
+        run: npm run build
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Deploy apps/api ke Railway
+        run: railway up --service api --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      - name: Deploy apps/worker ke Railway
+        run: railway up --service worker --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+
+  deploy-production:
+    name: Deploy (production)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: migrate-production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Prisma generate
+        run: npx prisma generate
+      - name: Build
+        run: npm run build
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Deploy apps/api ke Railway
+        run: railway up --service api --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+      - name: Deploy apps/worker ke Railway
+        run: railway up --service worker --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}

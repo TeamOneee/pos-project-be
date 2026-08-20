@@ -1,6 +1,7 @@
 // @ts-check
 import eslint from '@eslint/js';
 import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended';
+import sonarjs from 'eslint-plugin-sonarjs';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
@@ -10,6 +11,7 @@ export default tseslint.config(
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
+  sonarjs.configs.recommended,
   eslintPluginPrettierRecommended,
   {
     languageOptions: {
@@ -29,7 +31,52 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       "prettier/prettier": ["error", { endOfLine: "auto" }],
+    },
+  },
+  {
+    files: ['**/*.spec.ts', 'test/**/*.ts'],
+    rules: {
+      'sonarjs/no-hardcoded-passwords': 'off',
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+    },
+  },
+  {
+    files: ['libs/platform/src/web/http-metrics.interceptor.ts'],
+    rules: {
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+    },
+  },
+  {
+    files: ['libs/platform/src/web/success-response.interceptor.ts'],
+    rules: {
+      'sonarjs/function-return-type': 'off',
+    },
+  },
+  {
+    files: ['libs/platform/src/cache/reporting-cache.service.ts'],
+    rules: {
+      'sonarjs/pseudo-random': 'off',
+    },
+  },
+  {
+    files: ['libs/reporting/src/application/reporting-metrics.ts'],
+    rules: {
+      'sonarjs/no-misleading-array-reverse': 'off',
+    },
+  },
+  {
+    files: ['libs/sales/src/application/checkout.service.ts'],
+    rules: {
+      'sonarjs/cognitive-complexity': 'off',
     },
   },
 );

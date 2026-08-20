@@ -4,23 +4,79 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL_WRITE")
 }
 
+// ============================================================
+// ENUM (05b §4)
+// ============================================================
+// Catatan iterasi 1: tabel `Payment`, `IdempotencyRecord`, `OutboxEvent`,
+// `ReportingProjection`, `JobRecord`, dan `RefreshToken` sengaja TIDAK ada
+// (OD-001, OD-012, OD-006, OD-011). Cart bersifat client-side (YAGNI).
+
+enum UserRole {
+  OWNER
+  ADMIN
+  CASHIER
+}
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TransactionStatus {
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  QRIS
+  TRANSFER
+}
+
+enum StockMovementType {
+  ADJUSTMENT
+  SALE
+}
+
+enum AiAnalysisJobState {
+  PENDING
+  PROCESSING
+  READY
+  RETRY_SCHEDULED
+  FAILED
+}
+
+enum InsightStatus {
+  READY
+  STALE
+}
 
 // ============================================================
 // MERCHANT
 // ============================================================
 
 model Merchant {
-  merchantId String @id @default(uuid()) @map("merchant_id")
-  name       String
-  lowStockThreshold Int @default(10) @map("low_stock_threshold")
-  outlets    Outlet[]
-  users      User[]
-  categories Category[]
-  products   Product[]
-  insights   AiInsight[]
+  id          String        @id @default(uuid())
+  ownerUserId String        @unique @map("owner_user_id")
+  name        String
+  timezone    String        @default("Asia/Jakarta") // BR-018: batas hari laporan
+  status      AccountStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  owner               User          @relation("MerchantOwner", fields: [ownerUserId], references: [id], onDelete: Restrict, onUpdate: Cascade, map: "merchant_owner_user_id_fkey")
+  outlets             Outlet[]
+  users               User[]        @relation("MerchantUsers")
+  categories          Category[]
+  products            Product[]
+  inventories         Inventory[]
+  productOutletPrices ProductOutletPrice[]
+  stockMovements      StockMovement[]
+  transactions        Transaction[]
+  aiInsights          AiInsight[]
+  aiAnalysisJobs      AiAnalysisJob[]
 
   @@map("merchant")
 }
@@ -30,307 +86,267 @@ model Merchant {
 // ============================================================
 
 model Outlet {
-  outletId   String @id @default(uuid()) @map("outlet_id")
-  merchantId String @map("merchant_id")
+  id         String        @id @default(uuid())
+  merchantId String        @map("merchant_id")
   name       String
-  address    String
-  status     String
+  address    String?
+  status     AccountStatus @default(ACTIVE)
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
 
-  merchant     Merchant      @relation(fields: [merchantId], references: [merchantId])
-  users        User[]
-  inventories  Inventory[]
-  transactions Transaction[]
-  carts        Cart[]
+  merchant            Merchant            @relation(fields: [merchantId], references: [id])
+  users               User[]
+  inventories         Inventory[]
+  productOutletPrices ProductOutletPrice[]
+  stockMovements      StockMovement[]
+  transactions        Transaction[]
 
-  // Query umum:
-  // "ambil semua outlet milik merchant"
+  @@unique([merchantId, name]) // nama outlet unik per merchant (semua status)
+  @@unique([id, merchantId], map: "outlet_id_merchant_id_key")
   @@index([merchantId])
-
-  // Query umum:
-  // "ambil outlet aktif milik merchant"
-  @@index([merchantId, status])
-
   @@map("outlet")
 }
-
 
 // ============================================================
 // USER
 // ============================================================
 
 model User {
-  userId     String    @id @default(uuid()) @map("user_id")
-  merchantId String    @map("merchant_id")
-  outletId   String?   @map("outlet_id")
-  name       String
-  email      String    @unique
-  password   String
-  role       String
-  status     String
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  id              String        @id @default(uuid())
+  merchantId      String        @map("merchant_id")
+  outletId        String?       @map("outlet_id") // null utk OWNER/ADMIN, wajib utk CASHIER (CHECK constraint via raw SQL migration)
+  name           String
+  email          String        @unique // DR-001
+  passwordHash   String        @map("password_hash")
+  role           UserRole
+  status          AccountStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
 
-  merchant     Merchant      @relation(fields: [merchantId], references: [merchantId])
-  outlet       Outlet?       @relation(fields: [outletId], references: [outletId])
-  carts        Cart[]
-  transactions Transaction[]
+  merchant       Merchant         @relation("MerchantUsers", fields: [merchantId], references: [id], map: "user_merchant_id_fkey")
+  ownedMerchant  Merchant?        @relation("MerchantOwner")
+  outlet         Outlet?          @relation(fields: [outletId], references: [id], onDelete: SetNull)
+  transactions   Transaction[]    @relation("OperatorTransactions")
+  stockMovements StockMovement[]  @relation("ActorStockMovements")
 
-  // Login → sudah otomatis di-index karena UNIQUE.
-  //
-  // Query:
-  // "ambil semua user dalam merchant"
-  @@index([merchantId])
-
-  // Query:
-  // "ambil user/kasir pada outlet tertentu"
-  @@index([outletId])
-
-  // Query:
-  // "ambil user berdasarkan merchant + outlet"
+  @@index([merchantId, role])
   @@index([merchantId, outletId])
-
   @@map("user")
 }
 
+// migration tambahan (raw SQL) setelah prisma migrate:
+// ALTER TABLE "user" ADD CONSTRAINT chk_cashier_outlet CHECK (
+//   (role = 'CASHIER' AND outlet_id IS NOT NULL) OR (role IN ('OWNER','ADMIN') AND outlet_id IS NULL)
+// );
 
 // ============================================================
 // CATEGORY
 // ============================================================
 
 model Category {
-  categoryId String @id @default(uuid()) @map("category_id")
-  merchantId String @map("merchant_id")
+  id         String    @id @default(uuid())
+  merchantId String    @map("merchant_id")
   name       String
+  isActive   Boolean   @default(true) @map("is_active") // BR-019
 
-  merchant Merchant  @relation(fields: [merchantId], references: [merchantId])
+  merchant Merchant  @relation(fields: [merchantId], references: [id])
   products Product[]
 
-  // Query:
-  // "ambil kategori milik merchant"
-  @@index([merchantId])
-
+  @@unique([merchantId, name]) // DR-010
+  @@unique([id, merchantId], map: "category_id_merchant_id_key")
   @@map("category")
 }
-
 
 // ============================================================
 // PRODUCT
 // ============================================================
 
 model Product {
-  productId  String   @id @default(uuid()) @map("product_id")
-  merchantId String   @map("merchant_id")
-  categoryId String   @map("category_id")
-  name       String
-  price      Decimal  @db.Decimal(12, 2)
-  status     String
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  merchantId        String    @map("merchant_id")
+  categoryId        String    @map("category_id")
+  name              String
+  price             Decimal   @db.Decimal(14, 2) // BR-001
+  lowStockThreshold Int       @map("low_stock_threshold") // FR-CAT-002, FR-INV-007, DR-011A: wajib >= 0
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  merchant    Merchant         @relation(fields: [merchantId], references: [merchantId])
-  category    Category         @relation(fields: [categoryId], references: [categoryId])
-  inventories Inventory[]
-  cartItems   CartItem[]
+  merchant         Merchant             @relation(fields: [merchantId], references: [id])
+  category         Category             @relation(fields: [categoryId], references: [id])
+  inventory        Inventory[]
+  outletPrices     ProductOutletPrice[]
+  stockMovements   StockMovement[]
   transactionItems TransactionItem[]
 
-  // Query:
-  // "ambil product milik merchant"
-  @@index([merchantId])
-
-  // Query:
-  // "filter product berdasarkan category"
-  @@index([categoryId])
-
-  // Query:
-  // "ambil product aktif dalam kategori tertentu"
-  @@index([merchantId, categoryId, status])
-
+  @@index([merchantId, isActive])
+  @@unique([id, merchantId], map: "product_id_merchant_id_key")
   @@map("product")
 }
 
+// ============================================================
+// PRODUCT OUTLET PRICE (FR-CAT-010, DG-002 menutup OD-002)
+// ============================================================
+
+model ProductOutletPrice {
+  id         String   @id @default(uuid())
+  merchantId String   @map("merchant_id")
+  outletId   String   @map("outlet_id")
+  productId  String   @map("product_id")
+  price      Decimal  @db.Decimal(14, 2) // harga efektif untuk Outlet ini; fallback Product.price bila tidak ada baris
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  outlet   Outlet   @relation(fields: [outletId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([outletId, productId])
+  @@index([merchantId])
+  @@map("outlet_product_price")
+}
 
 // ============================================================
 // INVENTORY
 // ============================================================
 
 model Inventory {
-  inventoryId String   @id @default(uuid()) @map("inventory_id")
-  outletId    String   @map("outlet_id")
-  productId   String   @map("product_id")
-  quantity    Int
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                        String   @id @default(uuid())
+  merchantId                String   @map("merchant_id") // DR-007: isolasi tenant tanpa JOIN
+  outletId                  String   @map("outlet_id")
+  productId                 String   @map("product_id")
+  quantity                  Int      @default(0) // CHECK quantity >= 0 (raw SQL migration)
+  lowStockThresholdOverride Int?     @map("low_stock_threshold_override") // CHECK null atau >= 0 (raw SQL migration)
+  updatedAt                 DateTime @updatedAt @map("updated_at")
 
-  outlet  Outlet  @relation(fields: [outletId], references: [outletId])
-  product Product @relation(fields: [productId], references: [productId])
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+  outlet   Outlet   @relation(fields: [outletId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
 
-  // Satu product hanya punya satu inventory
-  // pada satu outlet.
   @@unique([outletId, productId])
-
-  // Query utama:
-  // "ambil stock product X pada outlet Y"
-  //
-  // Composite UNIQUE di atas sudah menghasilkan index,
-  // sehingga tidak perlu @@index([outletId, productId]) lagi.
-
-  // Query:
-  // "ambil semua inventory pada outlet"
-  @@index([outletId])
-
+  @@index([merchantId])
   @@map("inventory")
 }
 
-
 // ============================================================
-// CART
+// STOCK MOVEMENT (FR-INV-003)
 // ============================================================
 
-model Cart {
-  cartId    String   @id @default(uuid()) @map("cart_id")
-  outletId  String   @map("outlet_id")
-  userId    String   @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+model StockMovement {
+  id             String           @id @default(uuid())
+  merchantId     String           @map("merchant_id")
+  outletId       String           @map("outlet_id")
+  productId      String           @map("product_id")
+  type           StockMovementType
+  delta          Int
+  quantityBefore Int              @map("quantity_before")
+  quantityAfter  Int              @map("quantity_after")
+  reason         String? // wajib diisi utk ADJUSTMENT (app-level validation)
+  transactionId  String?          @map("transaction_id") // hanya diisi utk type = SALE
+  actorUserId    String           @map("actor_user_id")
+  createdAt      DateTime         @default(now()) @map("created_at")
 
-  outlet Outlet @relation(fields: [outletId], references: [outletId])
-  user   User   @relation(fields: [userId], references: [userId])
+  merchant    Merchant     @relation(fields: [merchantId], references: [id])
+  outlet      Outlet       @relation(fields: [outletId], references: [id])
+  product     Product      @relation(fields: [productId], references: [id])
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  actor       User         @relation("ActorStockMovements", fields: [actorUserId], references: [id])
 
-  items CartItem[]
-
-  // Satu user hanya memiliki satu cart
-  // pada satu outlet.
-  //
-  // Selain business constraint, ini juga
-  // menghasilkan index untuk lookup:
-  // WHERE user_id = ? AND outlet_id = ?
-  @@unique([userId, outletId])
-
-  // Query:
-  // "ambil semua cart pada outlet"
-  @@index([outletId])
-
-  @@map("cart")
+  @@index([outletId, productId, createdAt])
+  @@map("stock_movement")
 }
 
-
 // ============================================================
-// CART ITEM
-// ============================================================
-
-model CartItem {
-  cartItemId String   @id @default(uuid()) @map("cart_item_id")
-  cartId     String   @map("cart_id")
-  productId  String   @map("product_id")
-  quantity   Int
-  unitPrice  Decimal  @db.Decimal(12, 2) @map("unit_price")
-
-  cart    Cart    @relation(fields: [cartId], references: [cartId], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [productId])
-
-  // Satu product hanya boleh muncul sekali
-  // dalam satu cart.
-  //
-  // Ini juga otomatis membuat index:
-  // (cart_id, product_id)
-  @@unique([cartId, productId])
-
-  // Berguna jika perlu:
-  // "cari cart item berdasarkan product"
-  @@index([productId])
-
-  @@map("cart_item")
-}
-
-
-// ============================================================
-// TRANSACTION
+// TRANSACTION (FR-CHK-001-011, FR-PAY-001-008, OD-012)
 // ============================================================
 
 model Transaction {
-  transactionId     String   @id @default(uuid()) @map("transaction_id")
-  outletId          String   @map("outlet_id")
-  userId            String   @map("user_id")
-  transactionNumber String   @unique @map("transaction_number")
-  subtotal          Decimal  @db.Decimal(12, 2)
-  total             Decimal  @db.Decimal(12, 2)
-  createdAt         DateTime @default(now()) @map("created_at")
+  id                String            @id @default(uuid())
+  merchantId        String            @map("merchant_id") // DR-007
+  outletId          String            @map("outlet_id")
+  operatorUserId    String            @map("operator_user_id") // operator checkout: OWNER/CASHIER (OD-010)
+  transactionNumber String            @map("transaction_number") // DR-003
+  status            TransactionStatus // FR-CHK-010/011
+  paymentMethod     PaymentMethod     @map("payment_method")
+  paymentStatus     String            @default("CONFIRMED") @map("payment_status") // CHECK = CONFIRMED (raw SQL migration)
+  paidAt            DateTime          @default(now()) @map("paid_at")
+  checkoutRequestId String            @map("checkout_request_id") // OD-012: idempotency tanpa tabel terpisah
+  requestHash       String            @map("request_hash") // sha256(payload) untuk deteksi konflik payload
+  subtotal          Decimal           @db.Decimal(14, 2)
+  total             Decimal           @db.Decimal(14, 2) // = subtotal (DR-013)
+  createdAt         DateTime          @default(now()) @map("created_at")
 
-  outlet Outlet @relation(fields: [outletId], references: [outletId])
-  user   User   @relation(fields: [userId], references: [userId])
+  merchant  Merchant          @relation(fields: [merchantId], references: [id])
+  outlet    Outlet            @relation(fields: [outletId], references: [id])
+  operator  User              @relation("OperatorTransactions", fields: [operatorUserId], references: [id])
+  items     TransactionItem[]
+  movements StockMovement[]
 
-  items TransactionItem[]
-
-  // Workload penting POS:
-  // "ambil transaksi outlet berdasarkan waktu"
-  //
-  // Sangat berguna untuk:
-  // - laporan outlet
-  // - history transaksi
-  // - analytics
-  // - filtering berdasarkan periode
-  @@index([outletId, createdAt])
-
-  // Query:
-  // "ambil transaksi milik kasir tertentu
-  // berdasarkan waktu"
-  @@index([userId, createdAt])
-
+  @@unique([merchantId, checkoutRequestId]) // DR-014
+  @@unique([merchantId, transactionNumber]) // DR-003
+  @@index([merchantId, outletId, createdAt])
   @@map("transaction")
 }
 
-
 // ============================================================
-// TRANSACTION ITEM
+// TRANSACTION ITEM (BR-006)
 // ============================================================
 
 model TransactionItem {
-  transactionItemId String  @id @default(uuid()) @map("transaction_item_id")
-  transactionId     String  @map("transaction_id")
-  productId         String  @map("product_id")
-  quantity          Int
-  unitPrice         Decimal @db.Decimal(12, 2) @map("unit_price")
-  subtotal          Decimal @db.Decimal(12, 2)
+  id                 String  @id @default(uuid())
+  transactionId      String  @map("transaction_id")
+  productId          String  @map("product_id")
+  productNameSnapshot String @map("product_name_snapshot") // BR-006
+  quantity           Int
+  unitPriceSnapshot  Decimal @map("unit_price_snapshot") @db.Decimal(14, 2)
+  subtotal           Decimal @db.Decimal(14, 2) // snapshot unitPriceSnapshot x quantity; tak berubah saat katalog berubah
 
-  transaction Transaction @relation(fields: [transactionId], references: [transactionId], onDelete: Cascade)
-  product     Product     @relation(fields: [productId], references: [productId])
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  product     Product     @relation(fields: [productId], references: [id])
 
-  // Query utama:
-  // "ambil semua item dari sebuah transaksi"
   @@index([transactionId])
-
-  // Dipakai jika analytics sering:
-  // "berapa banyak product X terjual"
-  //
-  // Kalau analytics belum membutuhkan query ini,
-  // index ini bisa dihilangkan.
-  @@index([productId])
-
   @@map("transaction_item")
 }
 
+// ============================================================
+// AI ANALYSIS JOB (FR-AI-001-007)
+// ============================================================
+
+model AiAnalysisJob {
+  id            String            @id @default(uuid())
+  merchantId    String            @map("merchant_id")
+  analysisDate  DateTime          @map("analysis_date") @db.Date // Merchant-local date (BR-018)
+  state         AiAnalysisJobState
+  attempts      Int               @default(0)
+  nextRetryAt   DateTime?         @map("next_retry_at")
+  errorCategory String?           @map("error_category")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime          @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id])
+
+  @@unique([merchantId, analysisDate]) // FR-AI-007: satu job per merchant per hari
+  @@map("ai_analysis_job")
+}
 
 // ============================================================
-// AI INSIGHT
+// INSIGHT (BI, FR-AI-004/005)
 // ============================================================
 
 model AiInsight {
-  insightId  String   @id @default(uuid()) @map("insight_id")
-  merchantId String   @map("merchant_id")
-  title      String
-  content    String   @db.Text
-  type       String
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id             String         @id @default(uuid())
+  merchantId     String         @map("merchant_id")
+  type           String // 'SALES_TREND' | 'OUTLET_COMPARISON' | 'TOP_PRODUCTS' | 'TIME_PATTERN' | 'AOV_TREND'
+  title          String
+  content        String         @db.Text // penjelasan insight (FR-AI-004)
+  evidenceSummary Json          @map("evidence_summary") // ringkasan bukti berbasis metrik (FR-AI-005)
+  status         InsightStatus
+  periodStart    DateTime       @map("period_start")
+  periodEnd      DateTime       @map("period_end")
+  dataVersion    String         @map("data_version")
+  generatedAt    DateTime       @map("generated_at")
 
-  merchant Merchant @relation(fields: [merchantId], references: [merchantId])
+  merchant Merchant @relation(fields: [merchantId], references: [id])
 
-  // Query:
-  // "ambil insight milik merchant"
-  @@index([merchantId])
-
-  // Query:
-  // "ambil insight berdasarkan tipe"
-  // misalnya sales / inventory / recommendation
-  @@index([merchantId, type])
-
+  @@unique([merchantId, type])
   @@map("ai_insight")
 }

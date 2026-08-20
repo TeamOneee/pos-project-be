@@ -36,11 +36,13 @@ Jika terdapat perbedaan, gunakan urutan berikut:
 2. [URS Iterasi 1](./02-iterasi-1-proposed-urs.md) terbaru untuk kebutuhan pengguna dan scope bisnis;
 3. [SRS Iterasi 1](./03-iterasi-1-proposed-srs.md) terbaru untuk perilaku sistem dan verifikasi;
 4. [FRD Iterasi 1](./04-iterasi-1-proposed-frd.md) sebagai view fitur turunan dari URS/SRS;
-5. [Study Case Indonesia](./StudyCase-Ind.md) dan [Final Project](./FinalProject.md) sebagai sumber kasus;
+5. [Study Case Indonesia](./StudyCase-Ind.md), [Final Project](./FinalProject.md), dan [How Understand](./HowUnderstand.md) sebagai **pedoman/problem set** yang wajib dipatuhi oleh seluruh dokumen di atas;
 6. [Business Flow Iterasi 1](./01-iterasi-1-business-flow.md) sebagai konteks dan rationale;
 7. implementasi saat ini.
 
 Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement. Perubahan harus dicatat melalui change control.
+
+Untuk **nama entitas, relasi, dan atribut konseptual**, [`05b-iterasi-1-datamodel.md`](./05b-iterasi-1-datamodel.md) adalah sumber kebenaran. Dokumen build plan, library, dan API boleh menetapkan constraint fisik, DTO, atau mekanisme implementasi, tetapi tidak boleh menambah atau mengganti entitas/atribut 05b tanpa keputusan data-model baru.
 
 ## 4. Keputusan Iterasi 1 yang sudah dikunci
 
@@ -48,31 +50,41 @@ Implementasi atau dokumen lama yang berbeda tidak otomatis mengubah requirement.
 |---|---|
 | Model SaaS | Platform dapat melayani banyak Merchant. Satu Owner memiliki tepat satu Merchant; satu Merchant memiliki banyak Outlet. |
 | Akun | Semua pengguna login menggunakan email. Owner membuat dan mengelola langsung akun staf menggunakan password awal. |
+| Authentication | MVP hanya menggunakan satu JWT access token dengan expiry tetap 900 detik. Tidak ada refresh token atau revocation server-side. Logout menghapus token dari client; setiap request terproteksi tetap memvalidasi signature, expiry, dan status akun saat ini. Token yang telah disalin tetap dapat digunakan sampai expiry selama akun masih aktif. |
+| Response API | Semua response HTTP sukses yang memiliki body memakai envelope `{ success, statusCode, message, data }`; error memakai envelope `{ success:false, statusCode, path, message, errors?, timestamp }`. `204 No Content` yang dinyatakan eksplisit adalah satu-satunya pengecualian tanpa body. |
 | Role | Satu User memiliki tepat satu role enum: `OWNER`, `ADMIN`, atau `CASHIER`. |
-| Scope staf | Admin berada pada Merchant dengan `User.outlet_id = null`; Kasir berada pada tepat satu Outlet aktif. |
-| Tanggung jawab | Owner mengelola Merchant, Outlet, dan lifecycle staf. Admin mengelola Category, Product master, harga, dan inventory seluruh Outlet. Kasir menjalankan penjualan pada Outlet tugasnya. |
-| Category | Setiap Product wajib memiliki satu Category aktif saat dipilih. Category dinonaktifkan, bukan dihapus fisik. |
-| Inventory | Stok numerik disimpan per kombinasi Product + Outlet dan tidak boleh negatif. Adjustment manual untuk menambah atau mengurangi stok wajib memiliki alasan dan audit. |
+| Scope staf | Owner dan Admin berada pada Merchant dengan `User.outlet_id = null`; Kasir berada pada tepat satu Outlet aktif. Ketika Owner menjalankan fungsi POS, Owner memilih satu Outlet aktif dalam Merchant sebagai konteks operasi. |
+| Tanggung jawab | `OWNER` adalah role tertinggi dan mewarisi seluruh permission Admin serta Kasir, selain mengelola Merchant, Outlet, lifecycle staf, dashboard bisnis, dan BI insight. `ADMIN` hanya mengelola Category, Product master, harga, inventory, dan dashboard operasional seluruh Outlet. `CASHIER` hanya menjalankan penjualan pada Outlet tugasnya. |
+| Checkout | Kasir dapat checkout pada Outlet tugasnya. Owner juga dapat checkout pada Outlet aktif yang dipilih dalam Merchant-nya. Admin tidak memiliki permission checkout. |
+| Category | Setiap Product wajib memiliki satu Category aktif saat dipilih. Category dinonaktifkan, bukan dihapus fisik. Product yang Category-nya nonaktif tetap tersimpan untuk riwayat, tetapi tidak tampil di katalog Kasir dan tidak dapat di-checkout. |
+| Inventory | Stok numerik disimpan per kombinasi Product + Outlet dan tidak boleh negatif. Setiap Product memiliki low-stock threshold dasar yang wajib ditentukan Owner atau Admin saat Product dibuat; threshold dapat dioverride pada setiap Outlet. Adjustment manual untuk menambah atau mengurangi stok wajib memiliki alasan. |
+| Transfer stok | Tidak ada workflow transfer/pemindahan stok antar-Outlet pada MVP; setiap perubahan saldo dilakukan sebagai adjustment pada satu Outlet yang dipilih. |
+| Audit | Audit trail umum untuk katalog, staf, dan Outlet berada di luar MVP. StockMovement tetap menyimpan actor/alasan perubahan stok, sedangkan log operasional digunakan untuk observability. |
+| Dashboard Admin | Dashboard operasional Merchant berisi ringkasan inventory, daftar stok rendah, dan kondisi katalog. Admin tidak memperoleh omzet, AOV, analytics bisnis, atau insight BI; Owner dapat mengakses dashboard ini karena mewarisi permission Admin. |
 | Transaksi | Riwayat transaksi wajib dipertahankan. Harga dan nama item saat penjualan disimpan sebagai snapshot. |
 | Uang | Nilai uang menggunakan exact `DECIMAL/NUMERIC`; kontrak API mengirim nilai uang sebagai decimal string. |
 | Dashboard Owner | Must mencakup omzet, jumlah transaksi, AOV, tren penjualan/AOV, pola waktu, produk terlaris/tidak laku, perbandingan Outlet, periode, dan waktu pembaruan. |
-| AI | Hanya Owner yang dapat memicu dan melihat AI. Trigger manual tanpa batas maksimum penggunaan; pemrosesan tetap asynchronous dan terlindung dari checkout. |
-| Payment gateway | Tidak menjadi bagian MVP. Sistem mencatat pembayaran manual; keputusan detail payment record masih menjadi gate sebelum baseline. |
+| Reporting | Dashboard Owner memakai cache-aside bersama dengan freshness TTL 30 menit. Cache miss meminta fakta `Transaction` `COMPLETED` melalui `SalesReportingReadPort`; implementasi port membaca read replica. Cache tidak diperbarui pada checkout dan bukan sumber kebenaran. Worker hanya digunakan untuk pekerjaan AI. |
+| AI/BI | **Fitur "AI Insight" diimplementasikan sebagai Business Intelligence (BI)**: kumpulan insight analitik berbasis data (beberapa tipe), dengan LLM sebagai mesin pengerja/penjelas, bukan satu tipe insight tunggal. Hanya Owner yang dapat memicu dan melihat BI insight. Satu trigger manual maksimal satu kali per hari per Merchant memakai **satu `AiAnalysisJob`** yang dapat menghasilkan atau memperbarui beberapa tipe insight sekaligus, sesuai kecukupan data. Scope MVP selalu seluruh Merchant dan periode analisis adalah 30 hari kalender lokal yang berakhir pada `analysis_date`; keduanya diturunkan deterministik dari job, bukan dikirim client. Status pemrosesan dibaca dari job, sedangkan `AiInsight` menyimpan hasil terbaru yang sudah lengkap. Pemrosesan asynchronous dan terlindung dari checkout. |
+| Payment | Tidak ada entitas/tabel Payment terpisah. `Transaction` menyimpan `payment_method` (`CASH`/`QRIS`/`TRANSFER`), `payment_status = CONFIRMED`, dan `paid_at`; `Transaction.total` menjadi jumlah pembayaran yang dikonfirmasi. |
+| Idempotency checkout | Tidak ada `IdempotencyRecord` terpisah. Client membuat `checkout_request_id` UUID untuk satu niat pembayaran; server menyimpan ID tersebut dan `request_hash` pada `Transaction`. Kombinasi `merchant_id + checkout_request_id` unik. |
 
 ## 5. Keputusan yang masih terbuka
 
 | ID | Keputusan yang dibutuhkan | Default usulan saat ini |
 |---|---|---|
-| OD-001 | Batas final payment record manual | `CASH` dan `CASHLESS_MANUAL`; tidak memindahkan dana |
-| OD-002 | Harga Product global atau dapat dioverride per Outlet | Harga global pada MVP |
-| OD-003 | Riwayat Kasir hanya transaksi sendiri atau seluruh Outlet | Belum diputuskan |
-| OD-004 | Diskon, pajak, dan service charge | Di luar Must MVP |
-| OD-005 | Refund/void transaksi final | Di luar Must MVP |
-| OD-006 | Freshness dashboard | Maksimal lima menit untuk 95% pembaruan |
-| OD-007 | Insight minimum untuk demo | Tren penjualan atau perbandingan Outlet |
-| OD-008 | Kewajiban memakai provider/model AI eksternal | Tidak wajib |
+| OD-001 | Batas final payment manual | **Locked**: atribut pembayaran disimpan langsung pada `Transaction`: metode `CASH`/`QRIS`/`TRANSFER`, status selalu `CONFIRMED`, dan `paid_at`; tidak ada tabel Payment terpisah |
+| OD-002 | Harga Product global atau dapat dioverride per Outlet | **Locked**: harga master global + boleh override per Outlet (`product_outlet_price`); tanpa override, harga master dipakai |
+| OD-003 | Riwayat Kasir hanya transaksi sendiri atau seluruh Outlet | **Locked**: Kasir hanya melihat transaksi yang dilakukan oleh dirinya sendiri |
+| OD-004 | Diskon, pajak, dan service charge | **Locked**: di luar MVP. Tidak ada field, kalkulasi, atau konfigurasi diskon, pajak, maupun service charge; `total = subtotal`. |
+| OD-005 | Refund/void transaksi final | **Locked**: tidak ada refund/void pada MVP |
+| OD-006 | Freshness dashboard | **Locked**: cached aggregate dashboard Owner berumur maksimal 30 menit pada kondisi normal |
+| OD-007 | BI insight minimum untuk demo | **Locked**: beberapa tipe — tren penjualan, perbandingan Outlet, produk terlaris/tidak laku, pola waktu, dan tren AOV |
+| OD-008 | Provider insight | **Locked**: insight menggunakan LLM melalui `AiProviderPort`. |
 | OD-009 | Target concurrency resmi | Menggunakan proposed baseline SRS sampai divalidasi |
-| OD-010 | Apakah Owner/Admin dapat checkout melalui permission tambahan | Belum menjadi Must; flow wajib saat ini adalah Kasir checkout pada Outlet tugasnya |
+| OD-010 | Hierarki role dan checkout | **Locked**: `OWNER` mewarisi seluruh permission `ADMIN` dan `CASHIER`; Owner checkout pada Outlet aktif yang dipilih dalam Merchant-nya, Kasir hanya pada Outlet tugasnya, dan Admin tidak checkout |
+| OD-011 | Model authentication dan logout | **Locked**: JWT access token tunggal dengan expiry 900 detik; tanpa refresh token/revocation server-side; logout menghapus token dari client |
+| OD-012 | Model idempotency checkout | **Locked**: `checkout_request_id` dan `request_hash` disimpan pada `Transaction`; kombinasi `merchant_id + checkout_request_id` unik, sedangkan `request_hash` tidak harus unik; tanpa tabel `IdempotencyRecord` terpisah |
 
 Keputusan terbuka tidak boleh diasumsikan sebagai keputusan final dalam implementasi atau proposal. Gunakan default hanya untuk melanjutkan analisis dan tandai dampaknya.
 
@@ -88,8 +100,9 @@ Keputusan terbuka tidak boleh diasumsikan sebagai keputusan final dalam implemen
 | Product master | Identitas, Category, nama, harga aktif, dan status Product pada Merchant |
 | Inventory | Saldo stok satu Product pada satu Outlet |
 | Transaction | Catatan penjualan yang memiliki state terdefinisi |
-| Reporting projection | Data turunan untuk dashboard; bukan sumber kebenaran checkout |
-| Insight AI | Saran turunan untuk Owner; tidak boleh mengubah data bisnis secara otomatis |
+| Reporting cache | Cached aggregate sementara untuk dashboard Owner dengan freshness TTL 30 menit; bukan sumber kebenaran dan dapat dibangun ulang dari Transaction `COMPLETED`. Data lebih lama hanya boleh dipertahankan secara bounded untuk fallback `STALE`. |
+| AiAnalysisJob | Pekerjaan asynchronous khusus analisis BI harian satu Merchant; menyimpan state dan retry, bukan jenis job generik. Periode Merchant-wide 30 hari lokal diturunkan dari `analysis_date`, sehingga tidak memerlukan atribut scope atau periode tersendiri. |
+| Insight BI | **AI Insight yang diwujudkan sebagai Business Intelligence**: beberapa tipe insight analitik turunan untuk Owner, berbasis metrik/evidence; tidak boleh mengubah data bisnis secara otomatis |
 
 Nama entitas konseptual ditulis dengan kapital awal (`Merchant`, `Outlet`, `Category`, `Product`, `User`, `Transaction`). Nama field dan nilai enum ditulis sebagai kode, misalnya `User.outlet_id` dan `CASHIER`.
 

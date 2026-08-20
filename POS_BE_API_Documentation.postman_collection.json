@@ -1,0 +1,1042 @@
+{
+  "info": {
+    "_postman_id": "8f1c9a2e-7b3d-4f5a-9c2e-1d4b7a9e5f31",
+    "name": "POS BE API Documentation",
+    "description": "Dokumentasi API lengkap Point of Sale Backend — 41 endpoint. Base URL: {{base_url}} dengan prefix /api/v1.\n\nWorkflow:\n1. Register (POST /auth/register) → auto-login\n2. Login (POST /auth/login) → ambil access_token\n3. Buat Outlet (POST /outlets)\n4. Buat Staff Cashier (POST /staff)\n5. Buat Category (POST /categories)\n6. Buat Product (POST /products)\n7. Login sebagai Cashier → Checkout",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "00000000"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    },
+    {
+      "key": "owner_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "cashier_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "merchant_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "outlet_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "category_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "product_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "transaction_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/health",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "health"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register (Owner + Merchant)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Budi Santoso\",\n  \"email\": \"owner@test.com\",\n  \"password\": \"Password1!\",\n  \"merchant_name\": \"Warung Budi\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "register"]
+            }
+          },
+          "response": [],
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    const json = pm.response.json();",
+                "    pm.collectionVariables.set(\"merchant_id\", json.data?.merchant_id || \"\");",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Login (Owner)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"owner@test.com\",\n  \"password\": \"Password1!\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          },
+          "response": [],
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 200) {",
+                "    const json = pm.response.json();",
+                "    const d = json.data || json;",
+                "    pm.collectionVariables.set(\"owner_token\", d.access_token || \"\");",
+                "    if (d.merchant_id) pm.collectionVariables.set(\"merchant_id\", d.merchant_id);",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "Staff (Owner Only)",
+      "item": [
+        {
+          "name": "Create Staff (Cashier)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sari Dewi\",\n  \"email\": \"cashier@test.com\",\n  \"password\": \"Password1!\",\n  \"role\": \"CASHIER\",\n  \"outlet_id\": \"{{outlet_id}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/staff",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "staff"]
+            }
+          },
+          "response": [],
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    const json = pm.response.json();",
+                "    pm.collectionVariables.set(\"user_id\", json.data?.user_id || \"\");",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Create Staff (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin Utama\",\n  \"email\": \"admin@test.com\",\n  \"password\": \"Password1!\",\n  \"role\": \"ADMIN\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/staff",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "staff"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Staff",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/staff?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "staff"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Staff",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/staff/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "staff", "{{user_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Tenant",
+      "item": [
+        {
+          "name": "Get Merchant Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/merchant",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "merchant"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Merchant",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Warung Budi Jaya\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/merchant",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "merchant"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Outlet",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Outlet Margonda\",\n  \"address\": \"Jl. Margonda No. 1\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/outlets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "outlets"]
+            }
+          },
+          "response": [],
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    const json = pm.response.json();",
+                "    pm.collectionVariables.set(\"outlet_id\", json.data?.id || \"\");",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "List Outlets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/outlets?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "outlets"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Outlet",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Outlet Margonda Updated\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/outlets/{{outlet_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "outlets", "{{outlet_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Catalog",
+      "item": [
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Makanan\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories"]
+            }
+          },
+          "response": [],
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    const json = pm.response.json();",
+                "    pm.collectionVariables.set(\"category_id\", json.data?.id || \"\");",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Makanan & Minuman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories", "{{category_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Product",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Nasi Goreng\",\n  \"price\": \"15000\",\n  \"category_id\": \"{{category_id}}\",\n  \"low_stock_threshold\": 10\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            }
+          },
+          "response": [],
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    const json = pm.response.json();",
+                "    pm.collectionVariables.set(\"product_id\", json.data?.id || \"\");",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Product",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": \"18000\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{product_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upsert Outlet Price Override",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": \"20000\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}/outlet-prices/{{outlet_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{product_id}}", "outlet-prices", "{{outlet_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Outlet Price Override",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{product_id}}/outlet-prices/{{outlet_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{product_id}}", "outlet-prices", "{{outlet_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "List Inventory",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/inventory?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inventory"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Stock Adjustment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"outlet_id\": \"{{outlet_id}}\",\n  \"product_id\": \"{{product_id}}\",\n  \"delta\": 50,\n  \"reason\": \"Restock awal\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/inventory/adjustments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inventory", "adjustments"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Set Low-Stock Threshold",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"threshold\": 15\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/inventory/{{product_id}}/outlets/{{outlet_id}}/low-stock-threshold",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inventory", "{{product_id}}", "outlets", "{{outlet_id}}", "low-stock-threshold"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Low-Stock Threshold",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/inventory/{{product_id}}/outlets/{{outlet_id}}/low-stock-threshold",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inventory", "{{product_id}}", "outlets", "{{outlet_id}}", "low-stock-threshold"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Stock Movements",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/inventory/movements?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "inventory", "movements"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POS Catalog (Cashier)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{cashier_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/catalog?outlet_id={{outlet_id}}&page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "catalog"],
+              "query": [
+                { "key": "outlet_id", "value": "{{outlet_id}}" },
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Sales",
+      "item": [
+        {
+          "name": "Checkout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{cashier_token}}", "type": "string" }]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkout_request_id\": \"{{$guid}}\",\n  \"outlet_id\": \"{{outlet_id}}\",\n  \"items\": [\n    {\n      \"product_id\": \"{{product_id}}\",\n      \"quantity\": 2\n    }\n  ],\n  \"payment_method\": \"CASH\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/checkout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "checkout"]
+            }
+          },
+          "response": [],
+          "event": [{
+            "listen": "test",
+            "script": {
+              "exec": [
+                "if (pm.response.code === 201) {",
+                "    const json = pm.response.json();",
+                "    pm.collectionVariables.set(\"transaction_id\", json.data?.transaction_id || \"\");",
+                "}"
+              ],
+              "type": "text/javascript"
+            }
+          }]
+        },
+        {
+          "name": "Query Checkout Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{cashier_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions/status?checkout_request_id={{checkout_request_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "transactions", "status"],
+              "query": [
+                { "key": "checkout_request_id", "value": "{{checkout_request_id}}" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "List Transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions?page=0&size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "transactions"],
+              "query": [
+                { "key": "page", "value": "0" },
+                { "key": "size", "value": "20" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Search Transaction by Number",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions/search?transaction_number=TXN-00001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "transactions", "search"],
+              "query": [
+                { "key": "transaction_number", "value": "TXN-00001" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Transaction Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/transactions/{{transaction_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "transactions", "{{transaction_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Receipt",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{cashier_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/receipts/{{transaction_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "receipts", "{{transaction_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "Revenue Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/summary?date_from=2026-01-01T00:00:00.000Z&date_to=2026-12-31T23:59:59.999Z",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "summary"],
+              "query": [
+                { "key": "date_from", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "date_to", "value": "2026-12-31T23:59:59.999Z" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Sales Trend",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/sales-trend?date_from=2026-01-01T00:00:00.000Z&date_to=2026-12-31T23:59:59.999Z&bucket=DAY",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "sales-trend"],
+              "query": [
+                { "key": "date_from", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "date_to", "value": "2026-12-31T23:59:59.999Z" },
+                { "key": "bucket", "value": "DAY" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "AOV Trend",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/aov-trend?date_from=2026-01-01T00:00:00.000Z&date_to=2026-12-31T23:59:59.999Z&bucket=DAY",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "aov-trend"],
+              "query": [
+                { "key": "date_from", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "date_to", "value": "2026-12-31T23:59:59.999Z" },
+                { "key": "bucket", "value": "DAY" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Time Pattern (24h)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/time-pattern?date_from=2026-01-01T00:00:00.000Z&date_to=2026-12-31T23:59:59.999Z",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "time-pattern"],
+              "query": [
+                { "key": "date_from", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "date_to", "value": "2026-12-31T23:59:59.999Z" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Top Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/top-products?date_from=2026-01-01T00:00:00.000Z&date_to=2026-12-31T23:59:59.999Z&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "top-products"],
+              "query": [
+                { "key": "date_from", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "date_to", "value": "2026-12-31T23:59:59.999Z" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Outlet Comparison",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/outlet-comparison?date_from=2026-01-01T00:00:00.000Z&date_to=2026-12-31T23:59:59.999Z",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "outlet-comparison"],
+              "query": [
+                { "key": "date_from", "value": "2026-01-01T00:00:00.000Z" },
+                { "key": "date_to", "value": "2026-12-31T23:59:59.999Z" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Operations Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/operations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "operations"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Low Stock Items",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/low-stock",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dashboard", "low-stock"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Insight",
+      "item": [
+        {
+          "name": "Trigger AI Insight",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/insights/trigger",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "insights", "trigger"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Latest Insights",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{owner_token}}", "type": "string" }]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/insights",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "insights"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
