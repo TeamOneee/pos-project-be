@@ -101,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Semgrep
-        run: semgrep scan --config .semgrep.yml --error --json --output semgrep-results.json apps libs
+        run: semgrep scan --config p/typescript --config p/node --config p/owasp-top-ten --config p/security-audit --error --json --output semgrep-results.json apps libs
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4

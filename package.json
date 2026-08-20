@@ -27,7 +27,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
-    "semgrep": "semgrep scan --config .semgrep.yml apps libs"
+    "semgrep": "semgrep scan --config p/typescript --config p/node --config p/owasp-top-ten --config p/security-audit apps libs"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

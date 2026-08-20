@@ -1,0 +1,8 @@
+# Test files
+**/*.spec.ts
+**/*.test.ts
+
+# Build artifacts
+**/dist/**
+**/coverage/**
+**/node_modules/**
