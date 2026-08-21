@@ -187,11 +187,44 @@ export class DashboardQueryService extends ReportingReadPort {
     };
   }
 
+  // opt tanpa tabel baru: cache facts mentah per periode (1 DB hit untuk 7 endpoint) + cache BusinessDashboardData per bucket/limit
+  private async getCachedFacts(
+    request: BusinessDashboardRequest,
+    timezone: string,
+  ): Promise<import('@app/sales').CompletedTransactionFact[]> {
+    const factsKey = [
+      CACHE_SCHEMA_VERSION,
+      'facts',
+      request.merchantId,
+      request.outletId ?? 'all-outlets',
+      request.dateFrom.toISOString(),
+      request.dateTo.toISOString(),
+      timezone,
+    ].join(':');
+    const stale = await this.cache.getStale<import('@app/sales').CompletedTransactionFact[]>(factsKey);
+    try {
+      const result = await this.cache.getOrLoad(factsKey, () =>
+        this.salesRead.listCompletedTransactionFacts({
+          merchantId: request.merchantId,
+          outletId: request.outletId,
+          dateFrom: request.dateFrom,
+          dateTo: request.dateTo,
+          timezone,
+        }),
+      );
+      return result.entry.data;
+    } catch (e) {
+      if (stale) return stale.data;
+      throw e;
+    }
+  }
+
   // mengambil snapshot agregasi bisnis dengan koordinasi cache-aside:
   // 1. periksa cache redis (fresh 30m)
   // 2. jika miss, acquire single-flight mutex lock dan muat fakta dari read replica
   // 3. simpan hasil komputasi ke redis dan kembalikan response fresh
   // 4. jika sumber gagal dan ada cache lama (stale 2h), fallback ke stale
+  // opt: facts di-cache terpisah sehingga 7 endpoint dalam 1 mount cuma 1 query facts
   private async getSnapshot(
     request: BusinessDashboardRequest,
   ): Promise<BusinessDashboardSnapshot> {
@@ -208,13 +241,7 @@ export class DashboardQueryService extends ReportingReadPort {
     try {
       const result = await this.cache.getOrLoad(key, async () => {
         const [facts, products] = await Promise.all([
-          this.salesRead.listCompletedTransactionFacts({
-            merchantId: request.merchantId,
-            outletId: request.outletId,
-            dateFrom: request.dateFrom,
-            dateTo: request.dateTo,
-            timezone: context.timezone,
-          }),
+          this.getCachedFacts(request, context.timezone),
           this.catalogRead.getSellableProducts(request.merchantId),
         ]);
         return buildBusinessDashboardData({
