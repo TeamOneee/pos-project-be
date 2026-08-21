@@ -1,5 +1,5 @@
 import { PrismaClient, PaymentMethod, Prisma } from '@prisma/client';
-import * as argon2 from 'argon2';
+import * as bcrypt from 'bcrypt';
 import { createHash } from 'crypto';
 
 const prisma = new PrismaClient();
@@ -149,7 +149,7 @@ const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
 
 async function main() {
   console.log(`🌱 Seeding ringkas ${SEED_DAYS} hari (insight window 30 hari) ...`);
-  const passwordHash = await argon2.hash(PASSWORD);
+  const passwordHash = await bcrypt.hash(PASSWORD, 10);
   const year = new Date().getUTCFullYear();
 
   await prisma.$executeRawUnsafe(`
