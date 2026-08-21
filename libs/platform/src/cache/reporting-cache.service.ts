@@ -52,11 +52,24 @@ export class ReportingCacheService
     const redisUrl = config.get<string>('REDIS_URL');
     if (redisUrl) {
       this.redis = new Redis(redisUrl, {
-        lazyConnect: true,
+        lazyConnect: false,
         enableOfflineQueue: false,
         maxRetriesPerRequest: 1,
-        connectTimeout: 5000,
+        connectTimeout: 3000,
+        enableReadyCheck: true,
+        retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1000)),
       });
+      // eager connect di background, jangan block bootstrap tapi hilangkan 5s lazy penalty di hit pertama
+      this.redis.connect().catch(() => {});
+    }
+  }
+
+  async onModuleInit(): Promise<void> {
+    if (this.redis) {
+      try {
+        if (this.redis.status !== 'ready') await this.redis.connect();
+        await this.redis.ping();
+      } catch {}
     }
   }
 
@@ -164,14 +177,33 @@ export class ReportingCacheService
   private async read<T>(
     key: string,
   ): Promise<ReportingCacheEntry<T> | undefined> {
+    // coba redis dulu, fallback ke memory kalau redis offline/miss — biar hit tetap terjadi walau Upstash lag
+    if (this.redis) {
+      try {
+        const raw = await this.redis.get(key);
+        if (raw) {
+          const parsed = JSON.parse(raw) as ReportingCacheEntry<T>;
+          if (parsed && typeof parsed.dataUpdatedAt === 'string') return parsed;
+        }
+      } catch {}
+      // redis miss/error → cek memory
+      try {
+        const mem = this.readMemory(key);
+        if (!mem) return undefined;
+        const parsed = JSON.parse(mem) as ReportingCacheEntry<T>;
+        if (!parsed || typeof parsed.dataUpdatedAt !== 'string') return undefined;
+        return parsed;
+      } catch {
+        return undefined;
+      }
+    }
     try {
-      const raw = this.redis ? await this.redis.get(key) : this.readMemory(key);
+      const raw = this.readMemory(key);
       if (!raw) return undefined;
       const parsed = JSON.parse(raw) as ReportingCacheEntry<T>;
       if (!parsed || typeof parsed.dataUpdatedAt !== 'string') return undefined;
       return parsed;
     } catch {
-      // cache yang gagal tidak boleh menggagalkan dashboard sebelum source dicoba.
       return undefined;
     }
   }
