@@ -81,6 +81,15 @@ describe('LlmInsightAdapter', () => {
     expect(post).not.toHaveBeenCalled();
   });
 
+  it('EXT-AI-003: konfigurasi hanya url tanpa key juga gagal', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({ AI_PROVIDER_URL: 'https://example.com', AI_PROVIDER_API_KEY: undefined }),
+    );
+    await expect(adapter.generate(request())).rejects.toMatchObject({
+      category: 'PROVIDER_CONFIGURATION',
+    });
+  });
+
   it('EXT-AI-004: menerima hanya narasi type yang dapat diparse', async () => {
     const adapter = new LlmInsightAdapter(
       config({
@@ -146,6 +155,21 @@ describe('LlmInsightAdapter', () => {
     );
   });
 
+  it('EXT-AI-004: menolak response null content', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: null } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({
+      category: 'PROVIDER_OUTPUT',
+    });
+  });
+
   it('EXT-AI-003: response http 4xx menjadi kegagalan provider permanen', async () => {
     const adapter = new LlmInsightAdapter(
       config({
@@ -163,5 +187,248 @@ describe('LlmInsightAdapter', () => {
         retryable: false,
       }),
     );
+  });
+
+  it('parseNarratives: menolak value null', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: JSON.stringify(null) } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseNarratives: menolak non-object', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: JSON.stringify('string') } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseNarratives: menolak insights bukan array', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: JSON.stringify({ insights: 'bad' }) } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseNarratives: menolak item insight bukan object', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: JSON.stringify({ insights: [123] }) } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseNarratives: menolak content bukan string', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: JSON.stringify({ insights: [{ type: 'SALES_TREND', content: 123 }] }) } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseNarratives: menolak content kosong setelah trim', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: JSON.stringify({ insights: [{ type: 'SALES_TREND', content: '   ' }] }) } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseNarratives: menolak content terlalu panjang >2000', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: {
+        choices: [{ message: { content: JSON.stringify({ insights: [{ type: 'SALES_TREND', content: 'a'.repeat(2001) }] }) } }],
+      },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseNarratives: menolak duplicate type', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                insights: [
+                  { type: 'SALES_TREND', content: 'a' },
+                  { type: 'SALES_TREND', content: 'b' },
+                ],
+              }),
+            },
+          },
+        ],
+      },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('parseResponse: menolak JSON tidak dapat diparse', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockResolvedValue({
+      data: { choices: [{ message: { content: '{invalid json' } }] },
+    });
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_OUTPUT' });
+  });
+
+  it('toProviderError: non-axios error menjadi PROVIDER_NETWORK', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockRejectedValue(new Error('random error'));
+    jest.spyOn(axios, 'isAxiosError').mockReturnValue(false);
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_NETWORK' });
+  });
+
+  it('toProviderError: axios ECONNABORTED menjadi PROVIDER_TIMEOUT', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockRejectedValue({ code: 'ECONNABORTED' });
+    jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_TIMEOUT' });
+  });
+
+  it('toProviderError: axios ERR_CANCELED menjadi PROVIDER_TIMEOUT', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockRejectedValue({ code: 'ERR_CANCELED' });
+    jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_TIMEOUT' });
+  });
+
+  it('toProviderError: axios 5xx menjadi PROVIDER_NETWORK', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockRejectedValue({ code: 'ERR_NETWORK', response: { status: 500 } });
+    jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_NETWORK' });
+  });
+
+  it('toProviderError: axios tanpa response menjadi PROVIDER_NETWORK', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    jest.spyOn(axios, 'post').mockRejectedValue({ code: 'ENOTFOUND' });
+    jest.spyOn(axios, 'isAxiosError').mockReturnValue(true);
+    await expect(adapter.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_NETWORK' });
+  });
+
+  it('toProviderError: meneruskan AiProviderError langsung', async () => {
+    const adapter = new LlmInsightAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    const direct = new AiProviderError('PROVIDER_OUTPUT', true, 'direct');
+    jest.spyOn(axios, 'post').mockRejectedValue(direct);
+    // isAxiosError not relevant because first check instanceof AiProviderError
+    await expect(adapter.generate(request())).rejects.toBe(direct);
+  });
+
+  it('generate: breaker throws non-AiProviderError menjadi PROVIDER_NETWORK', async () => {
+    // override cockatiel breaker to throw generic error
+    jest.resetModules();
+    jest.doMock('cockatiel', () => ({
+      circuitBreaker: () => ({ execute: () => { throw new Error('circuit broken'); } }),
+      handleWhen: () => ({}),
+      retry: () => ({ execute: (cb: () => unknown) => cb() }),
+      timeout: () => ({ execute: (cb: (c: unknown, s: AbortSignal) => unknown) => cb({}, new AbortController().signal) }),
+      ConsecutiveBreaker: class {},
+      ExponentialBackoff: class {},
+      TimeoutStrategy: { Aggressive: 'aggressive' },
+    }));
+    // need re-import after mock - use dynamic import
+    const { LlmInsightAdapter: FreshAdapter } = await import('./llm-insight.adapter');
+    const fresh = new FreshAdapter(
+      config({
+        AI_PROVIDER_URL: 'https://llm.example.test/v1/chat/completions',
+        AI_PROVIDER_API_KEY: 'test-key',
+      }),
+    );
+    await expect(fresh.generate(request())).rejects.toMatchObject({ category: 'PROVIDER_NETWORK' });
+  });
+
+  it('isRetryableProviderError via retry breaker config: providerUrl dan key lengkap', async () => {
+    const cfg = config({
+      AI_PROVIDER_URL: 'https://example.com',
+      AI_PROVIDER_API_KEY: 'k',
+      AI_PROVIDER_MODEL: 'custom-model',
+      AI_PROVIDER_TIMEOUT_MS: '9999',
+      AI_PROVIDER_MAX_ATTEMPTS: '5',
+      AI_PROVIDER_BREAKER_THRESHOLD: '7',
+      AI_PROVIDER_BREAKER_COOLDOWN_MS: '12345',
+    });
+    const adapter = new LlmInsightAdapter(cfg);
+    // confirm no throw on construction with custom values
+    expect(adapter).toBeDefined();
   });
 });
