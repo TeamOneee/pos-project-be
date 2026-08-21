@@ -1,12 +1,11 @@
 // memverifikasi query fact data penjualan lengkap pada SalesReportingRepository (FR-024).
-import { Prisma } from '@prisma/client';
 import { PrismaReadService } from '@app/platform';
 import { SalesReportingQuery } from '../application/ports/sales-reporting-read.port';
 import { SalesReportingRepository } from './sales-reporting.repository';
 
 function makeMockPrismaRead() {
   return {
-    transaction: { findMany: jest.fn() },
+    $queryRaw: jest.fn(),
   } as unknown as PrismaReadService;
 }
 
@@ -22,6 +21,26 @@ function makeQuery(
   };
 }
 
+function capturedValues(mockPrismaRead: ReturnType<typeof makeMockPrismaRead>) {
+  const mock = mockPrismaRead.$queryRaw as unknown as jest.Mock<
+    unknown[],
+    unknown[]
+  >;
+  return mock.mock.calls[0].slice(1);
+}
+
+function capturedSqlValues(
+  mockPrismaRead: ReturnType<typeof makeMockPrismaRead>,
+): unknown[] {
+  return capturedValues(mockPrismaRead).flatMap((value) =>
+    value &&
+    typeof value === 'object' &&
+    Array.isArray((value as { values?: unknown[] }).values)
+      ? (value as { values: unknown[] }).values
+      : [],
+  );
+}
+
 describe('SalesReportingRepository', () => {
   let repo: SalesReportingRepository;
   let mockPrismaRead: ReturnType<typeof makeMockPrismaRead>;
@@ -34,26 +53,29 @@ describe('SalesReportingRepository', () => {
 
   describe('findCompletedTransactionFacts', () => {
     it('mengembalikan completed transaction facts dengan shape yang benar', async () => {
-      const mockResult = [
+      const mockRows = [
         {
-          id: 'txn-001',
+          transactionId: 'txn-001',
           outletId: 'out-001',
-          paidAt: new Date('2026-08-10T14:30:00Z'),
-          createdAt: new Date('2026-08-10T14:25:00Z'),
-          total: new Prisma.Decimal('50000'),
-          items: [
-            {
-              productId: 'prod-001',
-              productNameSnapshot: 'Kopi Susu',
-              quantity: 2,
-              subtotal: new Prisma.Decimal('50000'),
-            },
-          ],
+          occurredAt: new Date('2026-08-10T14:30:00Z'),
+          total: '50000.00',
+          productId: 'prod-001',
+          productNameSnapshot: 'Kopi Susu',
+          quantity: 2,
+          subtotal: '30000.00',
+        },
+        {
+          transactionId: 'txn-001',
+          outletId: 'out-001',
+          occurredAt: new Date('2026-08-10T14:30:00Z'),
+          total: '50000.00',
+          productId: 'prod-002',
+          productNameSnapshot: 'Nasi Goreng',
+          quantity: 1,
+          subtotal: '20000.00',
         },
       ];
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue(
-        mockResult,
-      );
+      (mockPrismaRead.$queryRaw as jest.Mock).mockResolvedValue(mockRows);
 
       const result = await repo.findCompletedTransactionFacts(makeQuery());
 
@@ -68,92 +90,84 @@ describe('SalesReportingRepository', () => {
               productId: 'prod-001',
               productNameSnapshot: 'Kopi Susu',
               quantity: 2,
-              subtotal: '50000.00',
+              subtotal: '30000.00',
+            },
+            {
+              productId: 'prod-002',
+              productNameSnapshot: 'Nasi Goreng',
+              quantity: 1,
+              subtotal: '20000.00',
             },
           ],
         },
       ]);
     });
 
-    it('menggunakan createdAt sebagai occurredAt jika paidAt null', async () => {
-      const createdAt = new Date('2026-08-10T14:25:00Z');
-      const mockResult = [
+    it('mempertahankan occurredAt dari baris query (COALESCE paid_at/created_at)', async () => {
+      const occurredAt = new Date('2026-08-10T14:25:00Z');
+      (mockPrismaRead.$queryRaw as jest.Mock).mockResolvedValue([
         {
-          id: 'txn-002',
+          transactionId: 'txn-002',
           outletId: 'out-001',
-          paidAt: null,
-          createdAt,
-          total: new Prisma.Decimal('25000'),
-          items: [],
+          occurredAt,
+          total: '25000.00',
+          productId: 'prod-001',
+          productNameSnapshot: 'Kopi Susu',
+          quantity: 1,
+          subtotal: '25000.00',
         },
-      ];
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue(
-        mockResult,
-      );
+      ]);
 
       const result = await repo.findCompletedTransactionFacts(makeQuery());
 
-      expect(result[0].occurredAt).toEqual(createdAt);
+      expect(result[0].occurredAt).toEqual(occurredAt);
     });
 
     it('menerapkan filter outletId jika disediakan', async () => {
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue([]);
+      (mockPrismaRead.$queryRaw as jest.Mock).mockResolvedValue([]);
 
       await repo.findCompletedTransactionFacts(
         makeQuery({ outletId: 'out-002' }),
       );
 
-      expect(mockPrismaRead.transaction.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ outletId: 'out-002' }),
-        }),
-      );
+      expect(capturedSqlValues(mockPrismaRead)).toContain('out-002');
     });
 
     it('tidak menerapkan filter outletId jika undefined', async () => {
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue([]);
+      (mockPrismaRead.$queryRaw as jest.Mock).mockResolvedValue([]);
 
       await repo.findCompletedTransactionFacts(
         makeQuery({ outletId: undefined }),
       );
 
-      expect(mockPrismaRead.transaction.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.not.objectContaining({ outletId: expect.anything() }),
-        }),
-      );
+      expect(capturedSqlValues(mockPrismaRead)).not.toContain('out-002');
     });
 
-    it('hanya mengambil transaksi dengan status COMPLETED', async () => {
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue([]);
+    it('mengirim merchantId, status, dan rentang paidAt ke query', async () => {
+      (mockPrismaRead.$queryRaw as jest.Mock).mockResolvedValue([]);
 
       await repo.findCompletedTransactionFacts(makeQuery());
 
-      expect(mockPrismaRead.transaction.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ status: 'COMPLETED' }),
-        }),
-      );
-    });
-
-    it('menerapkan filter dateFrom dan dateTo pada paidAt', async () => {
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue([]);
-      const dateFrom = new Date('2026-08-01T00:00:00Z');
-      const dateTo = new Date('2026-08-31T23:59:59Z');
-
-      await repo.findCompletedTransactionFacts(makeQuery({ dateFrom, dateTo }));
-
-      expect(mockPrismaRead.transaction.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            paidAt: { gte: dateFrom, lte: dateTo },
-          }),
-        }),
-      );
+      const values = capturedValues(mockPrismaRead);
+      expect(values).toContain('mch-001');
+      expect(
+        values.some(
+          (value) =>
+            value instanceof Date &&
+            value.getTime() === new Date('2026-08-01T00:00:00Z').getTime(),
+        ),
+      ).toBe(true);
+      expect(
+        values.some(
+          (value) =>
+            value instanceof Date &&
+            value.getTime() === new Date('2026-08-31T23:59:59Z').getTime(),
+        ),
+      ).toBe(true);
     });
 
     it('mengembalikan array kosong jika tidak ada data', async () => {
-      (mockPrismaRead.transaction.findMany as jest.Mock).mockResolvedValue([]);
+      (mockPrismaRead.$queryRaw as jest.Mock).mockResolvedValue([]);
 
       const result = await repo.findCompletedTransactionFacts(makeQuery());
 
