@@ -284,17 +284,34 @@ describe('DashboardQueryService', () => {
 
   it('getCachedFacts fallback ke stale ketika loader gagal', async () => {
     // prepare stale facts
-    const staleFacts = [{ outletId: 'outlet-1', transactionId: 'tx-1', occurredAt: new Date(), total: '10.00', items: [] }];
+    const staleFacts = [
+      {
+        outletId: 'outlet-1',
+        transactionId: 'tx-1',
+        occurredAt: new Date(),
+        total: '10.00',
+        items: [],
+      },
+    ];
     // cache.getStale akan dipanggil dua kali: sekali untuk factsKey dan sekali untuk dashboard key
     // kita buat implementasi yang return staleFacts untuk factsKey saja
-    cache.getStale.mockImplementation(async (key: string) => {
-      if (key.includes(':facts:')) return { data: staleFacts, dataUpdatedAt: '2026-08-01T00:00:00.000Z' };
+    cache.getStale.mockImplementation((key: string) => {
+      if (key.includes(':facts:'))
+        return { data: staleFacts, dataUpdatedAt: '2026-08-01T00:00:00.000Z' };
       return undefined;
     });
-    cache.getOrLoad.mockImplementation(async (key: string, loader: () => Promise<unknown>) => {
-      if (key.includes(':facts:')) throw new Error('facts down');
-      return { entry: { data: await loader(), dataUpdatedAt: '2026-08-31T23:59:59.999Z' }, source: 'COMPUTED' };
-    });
+    cache.getOrLoad.mockImplementation(
+      async (key: string, loader: () => Promise<unknown>) => {
+        if (key.includes(':facts:')) throw new Error('facts down');
+        return {
+          entry: {
+            data: await loader(),
+            dataUpdatedAt: '2026-08-31T23:59:59.999Z',
+          },
+          source: 'COMPUTED',
+        };
+      },
+    );
     // loader untuk facts gagal tapi ada stale -> harus tetap berhasil via stale
     // Dashboard akan tetap hit karena facts fallback
     // Kita paksa sales gagal dengan stale
@@ -305,34 +322,60 @@ describe('DashboardQueryService', () => {
   it('getCachedFacts throw jika stale dan loader keduanya gagal', async () => {
     cache.getStale.mockResolvedValue(undefined);
     cache.getOrLoad.mockRejectedValue(new Error('both down'));
-    await expect(service.getSummary(request)).rejects.toMatchObject({ code: 'DEPENDENCY_UNAVAILABLE' });
+    await expect(service.getSummary(request)).rejects.toMatchObject({
+      code: 'DEPENDENCY_UNAVAILABLE',
+    });
   });
 
   it('getDataset mapping aovTrend fallback 0.00 ketika index missing', async () => {
     cache.getStale.mockResolvedValue(undefined);
-    cache.getOrLoad.mockImplementation(async (key: string, loader: () => Promise<unknown>) => {
-      if (key.includes(':facts:')) {
-        return { entry: { data: await loader(), dataUpdatedAt: '2026-08-31T23:59:59.999Z' }, source: 'COMPUTED' };
-      }
-      return {
-        entry: {
-          data: {
-            omzet: '100.00',
-            transactionCount: 1,
-            averageTransactionValue: '100.00',
-            bucket: 'DAY',
-            salesTrend: [{ bucketStart: new Date('2026-08-15'), omzet: '100.00', transactionCount: 1 }, { bucketStart: new Date('2026-08-16'), omzet: '50.00', transactionCount: 1 }],
-            aovTrend: [{ bucketStart: new Date('2026-08-15'), averageTransactionValue: '100.00' }],
-            timePattern: [],
-            topSelling: [],
-            leastSelling: [],
-            outletComparison: [],
+    cache.getOrLoad.mockImplementation(
+      async (key: string, loader: () => Promise<unknown>) => {
+        if (key.includes(':facts:')) {
+          return {
+            entry: {
+              data: await loader(),
+              dataUpdatedAt: '2026-08-31T23:59:59.999Z',
+            },
+            source: 'COMPUTED',
+          };
+        }
+        return {
+          entry: {
+            data: {
+              omzet: '100.00',
+              transactionCount: 1,
+              averageTransactionValue: '100.00',
+              bucket: 'DAY',
+              salesTrend: [
+                {
+                  bucketStart: new Date('2026-08-15'),
+                  omzet: '100.00',
+                  transactionCount: 1,
+                },
+                {
+                  bucketStart: new Date('2026-08-16'),
+                  omzet: '50.00',
+                  transactionCount: 1,
+                },
+              ],
+              aovTrend: [
+                {
+                  bucketStart: new Date('2026-08-15'),
+                  averageTransactionValue: '100.00',
+                },
+              ],
+              timePattern: [],
+              topSelling: [],
+              leastSelling: [],
+              outletComparison: [],
+            },
+            dataUpdatedAt: '2026-08-31T23:59:59.999Z',
           },
-          dataUpdatedAt: '2026-08-31T23:59:59.999Z',
-        },
-        source: 'COMPUTED',
-      };
-    });
+          source: 'COMPUTED',
+        };
+      },
+    );
     const ds = await service.getDataset({
       merchantId: 'merchant-1',
       dateFrom: new Date('2026-08-01'),
@@ -345,10 +388,15 @@ describe('DashboardQueryService', () => {
 
   it('getDataset tanpa granularity default DAY', async () => {
     cache.getStale.mockResolvedValue(undefined);
-    cache.getOrLoad.mockImplementation(async (_k: string, loader: () => Promise<unknown>) => ({
-      entry: { data: await loader(), dataUpdatedAt: '2026-08-31T23:59:59.999Z' },
-      source: 'COMPUTED',
-    }));
+    cache.getOrLoad.mockImplementation(
+      async (_k: string, loader: () => Promise<unknown>) => ({
+        entry: {
+          data: await loader(),
+          dataUpdatedAt: '2026-08-31T23:59:59.999Z',
+        },
+        source: 'COMPUTED',
+      }),
+    );
     const result = await service.getDataset({
       merchantId: 'merchant-1',
       dateFrom: new Date('2026-08-01'),
@@ -361,11 +409,19 @@ describe('DashboardQueryService', () => {
     let capturedFactsKey = '';
     let capturedDashboardKey = '';
     cache.getStale.mockResolvedValue(undefined);
-    cache.getOrLoad.mockImplementation(async (key: string, loader: () => Promise<unknown>) => {
-      if (key.includes(':facts:')) capturedFactsKey = key;
-      else capturedDashboardKey = key;
-      return { entry: { data: await loader(), dataUpdatedAt: '2026-08-31T23:59:59.999Z' }, source: 'COMPUTED' };
-    });
+    cache.getOrLoad.mockImplementation(
+      async (key: string, loader: () => Promise<unknown>) => {
+        if (key.includes(':facts:')) capturedFactsKey = key;
+        else capturedDashboardKey = key;
+        return {
+          entry: {
+            data: await loader(),
+            dataUpdatedAt: '2026-08-31T23:59:59.999Z',
+          },
+          source: 'COMPUTED',
+        };
+      },
+    );
     await service.getSummary({ ...request, outletId: undefined });
     expect(capturedFactsKey).toContain('all-outlets');
     expect(capturedDashboardKey).toContain('all-outlets');

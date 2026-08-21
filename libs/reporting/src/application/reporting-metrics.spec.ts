@@ -119,14 +119,19 @@ describe('buildBusinessDashboardData', () => {
       occurredAt: new Date('2026-08-15T08:00:00.000Z'),
       total: '1.00',
       items: [
-        { productId: 'p1', productNameSnapshot: 'P1', quantity: Number.MAX_SAFE_INTEGER, subtotal: '1.00' },
+        {
+          productId: 'p1',
+          productNameSnapshot: 'P1',
+          quantity: Number.MAX_SAFE_INTEGER,
+          subtotal: '1.00',
+        },
       ],
     }));
     // Dengan quantity besar, unitsSold akan overflow -> safeNumber throw
     // Muncul via buildBusinessDashboardData -> leastSelling atau topSelling
     expect(() =>
       buildBusinessDashboardData({
-        facts: bigFacts as never,
+        facts: bigFacts,
         products: [{ id: 'p1', name: 'P1' }],
         outlets: [{ id: 'outlet-1', name: 'A' }],
         timezone: 'Asia/Jakarta',
@@ -137,16 +142,6 @@ describe('buildBusinessDashboardData', () => {
   });
 
   it('safeNumber via transactionCount overflow juga throw', () => {
-    // memicu overflow via buildTrends safeNumber: buat banyak fakta lalu mock? alternatif langsung via product performance
-    const facts = [
-      {
-        outletId: 'outlet-1',
-        transactionId: 'tx-1',
-        occurredAt: new Date('2026-08-15T08:00:00.000Z'),
-        total: '1.00',
-        items: [{ productId: 'p1', productNameSnapshot: 'P1', quantity: 1, subtotal: '1.00' }],
-      },
-    ];
     // secara tidak langsung: aggregate count tidak akan overflow dengan 1 tx, tapi test ini memastikan path safeNumber untuk transactionCount di outletComparison
     // kita uji langsung dengan mengisi fakta yang akan membuat outletComparison count overflow -> tidak praktis
     // jadi uji buildTrends ordering dengan HOUR bucket dan multiple days
@@ -157,14 +152,28 @@ describe('buildBusinessDashboardData', () => {
           transactionId: 'tx-2',
           occurredAt: new Date('2026-08-16T10:00:00.000Z'),
           total: '100.00',
-          items: [{ productId: 'p1', productNameSnapshot: 'P1', quantity: 1, subtotal: '100.00' }],
+          items: [
+            {
+              productId: 'p1',
+              productNameSnapshot: 'P1',
+              quantity: 1,
+              subtotal: '100.00',
+            },
+          ],
         },
         {
           outletId: 'outlet-1',
           transactionId: 'tx-1',
           occurredAt: new Date('2026-08-15T10:00:00.000Z'),
           total: '50.00',
-          items: [{ productId: 'p1', productNameSnapshot: 'P1', quantity: 1, subtotal: '50.00' }],
+          items: [
+            {
+              productId: 'p1',
+              productNameSnapshot: 'P1',
+              quantity: 1,
+              subtotal: '50.00',
+            },
+          ],
         },
       ],
       products: [{ id: 'p1', name: 'P1' }],
@@ -173,7 +182,9 @@ describe('buildBusinessDashboardData', () => {
       bucket: 'HOUR',
       limit: 10,
     });
-    expect(result.salesTrend[0].bucketStart.getTime()).toBeLessThan(result.salesTrend[1].bucketStart.getTime());
+    expect(result.salesTrend[0].bucketStart.getTime()).toBeLessThan(
+      result.salesTrend[1].bucketStart.getTime(),
+    );
   });
 
   it('topSelling tie-breaker omzet tertinggi ketika unitsSold sama', () => {
@@ -184,14 +195,28 @@ describe('buildBusinessDashboardData', () => {
           transactionId: 'tx-1',
           occurredAt: new Date('2026-08-15T08:00:00.000Z'),
           total: '100.00',
-          items: [{ productId: 'p1', productNameSnapshot: 'Alpha', quantity: 2, subtotal: '100.00' }],
+          items: [
+            {
+              productId: 'p1',
+              productNameSnapshot: 'Alpha',
+              quantity: 2,
+              subtotal: '100.00',
+            },
+          ],
         },
         {
           outletId: 'outlet-1',
           transactionId: 'tx-2',
           occurredAt: new Date('2026-08-15T09:00:00.000Z'),
           total: '200.00',
-          items: [{ productId: 'p2', productNameSnapshot: 'Beta', quantity: 2, subtotal: '200.00' }],
+          items: [
+            {
+              productId: 'p2',
+              productNameSnapshot: 'Beta',
+              quantity: 2,
+              subtotal: '200.00',
+            },
+          ],
         },
       ],
       products: [
@@ -216,14 +241,28 @@ describe('buildBusinessDashboardData', () => {
           transactionId: 'tx-1',
           occurredAt: new Date('2026-08-15T08:00:00.000Z'),
           total: '100.00',
-          items: [{ productId: 'p1', productNameSnapshot: 'Zebra', quantity: 1, subtotal: '100.00' }],
+          items: [
+            {
+              productId: 'p1',
+              productNameSnapshot: 'Zebra',
+              quantity: 1,
+              subtotal: '100.00',
+            },
+          ],
         },
         {
           outletId: 'outlet-1',
           transactionId: 'tx-2',
           occurredAt: new Date('2026-08-15T09:00:00.000Z'),
           total: '100.00',
-          items: [{ productId: 'p2', productNameSnapshot: 'Alpha', quantity: 1, subtotal: '100.00' }],
+          items: [
+            {
+              productId: 'p2',
+              productNameSnapshot: 'Alpha',
+              quantity: 1,
+              subtotal: '100.00',
+            },
+          ],
         },
       ],
       products: [
@@ -248,8 +287,18 @@ describe('buildBusinessDashboardData', () => {
           occurredAt: new Date('2026-08-15T08:00:00.000Z'),
           total: '300.00',
           items: [
-            { productId: 'p1', productNameSnapshot: 'P1', quantity: 5, subtotal: '300.00' },
-            { productId: 'p2', productNameSnapshot: 'P2', quantity: 5, subtotal: '100.00' },
+            {
+              productId: 'p1',
+              productNameSnapshot: 'P1',
+              quantity: 5,
+              subtotal: '300.00',
+            },
+            {
+              productId: 'p2',
+              productNameSnapshot: 'P2',
+              quantity: 5,
+              subtotal: '100.00',
+            },
           ],
         },
       ],
@@ -295,7 +344,10 @@ describe('buildBusinessDashboardData', () => {
       limit: 10,
     });
     expect(result.salesTrend).toHaveLength(1);
-    expect(result.salesTrend[0]).toMatchObject({ omzet: '30.00', transactionCount: 2 });
+    expect(result.salesTrend[0]).toMatchObject({
+      omzet: '30.00',
+      transactionCount: 2,
+    });
   });
 
   it('memotong topSelling dan leastSelling sesuai limit', () => {
@@ -304,11 +356,21 @@ describe('buildBusinessDashboardData', () => {
       transactionId: `tx-${i}`,
       occurredAt: new Date('2026-08-15T08:00:00.000Z'),
       total: '10.00',
-      items: [{ productId: `p${i}`, productNameSnapshot: `P${i}`, quantity: 1, subtotal: '10.00' }],
+      items: [
+        {
+          productId: `p${i}`,
+          productNameSnapshot: `P${i}`,
+          quantity: 1,
+          subtotal: '10.00',
+        },
+      ],
     }));
-    const products = Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `P${i}` }));
+    const products = Array.from({ length: 5 }, (_, i) => ({
+      id: `p${i}`,
+      name: `P${i}`,
+    }));
     const result = buildBusinessDashboardData({
-      facts: facts as never,
+      facts,
       products,
       outlets: [{ id: 'outlet-1', name: 'A' }],
       timezone: 'Asia/Jakarta',

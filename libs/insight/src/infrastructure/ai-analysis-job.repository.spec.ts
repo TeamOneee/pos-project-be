@@ -75,14 +75,28 @@ describe('AiAnalysisJobRepository', () => {
       ...job,
       state: 'FAILED',
     });
-    const updated = { ...job, state: 'PENDING', attempts: 0, nextRetryAt: null, errorCategory: null };
+    const updated = {
+      ...job,
+      state: 'PENDING',
+      attempts: 0,
+      nextRetryAt: null,
+      errorCategory: null,
+    };
     prisma.aiAnalysisJob.update.mockResolvedValue(updated);
     await expect(
       repository.createOrFindDaily('merchant-1', job.analysisDate),
-    ).resolves.toMatchObject({ created: true, job: { state: 'PENDING', attempts: 0 } });
+    ).resolves.toMatchObject({
+      created: true,
+      job: { state: 'PENDING', attempts: 0 },
+    });
     expect(prisma.aiAnalysisJob.update).toHaveBeenCalledWith({
       where: { id: 'job-1' },
-      data: { state: 'PENDING', attempts: 0, nextRetryAt: null, errorCategory: null },
+      data: {
+        state: 'PENDING',
+        attempts: 0,
+        nextRetryAt: null,
+        errorCategory: null,
+      },
     });
   });
 
@@ -93,7 +107,9 @@ describe('AiAnalysisJobRepository', () => {
     });
     prisma.aiAnalysisJob.create.mockRejectedValue(err);
     prisma.aiAnalysisJob.findUnique.mockResolvedValue(null);
-    await expect(repository.createOrFindDaily('merchant-1', job.analysisDate)).rejects.toBe(err);
+    await expect(
+      repository.createOrFindDaily('merchant-1', job.analysisDate),
+    ).rejects.toBe(err);
   });
 
   it('conflict unique P2002 tetapi findUnique mengembalikan job lain tetap false', async () => {
