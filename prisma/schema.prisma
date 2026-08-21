@@ -284,6 +284,8 @@ model Transaction {
   @@unique([merchantId, checkoutRequestId]) // DR-014
   @@unique([merchantId, transactionNumber]) // DR-003
   @@index([merchantId, outletId, createdAt])
+  @@index([merchantId, status, paidAt]) // opt: dashboard/insight scan by paid_at (FR-REP) + reporting cache
+  @@index([merchantId, outletId, paidAt]) // opt: per-outlet dashboard
   @@map("transaction")
 }
 
