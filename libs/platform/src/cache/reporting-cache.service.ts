@@ -58,7 +58,8 @@ export class ReportingCacheService
         maxRetriesPerRequest: 1,
         connectTimeout: 3000,
         enableReadyCheck: true,
-        retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1000)),
+        retryStrategy: (times) =>
+          times > 3 ? null : Math.min(times * 200, 1000),
       });
       // eager connect di background, jangan block bootstrap tapi hilangkan 5s lazy penalty di hit pertama
       this.redis.connect().catch(() => {});
@@ -192,7 +193,8 @@ export class ReportingCacheService
         const mem = this.readMemory(key);
         if (!mem) return undefined;
         const parsed = JSON.parse(mem) as ReportingCacheEntry<T>;
-        if (!parsed || typeof parsed.dataUpdatedAt !== 'string') return undefined;
+        if (!parsed || typeof parsed.dataUpdatedAt !== 'string')
+          return undefined;
         return parsed;
       } catch {
         return undefined;

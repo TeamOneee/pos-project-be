@@ -201,7 +201,10 @@ export class DashboardQueryService extends ReportingReadPort {
       request.dateTo.toISOString(),
       timezone,
     ].join(':');
-    const stale = await this.cache.getStale<import('@app/sales').CompletedTransactionFact[]>(factsKey);
+    const stale =
+      await this.cache.getStale<
+        import('@app/sales').CompletedTransactionFact[]
+      >(factsKey);
     try {
       const result = await this.cache.getOrLoad(factsKey, () =>
         this.salesRead.listCompletedTransactionFacts({

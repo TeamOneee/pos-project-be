@@ -57,7 +57,7 @@ export class AiAnalysisJobRepository {
         where: { merchantId_analysisDate: { merchantId, analysisDate } },
       });
       if (!job) throw error;
-      
+
       // Jika job hari ini gagal, izinkan user untuk men-trigger ulang (retry)
       if (job.state === 'FAILED') {
         const updatedJob = await this.prisma.aiAnalysisJob.update({
@@ -71,7 +71,7 @@ export class AiAnalysisJobRepository {
         });
         return { job: toResult(updatedJob), created: true };
       }
-      
+
       return { job: toResult(job), created: false };
     }
   }

@@ -234,7 +234,7 @@ export class LlmInsightAdapter extends AiProviderPort {
         'Provider insight tidak dapat dihubungi.',
       );
     }
-    const axiosError = error as AxiosError;
+    const axiosError = error;
     if (
       axiosError.code === 'ECONNABORTED' ||
       axiosError.code === 'ERR_CANCELED'
