@@ -437,18 +437,26 @@ async function main() {
   await prisma.aiInsight.createMany({ data: insights });
   console.log('✅ AI Jobs (3) & Insights (5) — dashboard insight siap diakses owner');
 
-  const summary = await Promise.all([
-    prisma.user.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.outlet.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.category.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.product.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.inventory.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.stockMovement.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.transaction.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.transactionItem.count({ where: { transaction: { merchantId: MERCHANT_ID } } }),
-    prisma.aiAnalysisJob.count({ where: { merchantId: MERCHANT_ID } }),
-    prisma.aiInsight.count({ where: { merchantId: MERCHANT_ID } }),
-  ]);
+  // ringkasan — jangan gagalkan seed kalau Neon sleep / P1001 di hit terakhir
+  let summary: (number | string)[] = [];
+  try {
+    summary = await Promise.all([
+      prisma.user.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.outlet.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.category.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.product.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.inventory.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.stockMovement.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.transaction.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.transactionItem.count({ where: { transaction: { merchantId: MERCHANT_ID } } }),
+      prisma.aiAnalysisJob.count({ where: { merchantId: MERCHANT_ID } }),
+      prisma.aiInsight.count({ where: { merchantId: MERCHANT_ID } }),
+    ]);
+  } catch (e) {
+    console.warn('⚠️ Ringkasan hitung gagal (Neon sleep/P1001) — data seed sudah tersimpan, cek manual:');
+    console.warn(e);
+    summary = Array(10).fill('?');
+  }
   const [users, outlets, categories, products, invCount, movCount, txns, itemCount, jobs, insightsCount] = summary;
   console.log('🎉 Seeding ringkas selesai — mudah di-tracking');
   console.log('────────────────────────────────────────────');
