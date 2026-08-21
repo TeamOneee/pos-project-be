@@ -82,4 +82,51 @@ describe('ReportingCacheService', () => {
     expect(result.source).toBe('COMPUTED');
     expect(result.entry.data).toEqual({ data: 'fresh' });
   });
+
+  it('fallback ke memory saat redis get error', async () => {
+    const cache = new ReportingCacheService({
+      get: jest.fn().mockReturnValue('redis://test'),
+    } as never);
+    // mock redis yang error
+    (cache as unknown as { redis: unknown }).redis = {
+      get: jest.fn().mockRejectedValue(new Error('redis down')),
+      set: jest.fn().mockResolvedValue('OK'),
+      status: 'ready',
+    };
+    // isi memory manual
+    const mem = (
+      cache as unknown as {
+        memory: Map<string, { value: string; expiresAt: number }>;
+      }
+    ).memory;
+    const key = 'reporting:fresh:fallback-key';
+    mem.set(key, {
+      value: JSON.stringify({
+        data: { v: 42 },
+        dataUpdatedAt: new Date().toISOString(),
+      }),
+      expiresAt: Date.now() + 10000,
+    });
+    await expect(cache.getFresh('fallback-key')).resolves.toMatchObject({
+      data: { v: 42 },
+    });
+  });
+
+  it('write fallback ke memory saat redis set error', async () => {
+    const cache = new ReportingCacheService({
+      get: jest.fn().mockReturnValue('redis://test'),
+    } as never);
+    (cache as unknown as { redis: unknown }).redis = {
+      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockRejectedValue(new Error('redis down')),
+      status: 'ready',
+    };
+    const result = await cache.getOrLoad('write-fallback', () =>
+      Promise.resolve({ a: 1 }),
+    );
+    expect(result.source).toBe('COMPUTED');
+    // next hit harus dari memory walau redis set gagal
+    const second = await cache.getFresh('write-fallback');
+    expect(second).toBeDefined();
+  });
 });
