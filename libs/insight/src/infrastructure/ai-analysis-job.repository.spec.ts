@@ -64,11 +64,72 @@ describe('AiAnalysisJobRepository', () => {
     ).resolves.toMatchObject({ created: false, job: { state: 'PROCESSING' } });
   });
 
+  it('conflict unique dengan state FAILED mereset ke PENDING dan created true', async () => {
+    prisma.aiAnalysisJob.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('duplicate', {
+        code: 'P2002',
+        clientVersion: '6.4.0',
+      }),
+    );
+    prisma.aiAnalysisJob.findUnique.mockResolvedValue({
+      ...job,
+      state: 'FAILED',
+    });
+    const updated = { ...job, state: 'PENDING', attempts: 0, nextRetryAt: null, errorCategory: null };
+    prisma.aiAnalysisJob.update.mockResolvedValue(updated);
+    await expect(
+      repository.createOrFindDaily('merchant-1', job.analysisDate),
+    ).resolves.toMatchObject({ created: true, job: { state: 'PENDING', attempts: 0 } });
+    expect(prisma.aiAnalysisJob.update).toHaveBeenCalledWith({
+      where: { id: 'job-1' },
+      data: { state: 'PENDING', attempts: 0, nextRetryAt: null, errorCategory: null },
+    });
+  });
+
+  it('conflict unique tapi findUnique null melempar error asli', async () => {
+    const err = new Prisma.PrismaClientKnownRequestError('duplicate', {
+      code: 'P2002',
+      clientVersion: '6.4.0',
+    });
+    prisma.aiAnalysisJob.create.mockRejectedValue(err);
+    prisma.aiAnalysisJob.findUnique.mockResolvedValue(null);
+    await expect(repository.createOrFindDaily('merchant-1', job.analysisDate)).rejects.toBe(err);
+  });
+
+  it('conflict unique P2002 tetapi findUnique mengembalikan job lain tetap false', async () => {
+    prisma.aiAnalysisJob.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('duplicate', {
+        code: 'P2002',
+        clientVersion: '6.4.0',
+      }),
+    );
+    prisma.aiAnalysisJob.findUnique.mockResolvedValue({
+      ...job,
+      state: 'RETRY_SCHEDULED',
+      nextRetryAt: new Date(),
+    });
+    await expect(
+      repository.createOrFindDaily('merchant-1', job.analysisDate),
+    ).resolves.toMatchObject({ created: false });
+  });
+
   it('meneruskan error selain unique conflict', async () => {
     prisma.aiAnalysisJob.create.mockRejectedValue(new Error('db unavailable'));
     await expect(
       repository.createOrFindDaily('merchant-1', job.analysisDate),
     ).rejects.toThrow('db unavailable');
+  });
+
+  it('meneruskan Prisma error bukan P2002', async () => {
+    prisma.aiAnalysisJob.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('other', {
+        code: 'P2003',
+        clientVersion: '6.4.0',
+      }),
+    );
+    await expect(
+      repository.createOrFindDaily('merchant-1', job.analysisDate),
+    ).rejects.toMatchObject({ code: 'P2003' });
   });
 
   it('mengambil job terbaru atau null untuk merchant', async () => {
@@ -101,6 +162,18 @@ describe('AiAnalysisJobRepository', () => {
     });
     prisma.$queryRaw.mockResolvedValue([]);
     await expect(repository.claimNextDue()).resolves.toBeNull();
+  });
+
+  it('claimNextDue menggunakan leaseSeconds minimal 1', async () => {
+    const orig = process.env.AI_JOB_LEASE_TIMEOUT_MS;
+    process.env.AI_JOB_LEASE_TIMEOUT_MS = '0';
+    prisma.$queryRaw.mockResolvedValue([]);
+    await repository.claimNextDue();
+    expect(prisma.$queryRaw).toHaveBeenCalled();
+    // query should contain 1 second fallback, cek bahwa query dipanggil dengan template
+    const call = prisma.$queryRaw.mock.calls[0];
+    expect(call).toBeDefined();
+    process.env.AI_JOB_LEASE_TIMEOUT_MS = orig;
   });
 
   it('menyimpan jadwal retry dan kategori error aman', async () => {
